@@ -1,0 +1,103 @@
+// Design Tokens and Variables
+// Use-It-Up PWA Frontend
+
+// Color Palette
+:root {
+  // Freshness indicators
+  --color-fresh: #28a745;      // Green for >3 days
+  --color-warning: #ffc107;    // Yellow for 0-3 days
+  --color-expired: #dc3545;    // Red for expired
+
+  // Primary colors
+  --color-primary: #007bff;
+  --color-secondary: #6c757d;
+
+  // Backgrounds
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f8f9fa;
+
+  // Text colors
+  --color-text-primary: #212529;
+  --color-text-secondary: #6c757d;
+  --color-text-light: #ffffff;
+
+  // Border colors
+  --color-border: #dee2e6;
+  --color-border-light: #e9ecef;
+}
+
+// Typography Scale
+:root {
+  --font-size-xs: 0.75rem;    // 12px
+  --font-size-sm: 0.875rem;   // 14px
+  --font-size-base: 1rem;     // 16px
+  --font-size-lg: 1.25rem;    // 20px
+  --font-size-xl: 1.5rem;     // 24px
+  --font-size-xxl: 2rem;      // 32px
+
+  // Font weights
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  // Line heights
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+}
+
+// Spacing System
+:root {
+  --spacing-xs: 0.25rem;   // 4px
+  --spacing-sm: 0.5rem;    // 8px
+  --spacing-md: 1rem;      // 16px
+  --spacing-lg: 1.5rem;    // 24px
+  --spacing-xl: 2rem;      // 32px
+  --spacing-xxl: 3rem;     // 48px
+}
+
+// Border Radius
+:root {
+  --border-radius-sm: 0.25rem;  // 4px
+  --border-radius-md: 0.5rem;   // 8px
+  --border-radius-lg: 0.75rem;  // 12px
+  --border-radius-xl: 1rem;     // 16px
+}
+
+// Shadows
+:root {
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+// Responsive Breakpoints
+:root {
+  --breakpoint-mobile: 576px;
+  --breakpoint-tablet: 768px;
+  --breakpoint-desktop: 1024px;
+}
+
+// Z-index scale
+:root {
+  --z-index-dropdown: 1000;
+  --z-index-sticky: 1020;
+  --z-index-fixed: 1030;
+  --z-index-modal-backdrop: 1040;
+  --z-index-modal: 1050;
+  --z-index-popover: 1060;
+  --z-index-tooltip: 1070;
+}
+
+// Animation durations
+:root {
+  --duration-fast: 150ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
+}
+
+// Touch target minimum size (accessibility)
+:root {
+  --touch-target-min: 44px;
+}

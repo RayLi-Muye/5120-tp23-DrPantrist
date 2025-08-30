@@ -1,0 +1,7 @@
+// Main SCSS Entry Point
+// Use-It-Up PWA Frontend
+
+// Import all style modules
+@use './variables.scss';
+@use './base.scss';
+@use './components.scss';

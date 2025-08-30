@@ -1,0 +1,317 @@
+<template>
+  <div class="inventory-view">
+    <header class="inventory-header">
+      <button @click="goBack" class="back-button" aria-label="Go back">
+        ← Back
+      </button>
+      <h1>Inventory</h1>
+    </header>
+
+    <main class="inventory-main">
+      <!-- Filter Section -->
+      <section class="inventory-filters">
+        <!-- InventoryFilter component will be added in later tasks -->
+        <div class="filters-placeholder">
+          <p>Filter tabs (All/Fresh/Warning/Expired) will be displayed here</p>
+        </div>
+      </section>
+
+      <!-- Loading State -->
+      <div v-if="inventoryStore.isLoading && !inventoryStore.items.length" class="loading-state">
+        <div class="loading" />
+        <p>Loading your inventory...</p>
+      </div>
+
+      <!-- Error State -->
+      <div v-else-if="inventoryStore.error" class="error-state">
+        <p class="error-message">{{ inventoryStore.error }}</p>
+        <button @click="handleRetry" class="btn btn--secondary">
+          Try Again
+        </button>
+      </div>
+
+      <!-- Inventory List Section -->
+      <section v-else-if="inventoryStore.activeItems.length > 0" class="inventory-list">
+        <InventoryItem
+          v-for="item in inventoryStore.itemsByFilter"
+          :key="item.id"
+          :item="item"
+          :is-loading="loadingItemId === item.id"
+          @item-used="handleItemUsed"
+        />
+      </section>
+
+      <!-- Empty State -->
+      <div v-else class="empty-state">
+        <div class="empty-state__icon">📦</div>
+        <h2 class="empty-state__title">No items in your inventory</h2>
+        <p class="empty-state__description">
+          Start by adding some groceries to track their freshness and reduce waste.
+        </p>
+        <router-link to="/add-item" class="btn btn--primary btn--lg">
+          Add Your First Item
+        </router-link>
+      </div>
+    </main>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import InventoryItem from '@/components/inventory/InventoryItem.vue'
+import { useInventoryStore } from '@/stores/inventory'
+import { useImpactStore } from '@/stores/impact'
+
+const router = useRouter()
+const inventoryStore = useInventoryStore()
+const impactStore = useImpactStore()
+
+// Local state for tracking loading states
+const loadingItemId = ref<string | null>(null)
+
+// Mock user ID - in a real app this would come from auth
+const currentUserId = 'demo-user-123'
+
+const goBack = () => {
+  // Check if there's history to go back to, otherwise go to dashboard
+  if (window.history.length > 1) {
+    router.back()
+  } else {
+    router.push('/')
+  }
+}
+
+const handleItemUsed = async (itemId: string) => {
+  if (loadingItemId.value) return // Prevent multiple simultaneous requests
+
+  loadingItemId.value = itemId
+
+  try {
+    // Mark item as used and get impact data
+    const impactData = await inventoryStore.markItemAsUsed(itemId)
+
+    if (impactData) {
+      // Update total impact in impact store
+      impactStore.updateTotalImpact(impactData)
+
+      // Show impact card with the returned data
+      impactStore.showImpact(impactData)
+    }
+  } catch (error) {
+    console.error('Failed to mark item as used:', error)
+    // Error is already handled in the store
+  } finally {
+    loadingItemId.value = null
+  }
+}
+
+const handleRetry = () => {
+  inventoryStore.clearError()
+  inventoryStore.fetchInventory(currentUserId, true) // Force refresh
+}
+
+// Load inventory on mount
+onMounted(() => {
+  inventoryStore.fetchInventory(currentUserId)
+})
+</script>
+
+<style scoped>
+.inventory-view {
+  padding: var(--spacing-md);
+  min-height: 100vh;
+}
+
+.inventory-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+  position: relative;
+}
+
+.back-button {
+  background: none;
+  border: none;
+  font-size: var(--font-size-lg);
+  color: var(--color-primary);
+  cursor: pointer;
+  padding: var(--spacing-sm);
+  margin-right: var(--spacing-md);
+  border-radius: var(--border-radius-md);
+  min-height: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color var(--duration-fast) ease;
+}
+
+.back-button:hover {
+  background: var(--color-bg-secondary);
+}
+
+.inventory-header h1 {
+  font-size: var(--font-size-xl);
+  color: var(--color-primary);
+  margin: 0;
+}
+
+.inventory-main {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.inventory-filters {
+  margin-bottom: var(--spacing-lg);
+}
+
+.filters-placeholder {
+  padding: var(--spacing-lg);
+  background: var(--color-bg-secondary);
+  border-radius: var(--border-radius-lg);
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+/* Loading State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-xxl);
+  text-align: center;
+}
+
+.loading-state p {
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+/* Error State */
+.error-state {
+  text-align: center;
+  padding: var(--spacing-xl);
+  background-color: rgba(220, 53, 69, 0.1);
+  border: 1px solid rgba(220, 53, 69, 0.2);
+  border-radius: var(--border-radius-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.error-message {
+  color: var(--color-expired);
+  margin-bottom: var(--spacing-md);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Inventory List */
+.inventory-list {
+  /* Items have their own margins, no additional spacing needed */
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: var(--spacing-xxl) var(--spacing-md);
+}
+
+.empty-state__icon {
+  font-size: 4rem;
+  margin-bottom: var(--spacing-lg);
+  opacity: 0.6;
+}
+
+.empty-state__title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-md);
+}
+
+.empty-state__description {
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-xl);
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Button Styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  text-align: center;
+  text-decoration: none;
+  border: 1px solid transparent;
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  transition: all var(--duration-fast) ease;
+  min-height: var(--touch-target-min);
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.btn--primary {
+  color: var(--color-text-light);
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+
+  &:hover:not(:disabled) {
+    background-color: #0056b3;
+    border-color: #0056b3;
+  }
+}
+
+.btn--secondary {
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-secondary);
+  border-color: var(--color-border);
+
+  &:hover:not(:disabled) {
+    background-color: #e2e6ea;
+    border-color: #dae0e5;
+  }
+}
+
+.btn--lg {
+  padding: var(--spacing-md) var(--spacing-lg);
+  font-size: var(--font-size-lg);
+  min-height: 52px;
+}
+
+/* Responsive Design */
+@media (max-width: 480px) {
+  .inventory-view {
+    padding: var(--spacing-sm);
+  }
+
+  .inventory-header {
+    margin-bottom: var(--spacing-md);
+  }
+
+  .inventory-filters {
+    margin-bottom: var(--spacing-md);
+  }
+
+  .empty-state {
+    padding: var(--spacing-xl) var(--spacing-sm);
+  }
+
+  .empty-state__icon {
+    font-size: 3rem;
+  }
+
+  .empty-state__title {
+    font-size: var(--font-size-lg);
+  }
+}
+</style>
