@@ -56,6 +56,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGroceriesStore } from '@/stores/groceries'
 import { useInventoryStore } from '@/stores/inventory'
+import { useAuthStore } from '@/stores/auth'
 import GroceryGrid from '@/components/inventory/GroceryGrid.vue'
 import AddItemForm from '@/components/inventory/AddItemForm.vue'
 import type { GroceryItem } from '@/stores/groceries'
@@ -64,15 +65,13 @@ import { formatDateForAPI } from '@/utils/dateHelpers'
 const router = useRouter()
 const groceriesStore = useGroceriesStore()
 const inventoryStore = useInventoryStore()
+const authStore = useAuthStore()
 
 // Component state
 const currentStep = ref(1)
 const selectedGrocery = ref<GroceryItem | null>(null)
 const isSubmitting = ref(false)
 const error = ref<string | null>(null)
-
-// TODO: Replace with actual user ID from auth system
-const currentUserId = 'demo-user-001'
 
 const goBack = () => {
   if (currentStep.value > 1) {
@@ -98,6 +97,11 @@ const handleFormSubmit = async (formData: { quantity: number; expiryDate: string
     return
   }
 
+  if (!authStore.user) {
+    error.value = 'User not authenticated. Please log in again.'
+    return
+  }
+
   isSubmitting.value = true
   error.value = null
 
@@ -106,7 +110,7 @@ const handleFormSubmit = async (formData: { quantity: number; expiryDate: string
     const expiryDate = new Date(formData.expiryDate)
 
     const addItemRequest = {
-      userId: currentUserId,
+      userId: authStore.user.id,
       itemId: selectedGrocery.value.id,
       quantity: formData.quantity,
       customExpiryDate: formatDateForAPI(expiryDate),

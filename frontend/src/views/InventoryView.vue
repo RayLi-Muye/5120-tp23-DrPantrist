@@ -1,13 +1,16 @@
 <template>
   <div class="inventory-view">
     <header class="inventory-header">
-      <button @click="goBack" class="back-button" aria-label="Go back">
-        ← Back
-      </button>
+      <button @click="goBack" class="back-button" aria-label="Go back">← Back</button>
       <h1>Inventory</h1>
     </header>
 
     <main class="inventory-main">
+      <!-- Impact Statistics -->
+      <section class="impact-section">
+        <ImpactStats />
+      </section>
+
       <!-- Filter Section -->
       <section class="inventory-filters">
         <InventoryFilter />
@@ -24,7 +27,11 @@
       <!-- Error State -->
       <RetryAction
         v-else-if="inventoryStore.error"
-        :title="errorHandling.errorState.errorType === 'network' ? 'Connection Problem' : 'Loading Failed'"
+        :title="
+          errorHandling.errorState.value.errorType === 'network'
+            ? 'Connection Problem'
+            : 'Loading Failed'
+        "
         :message="errorHandling.getUserFriendlyMessage()"
         :show-cancel="false"
         @retry="handleRetry"
@@ -68,121 +75,127 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import InventoryItem from '@/components/inventory/InventoryItem.vue'
-import InventoryFilter from '@/components/inventory/InventoryFilter.vue'
-import LoadingState from '@/components/common/LoadingState.vue'
-import RetryAction from '@/components/common/RetryAction.vue'
-import { useInventoryStore } from '@/stores/inventory'
-import { useImpactStore } from '@/stores/impact'
-import { useErrorHandling } from '@/composables/useErrorHandling'
+import { ref, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import InventoryItem from "@/components/inventory/InventoryItem.vue";
+import InventoryFilter from "@/components/inventory/InventoryFilter.vue";
+import ImpactStats from "@/components/inventory/ImpactStats.vue";
+import LoadingState from "@/components/common/LoadingState.vue";
+import RetryAction from "@/components/common/RetryAction.vue";
+import { useInventoryStore } from "@/stores/inventory";
+import { useImpactStore } from "@/stores/impact";
+import { useAuthStore } from "@/stores/auth";
+import { useErrorHandling } from "@/composables/useErrorHandling";
 
-const router = useRouter()
-const inventoryStore = useInventoryStore()
-const impactStore = useImpactStore()
+const router = useRouter();
+const inventoryStore = useInventoryStore();
+const impactStore = useImpactStore();
+const authStore = useAuthStore();
 
 // Error handling
 const errorHandling = useErrorHandling({
   showNotifications: false, // We'll show errors inline
   onRetry: () => {
-    inventoryStore.fetchInventory(currentUserId, true)
-  }
-})
+    if (authStore.user) {
+      inventoryStore.fetchInventory(authStore.user.id, true);
+    }
+  },
+});
 
 // Local state for tracking loading states
-const loadingItemId = ref<string | null>(null)
-
-// Mock user ID - in a real app this would come from auth
-const currentUserId = 'demo-user-123'
+const loadingItemId = ref<string | null>(null);
 
 const goBack = () => {
   // Check if there's history to go back to, otherwise go to dashboard
   if (window.history.length > 1) {
-    router.back()
+    router.back();
   } else {
-    router.push('/')
+    router.push("/");
   }
-}
+};
 
 const handleItemUsed = async (itemId: string) => {
-  if (loadingItemId.value) return // Prevent multiple simultaneous requests
+  if (loadingItemId.value) return; // Prevent multiple simultaneous requests
 
-  loadingItemId.value = itemId
+  loadingItemId.value = itemId;
 
   const impactData = await errorHandling.executeWithErrorHandling(
     () => inventoryStore.markItemAsUsed(itemId),
-    'mark item as used'
-  )
+    "mark item as used"
+  );
 
   if (impactData) {
     // Update total impact in impact store
-    impactStore.updateTotalImpact(impactData)
+    impactStore.updateTotalImpact(impactData);
 
     // Show impact card with the returned data
-    impactStore.showImpact(impactData)
+    impactStore.showImpact(impactData);
   }
 
-  loadingItemId.value = null
-}
+  loadingItemId.value = null;
+};
 
 const handleRetry = async () => {
-  inventoryStore.clearError()
-  errorHandling.clearError()
+  inventoryStore.clearError();
+  errorHandling.clearError();
 
-  await errorHandling.executeWithErrorHandling(
-    () => inventoryStore.fetchInventory(currentUserId, true),
-    'load your inventory'
-  )
-}
+  if (authStore.user) {
+    await errorHandling.executeWithErrorHandling(
+      () => inventoryStore.fetchInventory(authStore.user!.id, true),
+      "load your inventory"
+    );
+  }
+};
 
 // Empty state helpers
 const getEmptyStateIcon = () => {
   switch (inventoryStore.currentFilter) {
-    case 'fresh':
-      return '🥬'
-    case 'warning':
-      return '⚠️'
-    case 'expired':
-      return '🗑️'
+    case "fresh":
+      return "🥬";
+    case "warning":
+      return "⚠️";
+    case "expired":
+      return "🗑️";
     default:
-      return '📦'
+      return "📦";
   }
-}
+};
 
 const getEmptyStateTitle = () => {
   switch (inventoryStore.currentFilter) {
-    case 'fresh':
-      return 'No fresh items'
-    case 'warning':
-      return 'No items expiring soon'
-    case 'expired':
-      return 'No expired items'
+    case "fresh":
+      return "No fresh items";
+    case "warning":
+      return "No items expiring soon";
+    case "expired":
+      return "No expired items";
     default:
-      return 'No items in your inventory'
+      return "No items in your inventory";
   }
-}
+};
 
 const getEmptyStateDescription = () => {
   switch (inventoryStore.currentFilter) {
-    case 'fresh':
-      return 'You don\'t have any fresh items at the moment. Items with more than 3 days until expiry will appear here.'
-    case 'warning':
-      return 'Great! You don\'t have any items expiring in the next 3 days.'
-    case 'expired':
-      return 'Excellent! You don\'t have any expired items. Keep up the good work!'
+    case "fresh":
+      return "You don't have any fresh items at the moment. Items with more than 3 days until expiry will appear here.";
+    case "warning":
+      return "Great! You don't have any items expiring in the next 3 days.";
+    case "expired":
+      return "Excellent! You don't have any expired items. Keep up the good work!";
     default:
-      return 'Start by adding some groceries to track their freshness and reduce waste.'
+      return "Start by adding some groceries to track their freshness and reduce waste.";
   }
-}
+};
 
 // Load inventory on mount
 onMounted(async () => {
-  await errorHandling.executeWithErrorHandling(
-    () => inventoryStore.fetchInventory(currentUserId),
-    'load your inventory'
-  )
-})
+  if (authStore.user) {
+    await errorHandling.executeWithErrorHandling(
+      () => inventoryStore.fetchInventory(authStore.user!.id),
+      "load your inventory"
+    );
+  }
+});
 </script>
 
 <style scoped>
@@ -230,11 +243,13 @@ onMounted(async () => {
   margin: 0 auto;
 }
 
-.inventory-filters {
+.impact-section {
   margin-bottom: var(--spacing-lg);
 }
 
-
+.inventory-filters {
+  margin-bottom: var(--spacing-lg);
+}
 
 /* Loading State */
 .loading-state {

@@ -199,4 +199,129 @@ describe('ImpactCard', () => {
     expect(currentWidth).toMatch(/width: \d+(\.\d+)?%/)
     expect(parseFloat(currentWidth.match(/width: (\d+(?:\.\d+)?)%/)?.[1] || '100')).toBeLessThan(100)
   })
+
+  it('displays correct motivational message', () => {
+    const customMessage = 'Awesome work!'
+    const wrapper = mount(ImpactCard, {
+      props: {
+        visible: true,
+        impact: mockImpact,
+        motivationalMessage: customMessage
+      }
+    })
+
+    expect(document.body.textContent).toContain(customMessage)
+  })
+
+  it('shows celebration icon and animation elements', () => {
+    const wrapper = mount(ImpactCard, {
+      props: {
+        visible: true,
+        impact: mockImpact,
+        motivationalMessage: 'Great job!'
+      }
+    })
+
+    // Check for celebration elements in the DOM
+    expect(document.body.textContent).toContain('🎉')
+    expect(document.body.textContent).toContain('Great job!')
+  })
+
+  it('displays impact metrics with correct icons', () => {
+    const wrapper = mount(ImpactCard, {
+      props: {
+        visible: true,
+        impact: mockImpact,
+        motivationalMessage: 'Great job!'
+      }
+    })
+
+    // Check for money and CO2 icons and values
+    expect(document.body.textContent).toContain('💰')
+    expect(document.body.textContent).toContain('🌱')
+    expect(document.body.textContent).toContain('Money Saved')
+    expect(document.body.textContent).toContain('CO₂ Avoided')
+  })
+
+  it('handles different impact data formats', () => {
+    const differentImpact: FormattedImpactData = {
+      moneySaved: '$12.99',
+      co2Avoided: '500g CO₂',
+      co2Comparison: 'like planting a tree',
+      itemName: 'Organic Vegetables',
+      actionType: 'used'
+    }
+
+    const wrapper = mount(ImpactCard, {
+      props: {
+        visible: true,
+        impact: differentImpact,
+        motivationalMessage: 'Excellent!'
+      }
+    })
+
+    expect(document.body.textContent).toContain('$12.99')
+    expect(document.body.textContent).toContain('500g CO₂')
+    expect(document.body.textContent).toContain('like planting a tree')
+    expect(document.body.textContent).toContain('You used Organic Vegetables before it expired!')
+  })
+
+  it('resets timer when visibility changes', async () => {
+    const wrapper = mount(ImpactCard, {
+      props: {
+        visible: false,
+        impact: mockImpact,
+        motivationalMessage: 'Great job!'
+      }
+    })
+
+    // Make visible
+    await wrapper.setProps({ visible: true })
+    expect(wrapper.text()).toContain('Auto-closing in 3s')
+
+    // Make invisible
+    await wrapper.setProps({ visible: false })
+
+    // Make visible again - should reset to 3s
+    await wrapper.setProps({ visible: true })
+    expect(wrapper.text()).toContain('Auto-closing in 3s')
+  })
+
+  it('has proper ARIA attributes for accessibility', () => {
+    const wrapper = mount(ImpactCard, {
+      props: {
+        visible: true,
+        impact: mockImpact,
+        motivationalMessage: 'Great job!'
+      }
+    })
+
+    // Check for proper ARIA attributes in the DOM
+    const modalElement = document.querySelector('[role="dialog"]')
+    expect(modalElement).toBeTruthy()
+    expect(modalElement?.getAttribute('aria-labelledby')).toBe('impact-title')
+    expect(modalElement?.getAttribute('aria-describedby')).toBe('impact-description')
+  })
+
+  it('prevents event propagation when content is clicked', async () => {
+    const wrapper = mount(ImpactCard, {
+      props: {
+        visible: true,
+        impact: mockImpact,
+        motivationalMessage: 'Great job!'
+      }
+    })
+
+    // Create a mock event with stopPropagation
+    const mockEvent = {
+      stopPropagation: vi.fn()
+    }
+
+    // Find content element and trigger click with mock event
+    const contentElement = wrapper.find('.impact-modal__content')
+    await contentElement.trigger('click', mockEvent)
+
+    // Should not emit dismissed when content is clicked
+    expect(wrapper.emitted('dismissed')).toBeFalsy()
+  })
 })

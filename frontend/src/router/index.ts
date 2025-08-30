@@ -1,8 +1,18 @@
 import { createRouter, createWebHistory } from "vue-router";
+import { useAuthStore } from '@/stores/auth'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    {
+      path: "/auth",
+      name: "auth",
+      component: () => import("../views/AuthView.vue"),
+      meta: {
+        title: "Login - Use It Up",
+        requiresGuest: true,
+      },
+    },
     {
       path: "/",
       name: "dashboard",
@@ -10,7 +20,7 @@ const router = createRouter({
       component: () => import("../views/DashboardView.vue"),
       meta: {
         title: "Dashboard - Use It Up",
-        requiresAuth: false, // Will be updated when auth is implemented
+        requiresAuth: true,
       },
     },
     {
@@ -20,7 +30,7 @@ const router = createRouter({
       component: () => import("../views/InventoryView.vue"),
       meta: {
         title: "Inventory - Use It Up",
-        requiresAuth: false,
+        requiresAuth: true,
       },
     },
     {
@@ -30,7 +40,7 @@ const router = createRouter({
       component: () => import("../views/AddItemView.vue"),
       meta: {
         title: "Add Item - Use It Up",
-        requiresAuth: false,
+        requiresAuth: true,
       },
     },
     // Legacy routes for backward compatibility
@@ -44,6 +54,7 @@ const router = createRouter({
       component: () => import("../views/AboutView.vue"),
       meta: {
         title: "About - Use It Up",
+        requiresAuth: true,
       },
     },
     // Catch-all route for 404 handling
@@ -65,16 +76,30 @@ const router = createRouter({
 
 // Global navigation guards
 router.beforeEach((to, from, next) => {
+  const authStore = useAuthStore()
+
+  // Try to load saved user if not already loaded
+  if (!authStore.isAuthenticated) {
+    authStore.loadSavedUser()
+  }
+
   // Set document title
   if (to.meta.title) {
     document.title = to.meta.title as string;
   }
 
-  // Future: Authentication check
-  // if (to.meta.requiresAuth && !isAuthenticated()) {
-  //   next('/login')
-  //   return
-  // }
+  const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
+  const requiresGuest = to.matched.some(record => record.meta.requiresGuest)
+
+  if (requiresAuth && !authStore.isAuthenticated) {
+    // Redirect to auth page if authentication is required but user is not authenticated
+    next('/auth')
+    return
+  } else if (requiresGuest && authStore.isAuthenticated) {
+    // Redirect to home if guest page is accessed but user is authenticated
+    next('/')
+    return
+  }
 
   // Loading state management (can be used with a global store)
   // This helps with smooth transitions on mobile

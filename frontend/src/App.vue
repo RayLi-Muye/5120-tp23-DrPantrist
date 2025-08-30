@@ -1,13 +1,20 @@
 <script setup lang="ts">
 import { RouterView, useRouter } from 'vue-router'
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import ImpactCard from '@/components/impact/ImpactCard.vue'
 import ErrorBoundary from '@/components/common/ErrorBoundary.vue'
 import { useImpactStore } from '@/stores/impact'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const transitionName = ref('route')
 const impactStore = useImpactStore()
+const authStore = useAuthStore()
+
+// Initialize auth on app mount
+onMounted(() => {
+  authStore.loadSavedUser()
+})
 
 // Watch for route changes to determine transition direction
 watch(

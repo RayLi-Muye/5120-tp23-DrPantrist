@@ -1,8 +1,14 @@
 <template>
   <div class="dashboard-view">
     <header class="dashboard-header">
-      <h1>Use It Up</h1>
+      <h1>{{ userDisplayName }}</h1>
       <p class="subtitle">Your Food Waste Tracker</p>
+
+      <!-- User Info -->
+      <div v-if="authStore.user" class="user-info">
+        <span class="login-code">Code: {{ authStore.user.loginCode }}</span>
+        <button @click="logout" class="logout-btn">Logout</button>
+      </div>
 
       <!-- API Status (Development Only) -->
       <div v-if="apiStatus && isDevelopment()" class="api-status">
@@ -62,18 +68,23 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useInventoryStore } from '@/stores/inventory'
+import { useAuthStore } from '@/stores/auth'
 import InventorySummary from '@/components/common/InventorySummary.vue'
 import QuickActions from '@/components/common/QuickActions.vue'
 import inventoryAPI from '@/api/inventory'
 import { isDevelopment } from '@/config/environment'
 
+const router = useRouter()
 const inventoryStore = useInventoryStore()
-const apiStatus = ref<any>(null)
+const authStore = useAuthStore()
+const apiStatus = ref<{ mode: string } | null>(null)
 
-// Mock user ID for demo purposes
-const DEMO_USER_ID = 'demo-user-123'
+const userDisplayName = computed(() => {
+  return authStore.user?.inventoryName || 'Your Inventory'
+})
 
 const retryLoad = async () => {
   inventoryStore.clearError()
@@ -81,8 +92,13 @@ const retryLoad = async () => {
 }
 
 const loadInventory = async () => {
+  if (!authStore.user) {
+    console.error('No authenticated user found')
+    return
+  }
+
   try {
-    await inventoryStore.fetchInventory(DEMO_USER_ID)
+    await inventoryStore.fetchInventory(authStore.user.id)
 
     // Update API status for development display
     if (isDevelopment()) {
@@ -90,6 +106,18 @@ const loadInventory = async () => {
     }
   } catch (error) {
     console.error('Failed to load inventory:', error)
+  }
+}
+
+const logout = async () => {
+  try {
+    authStore.logout()
+    // Force immediate redirect to auth page
+    await router.replace('/auth')
+  } catch (error) {
+    console.error('Logout error:', error)
+    // Fallback: force redirect anyway
+    await router.replace('/auth')
   }
 }
 
@@ -119,6 +147,42 @@ onMounted(() => {
 .subtitle {
   color: var(--color-secondary);
   font-size: var(--font-size-sm);
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-sm);
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: var(--border-radius-md);
+}
+
+.login-code {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-family: monospace;
+  background: rgba(255, 255, 255, 0.2);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--border-radius-sm);
+}
+
+.logout-btn {
+  background: none;
+  border: 1px solid var(--color-text-secondary);
+  color: var(--color-text-secondary);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  transition: all var(--duration-fast) ease;
+}
+
+.logout-btn:hover {
+  background: var(--color-text-secondary);
+  color: white;
 }
 
 .dashboard-main {
