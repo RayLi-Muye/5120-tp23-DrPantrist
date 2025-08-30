@@ -1,14 +1,14 @@
 // HTTP Client Configuration
 // Use-It-Up PWA Frontend
 
-import axios, { type AxiosError, type AxiosRequestConfig, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
+import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { config, isDevelopment } from '../config/environment'
 
 // Enhanced error interface
 export interface APIError extends Error {
   status?: number
   code?: string
-  details?: any
+  details?: unknown
 }
 
 // Extend Axios config to include metadata
@@ -134,8 +134,9 @@ apiClient.interceptors.response.use(
     }
 
     // Create enhanced error object
+    const responseData = error.response?.data as { message?: string } | undefined
     const apiError: APIError = new Error(
-      (error.response?.data as any)?.message ||
+      responseData?.message ||
       error.message ||
       'An unexpected error occurred'
     )

@@ -5,6 +5,7 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import inventoryAPI, { type ImpactData, type TotalImpactData, InventoryAPIError } from '@/api/inventory'
 import { formatCurrency, formatCO2, getCO2Comparison } from '@/utils/formatters'
+import { handleAPIError, handleNetworkError } from '@/utils/errorHandler'
 
 export interface ImpactCardState {
   visible: boolean
@@ -126,12 +127,23 @@ export const useImpactStore = defineStore('impact', () => {
     try {
       const data = await inventoryAPI.getTotalImpact(userId)
       totalImpact.value = data
+
+      // Clear any previous errors on successful fetch
+      error.value = null
     } catch (err) {
+      const errorMessage = 'fetch your impact data'
+
       if (err instanceof InventoryAPIError) {
         error.value = err.message
+        handleAPIError(err, errorMessage)
+      } else if (err instanceof Error && err.message.includes('network')) {
+        error.value = 'Network error - using cached impact data if available'
+        handleNetworkError(err, errorMessage)
       } else {
         error.value = 'Failed to fetch impact data. Please try again.'
+        handleAPIError(err, errorMessage)
       }
+
       console.error('Failed to fetch total impact:', err)
     } finally {
       isLoadingTotal.value = false

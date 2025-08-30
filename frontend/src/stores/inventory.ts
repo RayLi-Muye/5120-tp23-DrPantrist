@@ -5,6 +5,7 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import inventoryAPI, { type InventoryItem, type AddItemRequest, type ImpactData, InventoryAPIError } from '@/api/inventory'
 import { calculateDaysUntilExpiry } from '@/utils/dateHelpers'
+import { handleAPIError, handleNetworkError } from '@/utils/errorHandler'
 import type { FreshnessStatus } from '@/composables/useExpiryStatus'
 
 export type FilterType = 'all' | 'fresh' | 'warning' | 'expired'
@@ -110,12 +111,23 @@ export const useInventoryStore = defineStore('inventory', () => {
       const data = await inventoryAPI.getInventory(userId)
       items.value = data
       lastFetch.value = Date.now()
+
+      // Clear any previous errors on successful fetch
+      error.value = null
     } catch (err) {
+      const errorMessage = 'fetch your inventory'
+
       if (err instanceof InventoryAPIError) {
         error.value = err.message
+        handleAPIError(err, errorMessage)
+      } else if (err instanceof Error && err.message.includes('network')) {
+        error.value = 'Network error - using cached data if available'
+        handleNetworkError(err, errorMessage)
       } else {
         error.value = 'Failed to fetch inventory. Please try again.'
+        handleAPIError(err, errorMessage)
       }
+
       console.error('Failed to fetch inventory:', err)
     } finally {
       isLoading.value = false
@@ -135,13 +147,24 @@ export const useInventoryStore = defineStore('inventory', () => {
       // Update cache timestamp
       lastFetch.value = Date.now()
 
+      // Clear any previous errors on successful add
+      error.value = null
+
       return newItem
     } catch (err) {
+      const errorMessage = 'add the item'
+
       if (err instanceof InventoryAPIError) {
         error.value = err.message
+        handleAPIError(err, errorMessage)
+      } else if (err instanceof Error && err.message.includes('network')) {
+        error.value = 'Network error - item not added'
+        handleNetworkError(err, errorMessage)
       } else {
         error.value = 'Failed to add item. Please try again.'
+        handleAPIError(err, errorMessage)
       }
+
       console.error('Failed to add item:', err)
       return null
     } finally {
@@ -153,11 +176,14 @@ export const useInventoryStore = defineStore('inventory', () => {
     isLoading.value = true
     error.value = null
 
+    // Store item reference for potential rollback
+    const itemIndex = items.value.findIndex(item => item.id === itemId)
+    const itemToRemove = itemIndex !== -1 ? items.value[itemIndex] : null
+
     try {
       const impactData = await inventoryAPI.markAsUsed(itemId)
 
       // Remove item from local state for immediate UI update
-      const itemIndex = items.value.findIndex(item => item.id === itemId)
       if (itemIndex !== -1) {
         items.value.splice(itemIndex, 1)
       }
@@ -165,13 +191,29 @@ export const useInventoryStore = defineStore('inventory', () => {
       // Update cache timestamp
       lastFetch.value = Date.now()
 
+      // Clear any previous errors on successful action
+      error.value = null
+
       return impactData
     } catch (err) {
+      // Rollback optimistic update on error
+      if (itemToRemove && itemIndex !== -1) {
+        items.value.splice(itemIndex, 0, itemToRemove)
+      }
+
+      const errorMessage = 'mark the item as used'
+
       if (err instanceof InventoryAPIError) {
         error.value = err.message
+        handleAPIError(err, errorMessage)
+      } else if (err instanceof Error && err.message.includes('network')) {
+        error.value = 'Network error - item not marked as used'
+        handleNetworkError(err, errorMessage)
       } else {
         error.value = 'Failed to mark item as used. Please try again.'
+        handleAPIError(err, errorMessage)
       }
+
       console.error('Failed to mark item as used:', err)
       return null
     } finally {
@@ -183,11 +225,14 @@ export const useInventoryStore = defineStore('inventory', () => {
     isLoading.value = true
     error.value = null
 
+    // Store item reference for potential rollback
+    const itemIndex = items.value.findIndex(item => item.id === itemId)
+    const itemToDelete = itemIndex !== -1 ? items.value[itemIndex] : null
+
     try {
       await inventoryAPI.deleteItem(itemId)
 
       // Remove item from local state for immediate UI update
-      const itemIndex = items.value.findIndex(item => item.id === itemId)
       if (itemIndex !== -1) {
         items.value.splice(itemIndex, 1)
       }
@@ -195,13 +240,29 @@ export const useInventoryStore = defineStore('inventory', () => {
       // Update cache timestamp
       lastFetch.value = Date.now()
 
+      // Clear any previous errors on successful delete
+      error.value = null
+
       return true
     } catch (err) {
+      // Rollback optimistic update on error
+      if (itemToDelete && itemIndex !== -1) {
+        items.value.splice(itemIndex, 0, itemToDelete)
+      }
+
+      const errorMessage = 'delete the item'
+
       if (err instanceof InventoryAPIError) {
         error.value = err.message
+        handleAPIError(err, errorMessage)
+      } else if (err instanceof Error && err.message.includes('network')) {
+        error.value = 'Network error - item not deleted'
+        handleNetworkError(err, errorMessage)
       } else {
         error.value = 'Failed to delete item. Please try again.'
+        handleAPIError(err, errorMessage)
       }
+
       console.error('Failed to delete item:', err)
       return false
     } finally {

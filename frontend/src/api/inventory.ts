@@ -2,7 +2,7 @@
 // Use-It-Up PWA Frontend
 
 import apiClient, { retryRequest, type APIError } from './axios'
-import { isDevelopment } from '../config/environment'
+import { isDevelopment, config } from '../config/environment'
 import { mockInventoryAPI } from './mockInventory'
 
 // Types for API requests/responses
@@ -71,7 +71,7 @@ async function initializeAPIMode(): Promise<void> {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 3000) // 3 second timeout
 
-    const response = await fetch(`${apiClient.defaults.baseURL}/health`, {
+    const response = await fetch(`${apiClient.defaults.baseURL}${config.healthCheckEndpoint}`, {
       method: 'GET',
       signal: controller.signal,
       headers: {
@@ -319,7 +319,7 @@ const inventoryAPI = {
     return withFallback(
       // Real API call
       async () => {
-        const response = await apiClient.get('/health')
+        const response = await apiClient.get(config.healthCheckEndpoint)
         return response.status === 200
       },
       // Mock API fallback

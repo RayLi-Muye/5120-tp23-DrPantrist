@@ -14,18 +14,21 @@
       </section>
 
       <!-- Loading State -->
-      <div v-if="inventoryStore.isLoading && !inventoryStore.items.length" class="loading-state">
-        <div class="loading" />
-        <p>Loading your inventory...</p>
-      </div>
+      <LoadingState
+        v-if="inventoryStore.isLoading && !inventoryStore.items.length"
+        :visible="true"
+        message="Loading your inventory..."
+        variant="inline"
+      />
 
       <!-- Error State -->
-      <div v-else-if="inventoryStore.error" class="error-state">
-        <p class="error-message">{{ inventoryStore.error }}</p>
-        <button @click="handleRetry" class="btn btn--secondary">
-          Try Again
-        </button>
-      </div>
+      <RetryAction
+        v-else-if="inventoryStore.error"
+        :title="errorHandling.errorState.errorType === 'network' ? 'Connection Problem' : 'Loading Failed'"
+        :message="errorHandling.getUserFriendlyMessage()"
+        :show-cancel="false"
+        @retry="handleRetry"
+      />
 
       <!-- Inventory List Section -->
       <section v-else-if="inventoryStore.activeItems.length > 0" class="inventory-list">
@@ -69,12 +72,23 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import InventoryItem from '@/components/inventory/InventoryItem.vue'
 import InventoryFilter from '@/components/inventory/InventoryFilter.vue'
+import LoadingState from '@/components/common/LoadingState.vue'
+import RetryAction from '@/components/common/RetryAction.vue'
 import { useInventoryStore } from '@/stores/inventory'
 import { useImpactStore } from '@/stores/impact'
+import { useErrorHandling } from '@/composables/useErrorHandling'
 
 const router = useRouter()
 const inventoryStore = useInventoryStore()
 const impactStore = useImpactStore()
+
+// Error handling
+const errorHandling = useErrorHandling({
+  showNotifications: false, // We'll show errors inline
+  onRetry: () => {
+    inventoryStore.fetchInventory(currentUserId, true)
+  }
+})
 
 // Local state for tracking loading states
 const loadingItemId = ref<string | null>(null)
@@ -96,28 +110,30 @@ const handleItemUsed = async (itemId: string) => {
 
   loadingItemId.value = itemId
 
-  try {
-    // Mark item as used and get impact data
-    const impactData = await inventoryStore.markItemAsUsed(itemId)
+  const impactData = await errorHandling.executeWithErrorHandling(
+    () => inventoryStore.markItemAsUsed(itemId),
+    'mark item as used'
+  )
 
-    if (impactData) {
-      // Update total impact in impact store
-      impactStore.updateTotalImpact(impactData)
+  if (impactData) {
+    // Update total impact in impact store
+    impactStore.updateTotalImpact(impactData)
 
-      // Show impact card with the returned data
-      impactStore.showImpact(impactData)
-    }
-  } catch (error) {
-    console.error('Failed to mark item as used:', error)
-    // Error is already handled in the store
-  } finally {
-    loadingItemId.value = null
+    // Show impact card with the returned data
+    impactStore.showImpact(impactData)
   }
+
+  loadingItemId.value = null
 }
 
-const handleRetry = () => {
+const handleRetry = async () => {
   inventoryStore.clearError()
-  inventoryStore.fetchInventory(currentUserId, true) // Force refresh
+  errorHandling.clearError()
+
+  await errorHandling.executeWithErrorHandling(
+    () => inventoryStore.fetchInventory(currentUserId, true),
+    'load your inventory'
+  )
 }
 
 // Empty state helpers
@@ -161,8 +177,11 @@ const getEmptyStateDescription = () => {
 }
 
 // Load inventory on mount
-onMounted(() => {
-  inventoryStore.fetchInventory(currentUserId)
+onMounted(async () => {
+  await errorHandling.executeWithErrorHandling(
+    () => inventoryStore.fetchInventory(currentUserId),
+    'load your inventory'
+  )
 })
 </script>
 

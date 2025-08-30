@@ -2,6 +2,7 @@
 import { RouterView, useRouter } from 'vue-router'
 import { ref, watch } from 'vue'
 import ImpactCard from '@/components/impact/ImpactCard.vue'
+import ErrorBoundary from '@/components/common/ErrorBoundary.vue'
 import { useImpactStore } from '@/stores/impact'
 
 const router = useRouter()
@@ -27,22 +28,24 @@ watch(
 </script>
 
 <template>
-  <div id="app">
-    <!-- Router View with Transitions -->
-    <RouterView v-slot="{ Component, route }">
-      <Transition :name="transitionName" mode="out-in">
-        <component :is="Component" :key="route.path" />
-      </Transition>
-    </RouterView>
+  <ErrorBoundary>
+    <div id="app">
+      <!-- Router View with Transitions -->
+      <RouterView v-slot="{ Component, route }">
+        <Transition :name="transitionName" mode="out-in">
+          <component :is="Component" :key="route.path" />
+        </Transition>
+      </RouterView>
 
-    <!-- Global Impact Card -->
-    <ImpactCard
-      :visible="impactStore.isImpactVisible"
-      :impact="impactStore.formattedCurrentImpact"
-      :motivational-message="impactStore.motivationalMessage"
-      @dismissed="impactStore.dismissImpact"
-    />
-  </div>
+      <!-- Global Impact Card -->
+      <ImpactCard
+        :visible="impactStore.isImpactVisible"
+        :impact="impactStore.formattedCurrentImpact"
+        :motivational-message="impactStore.motivationalMessage"
+        @dismissed="impactStore.dismissImpact"
+      />
+    </div>
+  </ErrorBoundary>
 </template>
 
 <style>

@@ -8,6 +8,8 @@ export interface EnvironmentConfig {
   timeout: number
   retryAttempts: number
   retryDelay: number
+  backendType: 'lambda' | 'ec2'
+  healthCheckEndpoint: string
 }
 
 export type Environment = 'development' | 'staging' | 'production'
@@ -20,7 +22,9 @@ const environments: Record<Environment, EnvironmentConfig> = {
     debug: true,
     timeout: 10000,
     retryAttempts: 3,
-    retryDelay: 1000
+    retryDelay: 1000,
+    backendType: 'ec2',
+    healthCheckEndpoint: '/health'
   },
   staging: {
     apiBaseUrl: 'https://staging-api.useitup.com/v1',
@@ -28,7 +32,9 @@ const environments: Record<Environment, EnvironmentConfig> = {
     debug: true,
     timeout: 15000,
     retryAttempts: 3,
-    retryDelay: 1000
+    retryDelay: 1000,
+    backendType: 'lambda',
+    healthCheckEndpoint: '/health'
   },
   production: {
     apiBaseUrl: 'https://api.useitup.com/v1',
@@ -36,7 +42,9 @@ const environments: Record<Environment, EnvironmentConfig> = {
     debug: false,
     timeout: 15000,
     retryAttempts: 2,
-    retryDelay: 2000
+    retryDelay: 2000,
+    backendType: 'lambda',
+    healthCheckEndpoint: '/health'
   }
 }
 
@@ -63,9 +71,11 @@ export function getEnvironmentConfig(): EnvironmentConfig {
     apiBaseUrl: import.meta.env.VITE_API_BASE_URL || config.apiBaseUrl,
     appTitle: import.meta.env.VITE_APP_TITLE || config.appTitle,
     debug: import.meta.env.VITE_DEBUG === 'true' || config.debug,
-    timeout: config.timeout,
-    retryAttempts: config.retryAttempts,
-    retryDelay: config.retryDelay
+    timeout: parseInt(import.meta.env.VITE_API_TIMEOUT as string) || config.timeout,
+    retryAttempts: parseInt(import.meta.env.VITE_RETRY_ATTEMPTS as string) || config.retryAttempts,
+    retryDelay: parseInt(import.meta.env.VITE_RETRY_DELAY as string) || config.retryDelay,
+    backendType: (import.meta.env.VITE_BACKEND_TYPE as 'lambda' | 'ec2') || config.backendType,
+    healthCheckEndpoint: import.meta.env.VITE_HEALTH_CHECK_ENDPOINT || config.healthCheckEndpoint
   }
 }
 
