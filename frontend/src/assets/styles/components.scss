@@ -3,7 +3,7 @@
 
 @use './variables.scss';
 
-// Button Components
+// Button Components (Touch-Optimized)
 .btn {
   display: inline-flex;
   align-items: center;
@@ -18,10 +18,41 @@
   cursor: pointer;
   transition: all var(--duration-fast) ease;
   min-height: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  position: relative;
+
+  // Ensure touch targets are accessible
+  &::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: var(--touch-target-min);
+    min-height: var(--touch-target-min);
+    z-index: -1;
+  }
 
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  // Focus styles for accessibility
+  &:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  // Enhanced active state for better touch feedback
+  &:active {
+    transform: translateY(1px) scale(0.98);
+    transition: transform 0.1s ease;
+  }
+
+  // Touch feedback animation
+  &.btn--touched {
+    animation: buttonPress 0.15s ease;
   }
 
   // Primary button
@@ -77,11 +108,11 @@
     }
   }
 
-  // Size variants
+  // Size variants (maintaining touch targets)
   &--sm {
     padding: var(--spacing-xs) var(--spacing-sm);
     font-size: var(--font-size-sm);
-    min-height: 36px;
+    min-height: var(--touch-target-min); // Still maintain 44px minimum
   }
 
   &--lg {
@@ -93,6 +124,20 @@
   // Full width
   &--block {
     width: 100%;
+  }
+
+  // Mobile-specific adjustments
+  @media (max-width: 767px) {
+    &--mobile-full {
+      width: 100%;
+      margin-bottom: var(--spacing-sm);
+    }
+
+    &--mobile-lg {
+      padding: var(--spacing-md) var(--spacing-lg);
+      font-size: var(--font-size-lg);
+      min-height: 52px;
+    }
   }
 }
 
@@ -120,7 +165,7 @@
     background-color: var(--color-bg-secondary);
   }
 
-  // Clickable card
+  // Clickable card with enhanced touch feedback
   &--clickable {
     cursor: pointer;
     transition: all var(--duration-fast) ease;
@@ -128,6 +173,16 @@
     &:hover {
       box-shadow: var(--shadow-md);
       transform: translateY(-1px);
+    }
+
+    &:active {
+      transform: translateY(0) scale(0.98);
+      box-shadow: var(--shadow-sm);
+    }
+
+    // Touch press animation
+    &.card--touched {
+      animation: cardPress 0.2s ease;
     }
   }
 }
@@ -188,6 +243,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--border-radius-md);
   transition: border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+  min-height: var(--touch-target-min);
 
   &:focus {
     outline: none;
@@ -198,12 +254,26 @@
   &::placeholder {
     color: var(--color-text-secondary);
   }
+
+  // Mobile-specific adjustments
+  @media (max-width: 767px) {
+    padding: var(--spacing-md);
+    font-size: 16px; // Prevent zoom on iOS
+    border-radius: var(--border-radius-lg);
+  }
+
+  // Larger touch targets on mobile
+  @media (max-width: 480px) {
+    min-height: 48px;
+  }
 }
 
-// Tab Components
+// Tab Components (Touch-Optimized)
 .tabs {
   display: flex;
   border-bottom: 1px solid var(--color-border-light);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 
   &__item {
     flex: 1;
@@ -215,15 +285,42 @@
     cursor: pointer;
     transition: all var(--duration-fast) ease;
     min-height: var(--touch-target-min);
+    min-width: var(--touch-target-min);
+    white-space: nowrap;
+    position: relative;
 
+    // Enhanced touch feedback
     &:hover {
       background-color: var(--color-bg-secondary);
+    }
+
+    &:active {
+      background-color: var(--color-border-light);
+      transform: scale(0.98);
+    }
+
+    // Touch press animation
+    &.tab--touched {
+      animation: tabPress 0.15s ease;
+    }
+
+    &:focus {
+      outline: 2px solid var(--color-primary);
+      outline-offset: -2px;
     }
 
     &--active {
       color: var(--color-primary);
       border-bottom-color: var(--color-primary);
       font-weight: var(--font-weight-semibold);
+    }
+  }
+
+  // Mobile-specific adjustments
+  @media (max-width: 767px) {
+    &__item {
+      padding: var(--spacing-sm) var(--spacing-md);
+      font-size: var(--font-size-sm);
     }
   }
 }
@@ -245,7 +342,70 @@
   }
 }
 
-// Modal Components
+// Button press animation for touch feedback
+@keyframes buttonPress {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+// Tab press animation for touch feedback
+@keyframes tabPress {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.96);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+// Card press animation for touch feedback
+@keyframes cardPress {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.97);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+// Ripple effect for touch feedback
+.btn--ripple {
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+    transition: width 0.3s ease, height 0.3s ease;
+  }
+
+  &:active::before {
+    width: 300px;
+    height: 300px;
+  }
+}
+
+// Modal Components (Mobile-Optimized)
 .modal {
   position: fixed;
   top: 0;
@@ -256,6 +416,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: var(--spacing-md);
 
   &__backdrop {
     position: absolute;
@@ -265,6 +426,8 @@
     height: 100%;
     background-color: rgba(0, 0, 0, 0.5);
     z-index: var(--z-index-modal-backdrop);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
   }
 
   &__content {
@@ -276,6 +439,29 @@
     max-height: 90vh;
     overflow-y: auto;
     z-index: var(--z-index-modal);
+    width: 100%;
+
+    // Mobile-specific adjustments
+    @media (max-width: 767px) {
+      max-width: 95vw;
+      max-height: 95vh;
+      border-radius: var(--border-radius-xl);
+    }
+
+    // Small mobile adjustments
+    @media (max-width: 480px) {
+      max-width: 100vw;
+      max-height: 100vh;
+      border-radius: 0;
+      margin: 0;
+    }
+  }
+
+  // Smooth scrolling for mobile
+  @media (max-width: 767px) {
+    &__content {
+      -webkit-overflow-scrolling: touch;
+    }
   }
 }
 

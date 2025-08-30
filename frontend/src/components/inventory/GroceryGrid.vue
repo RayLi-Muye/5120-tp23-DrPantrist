@@ -99,8 +99,33 @@ const selectItem = (item: GroceryItem) => {
   letter-spacing: 0.5px;
 }
 
-/* Responsive adjustments */
-@media (max-width: 576px) {
+/* Mobile-first responsive adjustments */
+@media (max-width: 374px) {
+  .grocery-items {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-xs);
+  }
+
+  .grocery-item {
+    padding: var(--spacing-sm);
+    min-height: 100px;
+  }
+
+  .item-icon {
+    font-size: 1.75rem;
+  }
+
+  .item-name {
+    font-size: var(--font-size-xs);
+  }
+
+  .item-category {
+    font-size: 0.625rem;
+  }
+}
+
+/* Standard mobile (375px - 575px) */
+@media (min-width: 375px) and (max-width: 575px) {
   .grocery-items {
     gap: var(--spacing-sm);
   }
@@ -119,13 +144,36 @@ const selectItem = (item: GroceryItem) => {
   }
 }
 
-@media (max-width: 400px) {
+/* Large mobile and tablet (576px+) */
+@media (min-width: 576px) {
   .grocery-items {
-    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-md);
+    max-width: 500px;
   }
 
   .grocery-item {
-    min-height: 110px;
+    min-height: 120px;
+  }
+}
+
+/* Desktop (768px+) */
+@media (min-width: 768px) {
+  .grocery-items {
+    max-width: 600px;
+    gap: var(--spacing-lg);
+  }
+
+  .grocery-item {
+    min-height: 140px;
+    padding: var(--spacing-lg);
+  }
+
+  .item-icon {
+    font-size: 3rem;
+  }
+
+  .item-name {
+    font-size: var(--font-size-base);
   }
 }
 </style>

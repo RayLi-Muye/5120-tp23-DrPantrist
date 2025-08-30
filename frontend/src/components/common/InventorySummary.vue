@@ -79,12 +79,28 @@ const handleCardClick = (filterType: FilterType) => {
 .summary-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-md);
+  gap: var(--spacing-sm);
 }
 
+/* Small mobile (375px+) - keep 2 columns but adjust spacing */
+@media (min-width: 375px) {
+  .summary-grid {
+    gap: var(--spacing-md);
+  }
+}
+
+/* Large mobile (576px+) - still 2 columns */
+@media (min-width: 576px) {
+  .summary-grid {
+    gap: var(--spacing-md);
+  }
+}
+
+/* Tablet (768px+) - 3 columns */
 @media (min-width: 768px) {
   .summary-grid {
     grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--spacing-lg);
   }
 }
 
@@ -168,8 +184,28 @@ const handleCardClick = (filterType: FilterType) => {
   letter-spacing: 0.5px;
 }
 
-/* Ensure touch targets are at least 44px */
-@media (max-width: 767px) {
+/* Mobile-first responsive adjustments */
+@media (max-width: 374px) {
+  .summary-card {
+    min-height: 90px;
+    padding: var(--spacing-sm);
+  }
+
+  .summary-card__icon {
+    font-size: 1.25rem;
+  }
+
+  .summary-card__count {
+    font-size: var(--font-size-base);
+  }
+
+  .summary-card__label {
+    font-size: 0.625rem;
+  }
+}
+
+/* Standard mobile (375px - 767px) */
+@media (min-width: 375px) and (max-width: 767px) {
   .summary-card {
     min-height: 100px;
     padding: var(--spacing-md);
@@ -181,6 +217,22 @@ const handleCardClick = (filterType: FilterType) => {
 
   .summary-card__count {
     font-size: var(--font-size-lg);
+  }
+}
+
+/* Tablet and up optimizations */
+@media (min-width: 768px) {
+  .summary-card {
+    min-height: 130px;
+    padding: var(--spacing-lg);
+  }
+
+  .summary-card__icon {
+    font-size: 2.5rem;
+  }
+
+  .summary-card__count {
+    font-size: var(--font-size-xxl);
   }
 }
 </style>

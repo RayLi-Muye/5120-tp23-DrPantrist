@@ -1,20 +1,31 @@
-// Swipe Gesture Composable
+// Enhanced Swipe Gesture Composable with Visual Feedback
 // Use-It-Up PWA Frontend
 
-import { ref, readonly } from 'vue'
+import { ref, readonly, computed } from 'vue'
+import { triggerSwipeHapticFeedback } from '@/utils/hapticFeedback'
 
 export interface SwipeGestureOptions {
-  threshold?: number // Minimum distance for swipe (default: 100px)
+  threshold?: number // Minimum distance for swipe (default: 80px)
   direction?: 'horizontal' | 'vertical' | 'both' // Swipe direction (default: 'horizontal')
+  velocityThreshold?: number // Minimum velocity for swipe (default: 0.3)
+  maxTime?: number // Maximum time for swipe gesture (default: 300ms)
+  feedbackThreshold?: number // Distance to start showing visual feedback (default: 20px)
 }
 
 export interface TouchPosition {
   x: number
   y: number
+  time: number
+}
+
+export interface SwipeProgress {
+  distance: number
+  progress: number // 0-1 based on threshold
+  direction: 'left' | 'right' | 'up' | 'down' | null
 }
 
 /**
- * Composable for handling swipe gestures on touch devices
+ * Enhanced composable for handling swipe gestures with visual feedback
  *
  * @param onSwipeRight - Callback for right swipe
  * @param onSwipeLeft - Callback for left swipe (optional)
@@ -26,95 +37,222 @@ export function useSwipeGesture(
   options: SwipeGestureOptions = {}
 ) {
   const {
-    threshold = 100,
-    direction = 'horizontal'
+    threshold = 80,
+    direction = 'horizontal',
+    velocityThreshold = 0.3,
+    maxTime = 300,
+    feedbackThreshold = 20
   } = options
 
   const touchStart = ref<TouchPosition | null>(null)
-  const touchEnd = ref<TouchPosition | null>(null)
+  const touchCurrent = ref<TouchPosition | null>(null)
   const isSwiping = ref(false)
+  const swipeProgress = ref<SwipeProgress>({
+    distance: 0,
+    progress: 0,
+    direction: null
+  })
+  const lastHapticProgress = ref(0)
+
+  // Computed properties for visual feedback
+  const swipeDistance = computed(() => swipeProgress.value.distance)
+  const swipeProgressPercent = computed(() => Math.min(swipeProgress.value.progress * 100, 100))
+  const isSwipeActive = computed(() => isSwiping.value && swipeProgress.value.distance > feedbackThreshold)
 
   const handleTouchStart = (event: TouchEvent) => {
+    // Prevent default to avoid scrolling issues
+    if (direction === 'horizontal') {
+      event.preventDefault()
+    }
+
     const touch = event.touches[0]
+    const now = Date.now()
+
     touchStart.value = {
       x: touch.clientX,
-      y: touch.clientY
+      y: touch.clientY,
+      time: now
     }
-    touchEnd.value = null
+    touchCurrent.value = touchStart.value
     isSwiping.value = true
+
+    // Reset progress
+    swipeProgress.value = {
+      distance: 0,
+      progress: 0,
+      direction: null
+    }
   }
 
   const handleTouchMove = (event: TouchEvent) => {
-    if (!isSwiping.value) return
+    if (!isSwiping.value || !touchStart.value) return
 
     const touch = event.touches[0]
-    touchEnd.value = {
+    const now = Date.now()
+
+    touchCurrent.value = {
       x: touch.clientX,
-      y: touch.clientY
-    }
-  }
-
-  const handleTouchEnd = (event: TouchEvent) => {
-    if (!touchStart.value || !isSwiping.value) {
-      isSwiping.value = false
-      return
+      y: touch.clientY,
+      time: now
     }
 
-    // Use the last touch position if touchEnd is not set
-    if (!touchEnd.value) {
-      const touch = event.changedTouches[0]
-      touchEnd.value = {
-        x: touch.clientX,
-        y: touch.clientY
-      }
-    }
-
-    const deltaX = touchEnd.value.x - touchStart.value.x
-    const deltaY = touchEnd.value.y - touchStart.value.y
+    // Calculate deltas
+    const deltaX = touchCurrent.value.x - touchStart.value.x
+    const deltaY = touchCurrent.value.y - touchStart.value.y
     const absDeltaX = Math.abs(deltaX)
     const absDeltaY = Math.abs(deltaY)
 
-    // Check if swipe meets threshold requirements
-    let isValidSwipe = false
-
+    // Update progress for visual feedback
     if (direction === 'horizontal' || direction === 'both') {
-      isValidSwipe = absDeltaX >= threshold && absDeltaX > absDeltaY
-    }
+      if (absDeltaX > absDeltaY) {
+        const progress = Math.min(absDeltaX / threshold, 1)
+        swipeProgress.value = {
+          distance: absDeltaX,
+          progress,
+          direction: deltaX > 0 ? 'right' : 'left'
+        }
 
-    if ((direction === 'vertical' || direction === 'both') && !isValidSwipe) {
-      isValidSwipe = absDeltaY >= threshold && absDeltaY > absDeltaX
-    }
+        // Provide progressive haptic feedback
+        if (progress >= 0.5 && lastHapticProgress.value < 0.5) {
+          triggerSwipeHapticFeedback(progress, false)
+          lastHapticProgress.value = 0.5
+        } else if (progress >= 0.8 && lastHapticProgress.value < 0.8) {
+          triggerSwipeHapticFeedback(progress, false)
+          lastHapticProgress.value = 0.8
+        }
 
-    if (isValidSwipe) {
-      if (direction === 'horizontal' || direction === 'both') {
-        if (deltaX > 0 && onSwipeRight) {
-          // Right swipe
-          onSwipeRight()
-        } else if (deltaX < 0 && onSwipeLeft) {
-          // Left swipe
-          onSwipeLeft()
+        // Prevent vertical scrolling during horizontal swipe
+        if (absDeltaX > feedbackThreshold) {
+          event.preventDefault()
         }
       }
     }
 
-    // Reset state
-    touchStart.value = null
-    touchEnd.value = null
-    isSwiping.value = false
+    if (direction === 'vertical' || direction === 'both') {
+      if (absDeltaY > absDeltaX) {
+        const progress = Math.min(absDeltaY / threshold, 1)
+        swipeProgress.value = {
+          distance: absDeltaY,
+          progress,
+          direction: deltaY > 0 ? 'down' : 'up'
+        }
+
+        // Provide progressive haptic feedback
+        if (progress >= 0.5 && lastHapticProgress.value < 0.5) {
+          triggerSwipeHapticFeedback(progress, false)
+          lastHapticProgress.value = 0.5
+        } else if (progress >= 0.8 && lastHapticProgress.value < 0.8) {
+          triggerSwipeHapticFeedback(progress, false)
+          lastHapticProgress.value = 0.8
+        }
+
+        // Prevent horizontal scrolling during vertical swipe
+        if (absDeltaY > feedbackThreshold) {
+          event.preventDefault()
+        }
+      }
+    }
+  }
+
+  const handleTouchEnd = (event: TouchEvent) => {
+    if (!touchStart.value || !touchCurrent.value || !isSwiping.value) {
+      resetSwipeState()
+      return
+    }
+
+    const touch = event.changedTouches[0]
+    const endTime = Date.now()
+    const endPosition = {
+      x: touch.clientX,
+      y: touch.clientY,
+      time: endTime
+    }
+
+    // Calculate final deltas and velocity
+    const deltaX = endPosition.x - touchStart.value.x
+    const deltaY = endPosition.y - touchStart.value.y
+    const absDeltaX = Math.abs(deltaX)
+    const absDeltaY = Math.abs(deltaY)
+    const timeDelta = endTime - touchStart.value.time
+    const velocityX = absDeltaX / timeDelta
+    const velocityY = absDeltaY / timeDelta
+
+    // Check if swipe meets requirements
+    let isValidSwipe = false
+    let swipeDirection: 'left' | 'right' | 'up' | 'down' | null = null
+
+    // Horizontal swipe validation
+    if (direction === 'horizontal' || direction === 'both') {
+      if (absDeltaX >= threshold &&
+          absDeltaX > absDeltaY &&
+          velocityX >= velocityThreshold &&
+          timeDelta <= maxTime) {
+        isValidSwipe = true
+        swipeDirection = deltaX > 0 ? 'right' : 'left'
+      }
+    }
+
+    // Vertical swipe validation
+    if ((direction === 'vertical' || direction === 'both') && !isValidSwipe) {
+      if (absDeltaY >= threshold &&
+          absDeltaY > absDeltaX &&
+          velocityY >= velocityThreshold &&
+          timeDelta <= maxTime) {
+        isValidSwipe = true
+        swipeDirection = deltaY > 0 ? 'down' : 'up'
+      }
+    }
+
+    // Execute callbacks if valid swipe
+    if (isValidSwipe) {
+      // Provide haptic feedback for successful swipe
+      triggerSwipeHapticFeedback(1, true)
+
+      if (swipeDirection === 'right' && onSwipeRight) {
+        onSwipeRight()
+      } else if (swipeDirection === 'left' && onSwipeLeft) {
+        onSwipeLeft()
+      }
+    }
+
+    // Reset state with animation
+    resetSwipeState()
   }
 
   const handleTouchCancel = () => {
+    resetSwipeState()
+  }
+
+  const resetSwipeState = () => {
     touchStart.value = null
-    touchEnd.value = null
+    touchCurrent.value = null
     isSwiping.value = false
+    lastHapticProgress.value = 0
+    swipeProgress.value = {
+      distance: 0,
+      progress: 0,
+      direction: null
+    }
   }
 
   return {
+    // Event handlers
     handleTouchStart,
     handleTouchMove,
     handleTouchEnd,
     handleTouchCancel,
-    isSwiping: readonly(isSwiping)
+
+    // State (readonly)
+    isSwiping: readonly(isSwiping),
+    swipeProgress: readonly(swipeProgress),
+
+    // Computed properties for UI feedback
+    swipeDistance: readonly(swipeDistance),
+    swipeProgressPercent: readonly(swipeProgressPercent),
+    isSwipeActive: readonly(isSwipeActive),
+
+    // Utility
+    resetSwipeState
   }
 }
 

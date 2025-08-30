@@ -121,44 +121,97 @@ img {
   border: 0;
 }
 
-// Container
+// Container (Mobile-First)
 .container {
   width: 100%;
-  max-width: 1200px;
   margin: 0 auto;
-  padding: 0 var(--spacing-md);
+  padding: 0 var(--spacing-sm);
+
+  // Small mobile (375px+)
+  @media (min-width: 375px) {
+    padding: 0 var(--spacing-md);
+  }
+
+  // Large mobile (576px+)
+  @media (min-width: 576px) {
+    max-width: 540px;
+    padding: 0 var(--spacing-md);
+  }
+
+  // Tablet (768px+)
+  @media (min-width: 768px) {
+    max-width: 720px;
+    padding: 0 var(--spacing-lg);
+  }
+
+  // Desktop (1024px+)
+  @media (min-width: 1024px) {
+    max-width: 960px;
+  }
+
+  // Large desktop (1200px+)
+  @media (min-width: 1200px) {
+    max-width: 1140px;
+  }
+}
+
+// Fluid container
+.container-fluid {
+  width: 100%;
+  padding: 0 var(--spacing-sm);
+
+  @media (min-width: 375px) {
+    padding: 0 var(--spacing-md);
+  }
 
   @media (min-width: 768px) {
     padding: 0 var(--spacing-lg);
   }
 }
 
-// Grid system
+// Grid system (Mobile-First)
 .grid {
   display: grid;
   gap: var(--spacing-md);
 }
 
-.grid-2 {
-  grid-template-columns: repeat(2, 1fr);
+// Base grid columns (mobile)
+.grid-1 { grid-template-columns: 1fr; }
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+
+// Small mobile (375px+)
+@media (min-width: 375px) {
+  .grid-xs-1 { grid-template-columns: 1fr; }
+  .grid-xs-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid-xs-3 { grid-template-columns: repeat(3, 1fr); }
 }
 
-.grid-3 {
-  grid-template-columns: repeat(3, 1fr);
+// Large mobile (576px+)
+@media (min-width: 576px) {
+  .grid-sm-1 { grid-template-columns: 1fr; }
+  .grid-sm-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid-sm-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-sm-4 { grid-template-columns: repeat(4, 1fr); }
 }
 
+// Tablet (768px+)
 @media (min-width: 768px) {
-  .grid-md-2 {
-    grid-template-columns: repeat(2, 1fr);
-  }
+  .grid-md-1 { grid-template-columns: 1fr; }
+  .grid-md-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid-md-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-md-4 { grid-template-columns: repeat(4, 1fr); }
+  .grid-md-5 { grid-template-columns: repeat(5, 1fr); }
+}
 
-  .grid-md-3 {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .grid-md-4 {
-    grid-template-columns: repeat(4, 1fr);
-  }
+// Desktop (1024px+)
+@media (min-width: 1024px) {
+  .grid-lg-1 { grid-template-columns: 1fr; }
+  .grid-lg-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid-lg-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-lg-4 { grid-template-columns: repeat(4, 1fr); }
+  .grid-lg-5 { grid-template-columns: repeat(5, 1fr); }
+  .grid-lg-6 { grid-template-columns: repeat(6, 1fr); }
 }
 
 // Flexbox utilities
@@ -189,6 +242,38 @@ img {
 .ml-auto { margin-left: auto; }
 .mr-auto { margin-right: auto; }
 
+// Responsive padding utilities
+.p-xs { padding: var(--spacing-xs); }
+.p-sm { padding: var(--spacing-sm); }
+.p-md { padding: var(--spacing-md); }
+.p-lg { padding: var(--spacing-lg); }
+.p-xl { padding: var(--spacing-xl); }
+
+.px-xs { padding-left: var(--spacing-xs); padding-right: var(--spacing-xs); }
+.px-sm { padding-left: var(--spacing-sm); padding-right: var(--spacing-sm); }
+.px-md { padding-left: var(--spacing-md); padding-right: var(--spacing-md); }
+.px-lg { padding-left: var(--spacing-lg); padding-right: var(--spacing-lg); }
+
+.py-xs { padding-top: var(--spacing-xs); padding-bottom: var(--spacing-xs); }
+.py-sm { padding-top: var(--spacing-sm); padding-bottom: var(--spacing-sm); }
+.py-md { padding-top: var(--spacing-md); padding-bottom: var(--spacing-md); }
+.py-lg { padding-top: var(--spacing-lg); padding-bottom: var(--spacing-lg); }
+
+// Responsive margin utilities
+.m-xs { margin: var(--spacing-xs); }
+.m-sm { margin: var(--spacing-sm); }
+.m-md { margin: var(--spacing-md); }
+.m-lg { margin: var(--spacing-lg); }
+
+.mx-auto { margin-left: auto; margin-right: auto; }
+.my-auto { margin-top: auto; margin-bottom: auto; }
+
+.mb-xs { margin-bottom: var(--spacing-xs); }
+.mb-sm { margin-bottom: var(--spacing-sm); }
+.mb-md { margin-bottom: var(--spacing-md); }
+.mb-lg { margin-bottom: var(--spacing-lg); }
+.mb-xl { margin-bottom: var(--spacing-xl); }
+
 // Text utilities
 .text-center { text-align: center; }
 .text-left { text-align: left; }
@@ -200,17 +285,87 @@ img {
 .text-warning { color: var(--color-warning); }
 .text-danger { color: var(--color-expired); }
 
+// Responsive text alignment
+@media (min-width: 576px) {
+  .text-sm-center { text-align: center; }
+  .text-sm-left { text-align: left; }
+  .text-sm-right { text-align: right; }
+}
+
+@media (min-width: 768px) {
+  .text-md-center { text-align: center; }
+  .text-md-left { text-align: left; }
+  .text-md-right { text-align: right; }
+}
+
+// Responsive font sizes
+.text-xs { font-size: var(--font-size-xs); }
+.text-sm { font-size: var(--font-size-sm); }
+.text-base { font-size: var(--font-size-base); }
+.text-lg { font-size: var(--font-size-lg); }
+.text-xl { font-size: var(--font-size-xl); }
+
+// Touch-optimized utilities
+.touch-target {
+  min-height: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+}
+
+.touch-area {
+  padding: var(--spacing-sm);
+  margin: var(--spacing-xs);
+}
+
+// Mobile-specific utilities
+@media (max-width: 767px) {
+  .mobile-full-width {
+    width: 100%;
+  }
+
+  .mobile-center {
+    text-align: center;
+  }
+
+  .mobile-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+}
+
 // Display utilities
 .d-none { display: none; }
 .d-block { display: block; }
 .d-flex { display: flex; }
 .d-grid { display: grid; }
 
+// Responsive display utilities
+@media (min-width: 375px) {
+  .d-xs-none { display: none; }
+  .d-xs-block { display: block; }
+  .d-xs-flex { display: flex; }
+  .d-xs-grid { display: grid; }
+}
+
+@media (min-width: 576px) {
+  .d-sm-none { display: none; }
+  .d-sm-block { display: block; }
+  .d-sm-flex { display: flex; }
+  .d-sm-grid { display: grid; }
+}
+
 @media (min-width: 768px) {
   .d-md-none { display: none; }
   .d-md-block { display: block; }
   .d-md-flex { display: flex; }
   .d-md-grid { display: grid; }
+}
+
+@media (min-width: 1024px) {
+  .d-lg-none { display: none; }
+  .d-lg-block { display: block; }
+  .d-lg-flex { display: flex; }
+  .d-lg-grid { display: grid; }
 }
 
 // Route Transitions for Mobile UX

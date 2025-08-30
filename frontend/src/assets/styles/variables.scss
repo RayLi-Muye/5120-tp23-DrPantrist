@@ -72,11 +72,13 @@
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
-// Responsive Breakpoints
+// Responsive Breakpoints (Mobile-First)
 :root {
-  --breakpoint-mobile: 576px;
-  --breakpoint-tablet: 768px;
-  --breakpoint-desktop: 1024px;
+  --breakpoint-xs: 375px;   // Small mobile
+  --breakpoint-sm: 576px;   // Large mobile
+  --breakpoint-md: 768px;   // Tablet
+  --breakpoint-lg: 1024px;  // Desktop
+  --breakpoint-xl: 1200px;  // Large desktop
 }
 
 // Z-index scale

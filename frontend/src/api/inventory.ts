@@ -3,6 +3,7 @@
 
 import apiClient, { retryRequest, type APIError } from './axios'
 import { isDevelopment } from '../config/environment'
+import { mockInventoryAPI } from './mockInventory'
 
 // Types for API requests/responses
 export interface InventoryItem {
@@ -56,6 +57,108 @@ class InventoryAPIError extends Error {
   }
 }
 
+// API Mode Management
+let useMockAPI = false
+let apiInitialized = false
+let apiHealthCheckAttempted = false
+
+// Initialize API mode with fallback strategy
+async function initializeAPIMode(): Promise<void> {
+  if (apiInitialized) return
+
+  try {
+    // Always try the real API first, regardless of environment
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 3000) // 3 second timeout
+
+    const response = await fetch(`${apiClient.defaults.baseURL}/health`, {
+      method: 'GET',
+      signal: controller.signal,
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    })
+
+    clearTimeout(timeoutId)
+
+    if (response.ok) {
+      useMockAPI = false
+      console.log('✅ Real API is available at', apiClient.defaults.baseURL)
+    } else {
+      throw new Error(`API responded with status: ${response.status}`)
+    }
+  } catch (error) {
+    useMockAPI = true
+    console.log('🔄 Real API not available, using mock API as fallback')
+    if (isDevelopment()) {
+      console.log('   Reason:', (error as Error).message)
+    }
+  } finally {
+    apiInitialized = true
+    apiHealthCheckAttempted = true
+  }
+}
+
+// Ensure API is initialized before any calls
+async function ensureAPIInitialized(): Promise<void> {
+  if (!apiInitialized) {
+    await initializeAPIMode()
+  }
+}
+
+// Fallback mechanism for individual API calls
+async function withFallback<T>(
+  realAPICall: () => Promise<T>,
+  mockAPICall: () => Promise<T>,
+  operation: string
+): Promise<T> {
+  await ensureAPIInitialized()
+
+  // If we're already using mock API, go straight to it
+  if (useMockAPI) {
+    try {
+      return await mockAPICall()
+    } catch (error) {
+      throw new InventoryAPIError(
+        (error as Error).message || `Failed to ${operation}.`,
+        operation
+      )
+    }
+  }
+
+  // Try real API first
+  try {
+    return await realAPICall()
+  } catch (error) {
+    const apiError = error as APIError
+
+    // If it's a network error or server error, fall back to mock API
+    if (!apiError.status || apiError.status >= 500 || apiError.code === 'NETWORK_ERROR') {
+      console.warn(`Real API failed for ${operation}, falling back to mock API`)
+
+      // Switch to mock API for future calls
+      useMockAPI = true
+
+      try {
+        return await mockAPICall()
+      } catch (mockError) {
+        throw new InventoryAPIError(
+          (mockError as Error).message || `Failed to ${operation}.`,
+          operation
+        )
+      }
+    }
+
+    // For client errors (4xx), don't fall back - these are likely real issues
+    throw new InventoryAPIError(
+      apiError.message || `Failed to ${operation}. Please try again.`,
+      operation,
+      apiError
+    )
+  }
+}
+
 const inventoryAPI = {
   /**
    * Get all active inventory items for a user
@@ -67,32 +170,28 @@ const inventoryAPI = {
       throw new InventoryAPIError('User ID is required', 'getInventory')
     }
 
-    try {
-      return await retryRequest(async () => {
-        const response = await apiClient.get('/inventory', {
-          params: { userId }
+    return withFallback(
+      // Real API call
+      async () => {
+        return await retryRequest(async () => {
+          const response = await apiClient.get('/inventory', {
+            params: { userId }
+          })
+
+          // Validate response data
+          if (!Array.isArray(response.data)) {
+            throw new Error('Invalid response format: expected array')
+          }
+
+          return response.data as InventoryItem[]
         })
-
-        // Validate response data
-        if (!Array.isArray(response.data)) {
-          throw new Error('Invalid response format: expected array')
-        }
-
-        return response.data as InventoryItem[]
-      })
-    } catch (error) {
-      const apiError = error as APIError
-
-      if (isDevelopment()) {
-        console.error('Failed to fetch inventory:', apiError)
-      }
-
-      throw new InventoryAPIError(
-        'Failed to fetch inventory items. Please try again.',
-        'getInventory',
-        apiError
-      )
-    }
+      },
+      // Mock API fallback
+      async () => {
+        return await mockInventoryAPI.getInventory(userId)
+      },
+      'fetch inventory items'
+    )
   },
 
   /**
@@ -109,40 +208,27 @@ const inventoryAPI = {
       )
     }
 
-    try {
-      return await retryRequest(async () => {
-        const response = await apiClient.post('/inventory', {
-          userId: itemData.userId,
-          itemId: itemData.itemId,
-          quantity: itemData.quantity || 1,
-          customExpiryDate: itemData.customExpiryDate || null,
-          notes: itemData.notes || ''
+    return withFallback(
+      // Real API call
+      async () => {
+        return await retryRequest(async () => {
+          const response = await apiClient.post('/inventory', {
+            userId: itemData.userId,
+            itemId: itemData.itemId,
+            quantity: itemData.quantity || 1,
+            customExpiryDate: itemData.customExpiryDate || null,
+            notes: itemData.notes || ''
+          })
+
+          return response.data as InventoryItem
         })
-
-        return response.data as InventoryItem
-      })
-    } catch (error) {
-      const apiError = error as APIError
-
-      if (isDevelopment()) {
-        console.error('Failed to add item:', apiError)
-      }
-
-      // Handle specific error cases
-      if (apiError.status === 400) {
-        throw new InventoryAPIError(
-          'Invalid item data. Please check your input and try again.',
-          'addItem',
-          apiError
-        )
-      }
-
-      throw new InventoryAPIError(
-        'Failed to add item to inventory. Please try again.',
-        'addItem',
-        apiError
-      )
-    }
+      },
+      // Mock API fallback
+      async () => {
+        return await mockInventoryAPI.addItem(itemData)
+      },
+      'add item to inventory'
+    )
   },
 
   /**
@@ -155,41 +241,20 @@ const inventoryAPI = {
       throw new InventoryAPIError('Item ID is required', 'markAsUsed')
     }
 
-    try {
-      return await retryRequest(async () => {
-        const response = await apiClient.put(`/inventory/${itemId}/use`)
-        return response.data as ImpactData
-      })
-    } catch (error) {
-      const apiError = error as APIError
-
-      if (isDevelopment()) {
-        console.error('Failed to mark item as used:', apiError)
-      }
-
-      // Handle specific error cases
-      if (apiError.status === 404) {
-        throw new InventoryAPIError(
-          'Item not found. It may have already been used or deleted.',
-          'markAsUsed',
-          apiError
-        )
-      }
-
-      if (apiError.status === 409) {
-        throw new InventoryAPIError(
-          'Item has already been marked as used.',
-          'markAsUsed',
-          apiError
-        )
-      }
-
-      throw new InventoryAPIError(
-        'Failed to mark item as used. Please try again.',
-        'markAsUsed',
-        apiError
-      )
-    }
+    return withFallback(
+      // Real API call
+      async () => {
+        return await retryRequest(async () => {
+          const response = await apiClient.put(`/inventory/${itemId}/use`)
+          return response.data as ImpactData
+        })
+      },
+      // Mock API fallback
+      async () => {
+        return await mockInventoryAPI.markAsUsed(itemId)
+      },
+      'mark item as used'
+    )
   },
 
   /**
@@ -202,32 +267,19 @@ const inventoryAPI = {
       throw new InventoryAPIError('Item ID is required', 'deleteItem')
     }
 
-    try {
-      await retryRequest(async () => {
-        await apiClient.delete(`/inventory/${itemId}`)
-      })
-    } catch (error) {
-      const apiError = error as APIError
-
-      if (isDevelopment()) {
-        console.error('Failed to delete item:', apiError)
-      }
-
-      // Handle specific error cases
-      if (apiError.status === 404) {
-        throw new InventoryAPIError(
-          'Item not found. It may have already been deleted.',
-          'deleteItem',
-          apiError
-        )
-      }
-
-      throw new InventoryAPIError(
-        'Failed to delete item. Please try again.',
-        'deleteItem',
-        apiError
-      )
-    }
+    return withFallback(
+      // Real API call
+      async () => {
+        await retryRequest(async () => {
+          await apiClient.delete(`/inventory/${itemId}`)
+        })
+      },
+      // Mock API fallback
+      async () => {
+        return await mockInventoryAPI.deleteItem(itemId)
+      },
+      'delete item'
+    )
   },
 
   /**
@@ -240,27 +292,23 @@ const inventoryAPI = {
       throw new InventoryAPIError('User ID is required', 'getTotalImpact')
     }
 
-    try {
-      return await retryRequest(async () => {
-        const response = await apiClient.get('/impact', {
-          params: { userId }
+    return withFallback(
+      // Real API call
+      async () => {
+        return await retryRequest(async () => {
+          const response = await apiClient.get('/impact', {
+            params: { userId }
+          })
+
+          return response.data as TotalImpactData
         })
-
-        return response.data as TotalImpactData
-      })
-    } catch (error) {
-      const apiError = error as APIError
-
-      if (isDevelopment()) {
-        console.error('Failed to fetch impact data:', apiError)
-      }
-
-      throw new InventoryAPIError(
-        'Failed to fetch impact data. Please try again.',
-        'getTotalImpact',
-        apiError
-      )
-    }
+      },
+      // Mock API fallback
+      async () => {
+        return await mockInventoryAPI.getTotalImpact(userId)
+      },
+      'fetch impact data'
+    )
   },
 
   /**
@@ -268,17 +316,67 @@ const inventoryAPI = {
    * @returns Promise<boolean> - True if API is healthy
    */
   async healthCheck(): Promise<boolean> {
-    try {
-      const response = await apiClient.get('/health')
-      return response.status === 200
-    } catch (error) {
-      if (isDevelopment()) {
-        console.warn('API health check failed:', error)
-      }
-      return false
+    return withFallback(
+      // Real API call
+      async () => {
+        const response = await apiClient.get('/health')
+        return response.status === 200
+      },
+      // Mock API fallback
+      async () => {
+        return await mockInventoryAPI.healthCheck()
+      },
+      'perform health check'
+    )
+  },
+
+  /**
+   * Force a switch to mock API (useful for testing or when real API is known to be down)
+   */
+  forceMockMode(): void {
+    useMockAPI = true
+    console.log('🔄 Forced switch to mock API mode')
+  },
+
+  /**
+   * Reset API mode (will re-check real API on next call)
+   */
+  resetAPIMode(): void {
+    useMockAPI = false
+    apiInitialized = false
+    apiHealthCheckAttempted = false
+    console.log('🔄 API mode reset - will re-check real API on next call')
+  },
+
+  /**
+   * Get current API mode
+   */
+  getCurrentAPIMode(): 'real' | 'mock' {
+    return useMockAPI ? 'mock' : 'real'
+  }
+}
+
+// Export API with additional utilities
+const inventoryAPIWithUtils = {
+  ...inventoryAPI,
+
+  /**
+   * Get API status information
+   */
+  getAPIStatus(): {
+    mode: 'real' | 'mock'
+    initialized: boolean
+    healthCheckAttempted: boolean
+    baseURL: string
+  } {
+    return {
+      mode: useMockAPI ? 'mock' : 'real',
+      initialized: apiInitialized,
+      healthCheckAttempted: apiHealthCheckAttempted,
+      baseURL: apiClient.defaults.baseURL || 'unknown'
     }
   }
 }
 
-export default inventoryAPI
+export default inventoryAPIWithUtils
 export { InventoryAPIError }

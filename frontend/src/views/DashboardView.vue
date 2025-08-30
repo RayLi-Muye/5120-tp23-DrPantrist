@@ -3,6 +3,13 @@
     <header class="dashboard-header">
       <h1>Use It Up</h1>
       <p class="subtitle">Your Food Waste Tracker</p>
+
+      <!-- API Status (Development Only) -->
+      <div v-if="apiStatus && isDevelopment()" class="api-status">
+        <span class="api-status__badge" :class="`api-status__badge--${apiStatus.mode}`">
+          {{ apiStatus.mode === 'mock' ? '🔄 Mock API' : '✅ Real API' }}
+        </span>
+      </div>
     </header>
 
     <main class="dashboard-main">
@@ -55,12 +62,15 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useInventoryStore } from '@/stores/inventory'
 import InventorySummary from '@/components/common/InventorySummary.vue'
 import QuickActions from '@/components/common/QuickActions.vue'
+import inventoryAPI from '@/api/inventory'
+import { isDevelopment } from '@/config/environment'
 
 const inventoryStore = useInventoryStore()
+const apiStatus = ref<any>(null)
 
 // Mock user ID for demo purposes
 const DEMO_USER_ID = 'demo-user-123'
@@ -73,6 +83,11 @@ const retryLoad = async () => {
 const loadInventory = async () => {
   try {
     await inventoryStore.fetchInventory(DEMO_USER_ID)
+
+    // Update API status for development display
+    if (isDevelopment()) {
+      apiStatus.value = inventoryAPI.getAPIStatus()
+    }
   } catch (error) {
     console.error('Failed to load inventory:', error)
   }
@@ -217,8 +232,34 @@ onMounted(() => {
   padding: var(--spacing-lg) var(--spacing-xl);
 }
 
-/* Responsive Design */
-@media (max-width: 575px) {
+/* Mobile-first responsive design */
+@media (max-width: 374px) {
+  .dashboard-view {
+    padding: var(--spacing-xs);
+  }
+
+  .dashboard-header h1 {
+    font-size: var(--font-size-lg);
+  }
+
+  .subtitle {
+    font-size: var(--font-size-xs);
+  }
+
+  .empty-state__icon {
+    font-size: 2.5rem;
+  }
+
+  .empty-state__title {
+    font-size: var(--font-size-sm);
+  }
+
+  .empty-state__message {
+    font-size: var(--font-size-sm);
+  }
+}
+
+@media (min-width: 375px) and (max-width: 575px) {
   .dashboard-view {
     padding: var(--spacing-sm);
   }
@@ -232,9 +273,56 @@ onMounted(() => {
   }
 }
 
+@media (min-width: 576px) {
+  .dashboard-main {
+    max-width: 600px;
+  }
+}
+
 @media (min-width: 768px) {
   .dashboard-main {
     max-width: 800px;
   }
+
+  .dashboard-header h1 {
+    font-size: var(--font-size-xxl);
+  }
+
+  .empty-state {
+    padding: var(--spacing-xxl);
+  }
+}
+
+@media (min-width: 1024px) {
+  .dashboard-main {
+    max-width: 900px;
+  }
+}
+
+/* API Status Badge (Development Only) */
+.api-status {
+  margin-top: var(--spacing-sm);
+}
+
+.api-status__badge {
+  display: inline-block;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--border-radius-md);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.api-status__badge--real {
+  background-color: rgba(40, 167, 69, 0.1);
+  color: var(--color-fresh);
+  border: 1px solid rgba(40, 167, 69, 0.2);
+}
+
+.api-status__badge--mock {
+  background-color: rgba(255, 193, 7, 0.1);
+  color: #b8860b;
+  border: 1px solid rgba(255, 193, 7, 0.2);
 }
 </style>

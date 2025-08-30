@@ -3,21 +3,48 @@
     class="inventory-item"
     :class="[
       `inventory-item--${status}`,
-      { 'inventory-item--swiping': isSwiping }
+      {
+        'inventory-item--swiping': isSwiping,
+        'inventory-item--swipe-active': isSwipeActive
+      }
     ]"
     @touchstart="handleTouchStart"
     @touchmove="handleTouchMove"
     @touchend="handleTouchEnd"
     @touchcancel="handleTouchCancel"
   >
-    <!-- Swipe action background -->
-    <div class="inventory-item__swipe-action">
-      <div class="inventory-item__swipe-icon">✓</div>
-      <span class="inventory-item__swipe-text">Mark as Used</span>
+    <!-- Enhanced swipe action background with progress -->
+    <div
+      class="inventory-item__swipe-action"
+      :style="{
+        opacity: isSwipeActive ? Math.min(swipeProgressPercent / 50, 1) : 0,
+        transform: `translateX(-${100 - Math.min(swipeProgressPercent, 100)}%)`
+      }"
+    >
+      <div class="inventory-item__swipe-content">
+        <div class="inventory-item__swipe-icon">
+          <span v-if="swipeProgressPercent < 100">✓</span>
+          <span v-else class="inventory-item__swipe-icon--complete">🎉</span>
+        </div>
+        <span class="inventory-item__swipe-text">
+          {{ swipeProgressPercent >= 100 ? 'Release to mark as used!' : 'Swipe to mark as used' }}
+        </span>
+      </div>
+
+      <!-- Progress indicator -->
+      <div
+        class="inventory-item__swipe-progress"
+        :style="{ width: `${swipeProgressPercent}%` }"
+      />
     </div>
 
-    <!-- Main item content -->
-    <div class="inventory-item__content">
+    <!-- Main item content with swipe transform -->
+    <div
+      class="inventory-item__content"
+      :style="{
+        transform: isSwipeActive ? `translateX(${Math.min(swipeProgressPercent * 0.3, 30)}px)` : 'translateX(0)'
+      }"
+    >
       <!-- Item info -->
       <div class="inventory-item__info">
         <h3 class="inventory-item__name">{{ item.name }}</h3>
@@ -90,13 +117,25 @@ const expiryDate = toRef(props.item, 'expiryDate')
 // Use expiry status composable
 const { status, statusText } = useExpiryStatus(expiryDate)
 
-// Use swipe gesture composable
-const { handleTouchStart, handleTouchMove, handleTouchEnd, handleTouchCancel, isSwiping } =
-  useSwipeGesture(
-    () => handleMarkAsUsed(), // onSwipeRight
-    undefined, // onSwipeLeft (not used)
-    { threshold: 80 } // Lower threshold for easier swiping
-  )
+// Use enhanced swipe gesture composable with visual feedback
+const {
+  handleTouchStart,
+  handleTouchMove,
+  handleTouchEnd,
+  handleTouchCancel,
+  isSwiping,
+  swipeProgress,
+  swipeProgressPercent,
+  isSwipeActive
+} = useSwipeGesture(
+  () => handleMarkAsUsed(), // onSwipeRight
+  undefined, // onSwipeLeft (not used)
+  {
+    threshold: 80, // Lower threshold for easier swiping
+    velocityThreshold: 0.2, // Lower velocity requirement
+    feedbackThreshold: 15 // Start feedback earlier
+  }
+)
 
 // Computed properties
 const formattedQuantity = computed(() => {
@@ -151,32 +190,40 @@ function handleMarkAsUsed() {
     border-left: 4px solid var(--color-expired);
   }
 
-  // Swiping state
+  // Swiping states
   &--swiping {
-    transform: translateX(20px);
-    transition: transform var(--duration-fast) ease;
+    // Remove automatic transform - now handled by dynamic styles
   }
 
-  &--swiping &__swipe-action {
-    opacity: 1;
+  &--swipe-active {
+    // Add subtle shadow during active swipe
+    box-shadow: var(--shadow-md);
   }
 }
 
-// Swipe action background
+// Enhanced swipe action background
 .inventory-item__swipe-action {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: var(--color-fresh);
+  background: linear-gradient(90deg, var(--color-fresh) 0%, #20c997 100%);
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  padding-left: var(--spacing-md);
   opacity: 0;
-  transition: opacity var(--duration-fast) ease;
   z-index: 1;
+  overflow: hidden;
+  transition: opacity var(--duration-fast) ease;
+}
+
+.inventory-item__swipe-content {
+  display: flex;
+  align-items: center;
+  padding-left: var(--spacing-md);
+  z-index: 2;
+  position: relative;
 }
 
 .inventory-item__swipe-icon {
@@ -184,15 +231,45 @@ function handleMarkAsUsed() {
   color: var(--color-text-light);
   margin-right: var(--spacing-sm);
   font-weight: var(--font-weight-bold);
+  transition: transform var(--duration-fast) ease;
+
+  &--complete {
+    animation: bounce 0.3s ease;
+  }
+}
+
+@keyframes bounce {
+  0%, 20%, 60%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-10px);
+  }
+  80% {
+    transform: translateY(-5px);
+  }
 }
 
 .inventory-item__swipe-text {
   color: var(--color-text-light);
   font-weight: var(--font-weight-semibold);
   font-size: var(--font-size-sm);
+  white-space: nowrap;
+  transition: all var(--duration-fast) ease;
 }
 
-// Main content
+// Progress indicator
+.inventory-item__swipe-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background-color: rgba(255, 255, 255, 0.8);
+  transition: width var(--duration-fast) ease;
+  border-radius: 0 2px 2px 0;
+}
+
+// Main content with enhanced swipe support
 .inventory-item__content {
   position: relative;
   z-index: 2;
@@ -204,9 +281,8 @@ function handleMarkAsUsed() {
   align-items: center;
   transition: transform var(--duration-fast) ease;
 
-  .inventory-item--swiping & {
-    transform: translateX(20px);
-  }
+  // Smooth transform during swipe (handled by dynamic styles)
+  will-change: transform;
 }
 
 // Item info section
@@ -258,8 +334,36 @@ function handleMarkAsUsed() {
   white-space: nowrap;
 }
 
-// Responsive design
-@media (max-width: 480px) {
+// Mobile-first responsive design
+@media (max-width: 374px) {
+  .inventory-item__content {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm);
+  }
+
+  .inventory-item__name {
+    font-size: var(--font-size-sm);
+  }
+
+  .inventory-item__details {
+    font-size: var(--font-size-xs);
+    flex-wrap: wrap;
+  }
+
+  .inventory-item__expiry {
+    text-align: left;
+    order: -1;
+  }
+
+  .inventory-item__action {
+    justify-self: stretch;
+    font-size: var(--font-size-sm);
+    padding: var(--spacing-sm);
+  }
+}
+
+@media (min-width: 375px) and (max-width: 480px) {
   .inventory-item__content {
     grid-template-columns: 1fr;
     gap: var(--spacing-sm);
@@ -277,6 +381,26 @@ function handleMarkAsUsed() {
 
   .inventory-item__details {
     flex-wrap: wrap;
+  }
+}
+
+/* Large mobile and tablet optimizations */
+@media (min-width: 481px) and (max-width: 767px) {
+  .inventory-item__content {
+    grid-template-columns: 1fr auto auto;
+    gap: var(--spacing-md);
+  }
+}
+
+/* Desktop optimizations */
+@media (min-width: 768px) {
+  .inventory-item__content {
+    padding: var(--spacing-lg);
+    gap: var(--spacing-lg);
+  }
+
+  .inventory-item__name {
+    font-size: var(--font-size-lg);
   }
 }
 
