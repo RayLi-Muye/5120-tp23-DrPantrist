@@ -58,6 +58,11 @@
       background-color: #218838;
       border-color: #1e7e34;
     }
+
+    &:focus {
+      outline: 2px solid var(--color-fresh);
+      outline-offset: 2px;
+    }
   }
 
   // Danger button

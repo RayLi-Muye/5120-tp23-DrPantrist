@@ -10,10 +10,7 @@
     <main class="inventory-main">
       <!-- Filter Section -->
       <section class="inventory-filters">
-        <!-- InventoryFilter component will be added in later tasks -->
-        <div class="filters-placeholder">
-          <p>Filter tabs (All/Fresh/Warning/Expired) will be displayed here</p>
-        </div>
+        <InventoryFilter />
       </section>
 
       <!-- Loading State -->
@@ -43,14 +40,25 @@
 
       <!-- Empty State -->
       <div v-else class="empty-state">
-        <div class="empty-state__icon">📦</div>
-        <h2 class="empty-state__title">No items in your inventory</h2>
+        <div class="empty-state__icon">{{ getEmptyStateIcon() }}</div>
+        <h2 class="empty-state__title">{{ getEmptyStateTitle() }}</h2>
         <p class="empty-state__description">
-          Start by adding some groceries to track their freshness and reduce waste.
+          {{ getEmptyStateDescription() }}
         </p>
-        <router-link to="/add-item" class="btn btn--primary btn--lg">
+        <router-link
+          v-if="inventoryStore.currentFilter === 'all'"
+          to="/add-item"
+          class="btn btn--primary btn--lg"
+        >
           Add Your First Item
         </router-link>
+        <button
+          v-else
+          @click="inventoryStore.updateFilter('all')"
+          class="btn btn--secondary btn--lg"
+        >
+          View All Items
+        </button>
       </div>
     </main>
   </div>
@@ -60,6 +68,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import InventoryItem from '@/components/inventory/InventoryItem.vue'
+import InventoryFilter from '@/components/inventory/InventoryFilter.vue'
 import { useInventoryStore } from '@/stores/inventory'
 import { useImpactStore } from '@/stores/impact'
 
@@ -109,6 +118,46 @@ const handleItemUsed = async (itemId: string) => {
 const handleRetry = () => {
   inventoryStore.clearError()
   inventoryStore.fetchInventory(currentUserId, true) // Force refresh
+}
+
+// Empty state helpers
+const getEmptyStateIcon = () => {
+  switch (inventoryStore.currentFilter) {
+    case 'fresh':
+      return '🥬'
+    case 'warning':
+      return '⚠️'
+    case 'expired':
+      return '🗑️'
+    default:
+      return '📦'
+  }
+}
+
+const getEmptyStateTitle = () => {
+  switch (inventoryStore.currentFilter) {
+    case 'fresh':
+      return 'No fresh items'
+    case 'warning':
+      return 'No items expiring soon'
+    case 'expired':
+      return 'No expired items'
+    default:
+      return 'No items in your inventory'
+  }
+}
+
+const getEmptyStateDescription = () => {
+  switch (inventoryStore.currentFilter) {
+    case 'fresh':
+      return 'You don\'t have any fresh items at the moment. Items with more than 3 days until expiry will appear here.'
+    case 'warning':
+      return 'Great! You don\'t have any items expiring in the next 3 days.'
+    case 'expired':
+      return 'Excellent! You don\'t have any expired items. Keep up the good work!'
+    default:
+      return 'Start by adding some groceries to track their freshness and reduce waste.'
+  }
 }
 
 // Load inventory on mount
@@ -166,14 +215,7 @@ onMounted(() => {
   margin-bottom: var(--spacing-lg);
 }
 
-.filters-placeholder {
-  padding: var(--spacing-lg);
-  background: var(--color-bg-secondary);
-  border-radius: var(--border-radius-lg);
-  text-align: center;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-}
+
 
 /* Loading State */
 .loading-state {
@@ -208,7 +250,9 @@ onMounted(() => {
 
 /* Inventory List */
 .inventory-list {
-  /* Items have their own margins, no additional spacing needed */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
 }
 
 /* Empty State */
