@@ -40,11 +40,11 @@
           <InventorySummary />
         </section>
 
-        <!-- Recent Activity Section -->
+        <!-- Recent Activity Section
         <section class="recent-activity-section">
           <h2>Recent Activity</h2>
           <RecentActivity />
-        </section>
+        </section> -->
 
         <!-- Quick Actions Section -->
         <section class="quick-actions-section">
@@ -144,7 +144,7 @@ onMounted(() => {
 }
 
 .subtitle {
-  color: var(--color-secondary);
+  color: white(--color-secondary);
   font-size: var(--font-size-sm);
 }
 
