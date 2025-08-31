@@ -25,7 +25,7 @@ vi.mock('../config/environment', () => ({
   }
 }))
 
-const mockApiClient = vi.mocked(apiClient) as unknown
+const mockApiClient = vi.mocked(apiClient) as any
 
 describe('Inventory API Service', () => {
   beforeEach(() => {

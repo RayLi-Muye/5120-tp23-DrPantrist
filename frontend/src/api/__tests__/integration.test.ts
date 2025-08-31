@@ -22,7 +22,7 @@ describe('API Integration Tests', () => {
     inventoryAPI.resetAPIMode()
 
     // Mock successful axios create
-    mockedAxios.create = vi.fn().mockReturnValue({
+    ;(mockedAxios.create as any) = vi.fn().mockReturnValue({
       defaults: { baseURL: config.apiBaseUrl },
       get: vi.fn(),
       post: vi.fn(),

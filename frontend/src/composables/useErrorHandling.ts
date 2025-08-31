@@ -6,8 +6,7 @@ import {
   handleAPIError,
   handleNetworkError,
   handleValidationError,
-  addErrorNotification,
-  type ErrorNotification
+  addErrorNotification
 } from '@/utils/errorHandler'
 import { InventoryAPIError } from '@/api/inventory'
 
@@ -175,7 +174,7 @@ export function useErrorHandling(options: UseErrorHandlingOptions = {}) {
       }
 
       // Execute the last action
-      const result = await lastAction.value()
+      await lastAction.value()
 
       // Clear error state on successful retry
       clearError()

@@ -266,5 +266,4 @@ export {
   initializeErrorHandler
 }
 
-// Export types
-export type { ErrorNotification, NetworkStatus }
+// Types are already exported above as interfaces
