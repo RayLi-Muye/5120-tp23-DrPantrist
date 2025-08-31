@@ -1,7 +1,9 @@
 <template>
   <div class="inventory-view">
     <header class="inventory-header">
-      <button @click="goBack" class="back-button" aria-label="Go back">← Back</button>
+      <button @click="goBack" class="back-button" aria-label="Go back">
+        ← Back
+      </button>
       <h1>Inventory</h1>
     </header>
 
@@ -12,198 +14,135 @@
       </section>
 
       <!-- Loading State -->
-      <LoadingState
-        v-if="inventoryStore.isLoading && !inventoryStore.items.length"
-        :visible="true"
-        message="Loading your inventory..."
-        variant="inline"
-      />
+      <div v-if="inventoryStore.isLoading" class="loading-container">
+        <LoadingState message="Loading your inventory..." />
+      </div>
 
       <!-- Error State -->
-      <RetryAction
-        v-else-if="inventoryStore.error"
-        :title="
-          errorHandling.errorState.value.errorType === 'network'
-            ? 'Connection Problem'
-            : 'Loading Failed'
-        "
-        :message="errorHandling.getUserFriendlyMessage()"
-        :show-cancel="false"
-        @retry="handleRetry"
-      />
-
-      <!-- Inventory List Section -->
-      <section v-else-if="inventoryStore.activeItems.length > 0" class="inventory-list">
-        <InventoryItem
-          v-for="item in inventoryStore.itemsByFilter"
-          :key="item.id"
-          :item="item"
-          :is-loading="loadingItemId === item.id"
-          @item-used="handleItemUsed"
-        />
-      </section>
+      <div v-else-if="inventoryStore.error" class="error-container">
+        <div class="error-message">
+          <p>{{ inventoryStore.error }}</p>
+          <button @click="retryLoad" class="btn btn--primary">Retry</button>
+        </div>
+      </div>
 
       <!-- Empty State -->
-      <div v-else class="empty-state">
-        <div class="empty-state__icon">{{ getEmptyStateIcon() }}</div>
-        <h2 class="empty-state__title">{{ getEmptyStateTitle() }}</h2>
-        <p class="empty-state__description">
-          {{ getEmptyStateDescription() }}
-        </p>
-        <router-link
-          v-if="inventoryStore.currentFilter === 'all'"
-          to="/add-item"
-          class="btn btn--primary btn--lg"
-        >
+      <div v-else-if="inventoryStore.items.length === 0" class="empty-state">
+        <div class="empty-icon">📦</div>
+        <h2>No items in your inventory</h2>
+        <p>Start by adding some groceries to track</p>
+        <router-link to="/add-item" class="btn btn--primary">
           Add Your First Item
         </router-link>
-        <button
-          v-else
-          @click="inventoryStore.updateFilter('all')"
-          class="btn btn--secondary btn--lg"
-        >
-          View All Items
-        </button>
+      </div>
+
+      <!-- Inventory Items -->
+      <div v-else class="inventory-content">
+        <div class="inventory-grid">
+          <InventoryItem
+            v-for="item in inventoryStore.filteredItems"
+            :key="item.id"
+            :item="item"
+            :loading="loadingItemId === item.id"
+            @use="handleUseItem"
+            @delete="handleDeleteItem"
+          />
+        </div>
       </div>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { useRouter } from "vue-router";
-import InventoryItem from "@/components/inventory/InventoryItem.vue";
-import InventoryFilter from "@/components/inventory/InventoryFilter.vue";
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import InventoryItem from '@/components/inventory/InventoryItem.vue'
+import InventoryFilter from '@/components/inventory/InventoryFilter.vue'
+import LoadingState from '@/components/common/LoadingState.vue'
+import { useInventoryStore } from '@/stores/inventory'
+import { useImpactStore } from '@/stores/impact'
+import { useAuthStore } from '@/stores/auth'
 
-import LoadingState from "@/components/common/LoadingState.vue";
-import RetryAction from "@/components/common/RetryAction.vue";
-import { useInventoryStore } from "@/stores/inventory";
-import { useImpactStore } from "@/stores/impact";
-import { useAuthStore } from "@/stores/auth";
-import { useErrorHandling } from "@/composables/useErrorHandling";
-
-const router = useRouter();
-const inventoryStore = useInventoryStore();
-const impactStore = useImpactStore();
-const authStore = useAuthStore();
-
-// Error handling
-const errorHandling = useErrorHandling({
-  showNotifications: false, // We'll show errors inline
-  onRetry: () => {
-    if (authStore.user) {
-      inventoryStore.fetchInventory(authStore.user.id, true);
-    }
-  },
-});
+const router = useRouter()
+const inventoryStore = useInventoryStore()
+const impactStore = useImpactStore()
+const authStore = useAuthStore()
 
 // Local state for tracking loading states
-const loadingItemId = ref<string | null>(null);
+const loadingItemId = ref<string | null>(null)
 
 const goBack = () => {
-  // Check if there's history to go back to, otherwise go to dashboard
   if (window.history.length > 1) {
-    router.back();
+    router.back()
   } else {
-    router.push("/");
+    router.push('/')
   }
-};
+}
 
-const handleItemUsed = async (itemId: string) => {
-  if (loadingItemId.value) return; // Prevent multiple simultaneous requests
+const handleUseItem = async (itemId: string) => {
+  if (!authStore.user) return
 
-  loadingItemId.value = itemId;
+  loadingItemId.value = itemId
 
-  const impactData = await errorHandling.executeWithErrorHandling(
-    () => inventoryStore.markItemAsUsed(itemId),
-    "mark item as used"
-  );
-
-  if (impactData) {
-    // Update total impact in impact store
-    impactStore.updateTotalImpact(impactData);
-
-    // Show impact card with the returned data
-    impactStore.showImpact(impactData);
+  try {
+    const impact = await inventoryStore.markItemAsUsed(itemId)
+    if (impact) {
+      impactStore.showImpact(impact)
+    }
+  } catch (error) {
+    console.error('Failed to mark item as used:', error)
+  } finally {
+    loadingItemId.value = null
   }
+}
 
-  loadingItemId.value = null;
-};
+const handleDeleteItem = async (itemId: string) => {
+  if (!authStore.user) return
 
-const handleRetry = async () => {
-  inventoryStore.clearError();
-  errorHandling.clearError();
+  loadingItemId.value = itemId
 
+  try {
+    await inventoryStore.deleteItem(itemId)
+  } catch (error) {
+    console.error('Failed to delete item:', error)
+  } finally {
+    loadingItemId.value = null
+  }
+}
+
+const retryLoad = async () => {
   if (authStore.user) {
-    await errorHandling.executeWithErrorHandling(
-      () => inventoryStore.fetchInventory(authStore.user!.id, true),
-      "load your inventory"
-    );
+    try {
+      await inventoryStore.fetchInventory(authStore.user.id, true)
+    } catch (error) {
+      console.error('Failed to retry load:', error)
+    }
   }
-};
-
-// Empty state helpers
-const getEmptyStateIcon = () => {
-  switch (inventoryStore.currentFilter) {
-    case "fresh":
-      return "🥬";
-    case "warning":
-      return "⚠️";
-    case "expired":
-      return "🗑️";
-    default:
-      return "📦";
-  }
-};
-
-const getEmptyStateTitle = () => {
-  switch (inventoryStore.currentFilter) {
-    case "fresh":
-      return "No fresh items";
-    case "warning":
-      return "No items expiring soon";
-    case "expired":
-      return "No expired items";
-    default:
-      return "No items in your inventory";
-  }
-};
-
-const getEmptyStateDescription = () => {
-  switch (inventoryStore.currentFilter) {
-    case "fresh":
-      return "You don't have any fresh items at the moment. Items with more than 3 days until expiry will appear here.";
-    case "warning":
-      return "Great! You don't have any items expiring in the next 3 days.";
-    case "expired":
-      return "Excellent! You don't have any expired items. Keep up the good work!";
-    default:
-      return "Start by adding some groceries to track their freshness and reduce waste.";
-  }
-};
+}
 
 // Load inventory on mount
 onMounted(async () => {
   if (authStore.user) {
-    await errorHandling.executeWithErrorHandling(
-      () => inventoryStore.fetchInventory(authStore.user!.id),
-      "load your inventory"
-    );
+    try {
+      await inventoryStore.fetchInventory(authStore.user.id)
+    } catch (error) {
+      console.error('Failed to load inventory:', error)
+    }
   }
-});
+})
 </script>
 
 <style scoped>
 .inventory-view {
   padding: var(--spacing-md);
   min-height: 100vh;
+  background: var(--color-bg-secondary);
 }
 
 .inventory-header {
   display: flex;
   align-items: center;
   margin-bottom: var(--spacing-lg);
-  position: relative;
 }
 
 .back-button {
@@ -234,217 +173,132 @@ onMounted(async () => {
 }
 
 .inventory-main {
-  max-width: 600px;
+  max-width: 1200px;
   margin: 0 auto;
 }
-
-
 
 .inventory-filters {
   margin-bottom: var(--spacing-lg);
 }
 
-/* Loading State */
-.loading-state {
+.loading-container,
+.error-container {
   display: flex;
-  flex-direction: column;
+  justify-content: center;
   align-items: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-xxl);
-  text-align: center;
-}
-
-.loading-state p {
-  color: var(--color-text-secondary);
-  margin: 0;
-}
-
-/* Error State */
-.error-state {
-  text-align: center;
-  padding: var(--spacing-xl);
-  background-color: rgba(220, 53, 69, 0.1);
-  border: 1px solid rgba(220, 53, 69, 0.2);
-  border-radius: var(--border-radius-lg);
-  margin-bottom: var(--spacing-lg);
+  min-height: 300px;
 }
 
 .error-message {
-  color: var(--color-expired);
-  margin-bottom: var(--spacing-md);
-  font-weight: var(--font-weight-medium);
+  text-align: center;
+  padding: var(--spacing-lg);
+  background: white;
+  border-radius: var(--border-radius-lg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* Inventory List */
-.inventory-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-
-/* Empty State */
 .empty-state {
   text-align: center;
-  padding: var(--spacing-xxl) var(--spacing-md);
+  padding: var(--spacing-xxl);
+  background: white;
+  border-radius: var(--border-radius-lg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.empty-state__icon {
+.empty-icon {
   font-size: 4rem;
   margin-bottom: var(--spacing-lg);
   opacity: 0.6;
 }
 
-.empty-state__title {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-semibold);
+.empty-state h2 {
   color: var(--color-text-primary);
   margin-bottom: var(--spacing-md);
 }
 
-.empty-state__description {
+.empty-state p {
   color: var(--color-text-secondary);
-  margin-bottom: var(--spacing-xl);
-  max-width: 400px;
-  margin-left: auto;
-  margin-right: auto;
+  margin-bottom: var(--spacing-lg);
 }
 
-/* Button Styles */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-sm) var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-medium);
-  text-align: center;
   text-decoration: none;
   border: 1px solid transparent;
   border-radius: var(--border-radius-md);
   cursor: pointer;
   transition: all var(--duration-fast) ease;
   min-height: var(--touch-target-min);
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
 }
 
 .btn--primary {
-  color: var(--color-text-light);
+  color: white;
   background-color: var(--color-primary);
   border-color: var(--color-primary);
-
-  &:hover:not(:disabled) {
-    background-color: #0056b3;
-    border-color: #0056b3;
-  }
 }
 
-.btn--secondary {
-  color: var(--color-text-primary);
-  background-color: var(--color-bg-secondary);
-  border-color: var(--color-border);
-
-  &:hover:not(:disabled) {
-    background-color: #e2e6ea;
-    border-color: #dae0e5;
-  }
+.btn--primary:hover {
+  background-color: #0056b3;
+  border-color: #0056b3;
 }
 
-.btn--lg {
-  padding: var(--spacing-md) var(--spacing-lg);
-  font-size: var(--font-size-lg);
-  min-height: 52px;
+.inventory-content {
+  background: white;
+  border-radius: var(--border-radius-lg);
+  padding: var(--spacing-lg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* Mobile-first responsive design */
-@media (max-width: 374px) {
-  .inventory-view {
-    padding: var(--spacing-xs);
-  }
-
-  .inventory-header {
-    margin-bottom: var(--spacing-sm);
-  }
-
-  .inventory-header h1 {
-    font-size: var(--font-size-lg);
-  }
-
-  .back-button {
-    font-size: var(--font-size-base);
-    padding: var(--spacing-xs);
-    margin-right: var(--spacing-sm);
-  }
-
-  .inventory-filters {
-    margin-bottom: var(--spacing-sm);
-  }
-
-  .empty-state {
-    padding: var(--spacing-lg) var(--spacing-xs);
-  }
-
-  .empty-state__icon {
-    font-size: 2.5rem;
-  }
-
-  .empty-state__title {
-    font-size: var(--font-size-base);
-  }
-
-  .empty-state__description {
-    font-size: var(--font-size-sm);
-  }
+.inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--spacing-lg);
 }
 
-@media (min-width: 375px) and (max-width: 480px) {
+/* Mobile optimizations */
+@media (max-width: 480px) {
   .inventory-view {
     padding: var(--spacing-sm);
   }
 
-  .inventory-header {
-    margin-bottom: var(--spacing-md);
+  .inventory-header h1 {
+    font-size: var(--font-size-lg);
   }
 
-  .inventory-filters {
-    margin-bottom: var(--spacing-md);
+  .inventory-content {
+    padding: var(--spacing-md);
+  }
+
+  .inventory-grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md);
   }
 
   .empty-state {
-    padding: var(--spacing-xl) var(--spacing-sm);
+    padding: var(--spacing-xl);
   }
 
-  .empty-state__icon {
+  .empty-icon {
     font-size: 3rem;
-  }
-
-  .empty-state__title {
-    font-size: var(--font-size-lg);
   }
 }
 
-/* Large mobile and tablet */
-@media (min-width: 481px) {
-  .inventory-main {
-    max-width: 700px;
+/* Tablet */
+@media (min-width: 481px) and (max-width: 768px) {
+  .inventory-grid {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   }
 }
 
 /* Desktop */
-@media (min-width: 768px) {
-  .inventory-main {
-    max-width: 800px;
-  }
-
-  .inventory-header h1 {
-    font-size: var(--font-size-xxl);
-  }
-
-  .empty-state {
-    padding: var(--spacing-xxl);
+@media (min-width: 1200px) {
+  .inventory-grid {
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
   }
 }
 </style>

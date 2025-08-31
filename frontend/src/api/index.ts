@@ -1,45 +1,22 @@
-// API Services Index
+// API Service Layer Entry Point
 // Use-It-Up PWA Frontend
 
-// Export HTTP client and utilities
-export { default as apiClient, retryRequest, isRetryableError, type APIError } from './axios'
+import inventoryAPI from './inventory'
+import apiClient from './axios'
 
-// Export inventory API service
-export { default as inventoryAPI, InventoryAPIError } from './inventory'
-
-// Export types
-export type {
-  InventoryItem,
-  AddItemRequest,
-  ImpactData,
-  TotalImpactData
-} from './inventory'
-
-// Export environment configuration
-export { config, currentEnvironment, isDevelopment, isProduction, isStaging } from '../config/environment'
-
-// API service health check utility
+// Health check function
 export async function checkAPIHealth(): Promise<boolean> {
   try {
-    const inventoryModule = await import('./inventory')
-    return await inventoryModule.default.healthCheck()
+    const response = await fetch('/api/health')
+    return response.ok
   } catch (error) {
-    console.warn('API health check failed:', error)
+    console.error('API health check failed:', error)
     return false
   }
 }
 
-// Global error handler for API errors
-export function handleAPIError(error: unknown): string {
-  if (error instanceof Error) {
-    // Check if it's our custom API error
-    if ('operation' in error) {
-      return error.message
-    }
+// Export the main API services
+export { inventoryAPI, apiClient }
 
-    // Generic error handling
-    return error.message || 'An unexpected error occurred'
-  }
-
-  return 'An unexpected error occurred'
-}
+// Export types
+export type { InventoryItem, AddItemRequest, ImpactData, TotalImpactData } from './inventory'

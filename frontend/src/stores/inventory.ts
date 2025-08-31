@@ -5,7 +5,7 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import inventoryAPI, { type InventoryItem, type AddItemRequest, type ImpactData, InventoryAPIError } from '@/api/inventory'
 import { calculateDaysUntilExpiry } from '@/utils/dateHelpers'
-import { handleAPIError, handleNetworkError } from '@/utils/errorHandler'
+// Removed error handler imports for MVP
 import type { FreshnessStatus } from '@/composables/useExpiryStatus'
 
 export type FilterType = 'all' | 'fresh' | 'warning' | 'expired'
@@ -119,14 +119,12 @@ export const useInventoryStore = defineStore('inventory', () => {
 
       if (err instanceof InventoryAPIError) {
         error.value = err.message
-        handleAPIError(err, errorMessage)
       } else if (err instanceof Error && err.message.includes('network')) {
         error.value = 'Network error - using cached data if available'
-        handleNetworkError(err, errorMessage)
       } else {
         error.value = 'Failed to fetch inventory. Please try again.'
-        handleAPIError(err, errorMessage)
       }
+      console.error(errorMessage, err)
 
       console.error('Failed to fetch inventory:', err)
     } finally {
@@ -156,14 +154,12 @@ export const useInventoryStore = defineStore('inventory', () => {
 
       if (err instanceof InventoryAPIError) {
         error.value = err.message
-        handleAPIError(err, errorMessage)
       } else if (err instanceof Error && err.message.includes('network')) {
         error.value = 'Network error - item not added'
-        handleNetworkError(err, errorMessage)
       } else {
         error.value = 'Failed to add item. Please try again.'
-        handleAPIError(err, errorMessage)
       }
+      console.error(errorMessage, err)
 
       console.error('Failed to add item:', err)
       return null
@@ -205,14 +201,12 @@ export const useInventoryStore = defineStore('inventory', () => {
 
       if (err instanceof InventoryAPIError) {
         error.value = err.message
-        handleAPIError(err, errorMessage)
       } else if (err instanceof Error && err.message.includes('network')) {
         error.value = 'Network error - item not marked as used'
-        handleNetworkError(err, errorMessage)
       } else {
         error.value = 'Failed to mark item as used. Please try again.'
-        handleAPIError(err, errorMessage)
       }
+      console.error(errorMessage, err)
 
       console.error('Failed to mark item as used:', err)
       return null
@@ -254,14 +248,12 @@ export const useInventoryStore = defineStore('inventory', () => {
 
       if (err instanceof InventoryAPIError) {
         error.value = err.message
-        handleAPIError(err, errorMessage)
       } else if (err instanceof Error && err.message.includes('network')) {
         error.value = 'Network error - item not deleted'
-        handleNetworkError(err, errorMessage)
       } else {
         error.value = 'Failed to delete item. Please try again.'
-        handleAPIError(err, errorMessage)
       }
+      console.error(errorMessage, err)
 
       console.error('Failed to delete item:', err)
       return false

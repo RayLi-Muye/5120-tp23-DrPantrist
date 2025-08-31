@@ -2,7 +2,7 @@
 // Use-It-Up PWA Frontend
 // This file demonstrates the API service layer functionality
 
-import { inventoryAPI, checkAPIHealth, handleAPIError } from './index'
+import { inventoryAPI, checkAPIHealth } from './index'
 import { config, currentEnvironment } from '../config/environment'
 
 /**
@@ -23,7 +23,7 @@ export async function demoAPIServiceLayer() {
     const isHealthy = await checkAPIHealth()
     console.log(`   API Health: ${isHealthy ? '✅ Healthy' : '❌ Unhealthy'}`)
   } catch (error) {
-    console.log(`   API Health Check Error: ${handleAPIError(error)}`)
+    console.log(`   API Health Check Error: ${error}`)
   }
   console.log('')
 
@@ -43,7 +43,7 @@ export async function demoAPIServiceLayer() {
     // This will fail gracefully with proper error handling
     await inventoryAPI.getInventory('demo-user')
   } catch (error) {
-    console.log(`   Expected Error: ${handleAPIError(error)}`)
+    console.log(`   Expected Error: ${error}`)
   }
   console.log('')
 
