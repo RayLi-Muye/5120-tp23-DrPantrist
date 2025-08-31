@@ -2,7 +2,7 @@
   <div class="add-item-view">
     <header class="add-item-header">
       <button @click="goBack" class="back-button" aria-label="Go back">
-        ← Back
+        ←
       </button>
       <h1>Add Item</h1>
     </header>

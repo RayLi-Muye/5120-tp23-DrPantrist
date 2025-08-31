@@ -102,7 +102,7 @@ const handleFilterChange = (filter: FilterType) => {
   position: relative;
 
   &:hover {
-    background: rgba(0, 123, 255, 0.1);
+    background: var(--color-primary-100);
     color: var(--color-primary);
   }
 
@@ -117,7 +117,7 @@ const handleFilterChange = (filter: FilterType) => {
   color: var(--color-text-light);
 
   &:hover {
-    background: #0056b3;
+    background: var(--color-primary-600);
   }
 
   .filter-tab__badge {

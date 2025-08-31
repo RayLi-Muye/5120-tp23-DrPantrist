@@ -4,26 +4,37 @@
 // Color Palette
 :root {
   // Freshness indicators
-  --color-fresh: #28a745;      // Green for >3 days
-  --color-warning: #ffc107;    // Yellow for 0-3 days
-  --color-expired: #dc3545;    // Red for expired
+  --color-fresh: #22c55e;      // Modern green (fresh)
+  --color-warning: #f59e0b;    // Amber (expiring soon)
+  --color-expired: #ef4444;    // Red (expired)
 
-  // Primary colors
-  --color-primary: #007bff;
-  --color-secondary: #6c757d;
+  // Primary colors (Mint/Cyan brand)
+  --color-primary: #10b981;        // Emerald 500
+  --color-primary-600: #059669;    // Emerald 600 (hover/focus)
+  --color-primary-100: #d1fae5;    // Emerald 100 (tints)
+  --color-secondary: #64748b;      // Slate 500
+
+  // Brand gradients
+  --brand-gradient: linear-gradient(135deg, #10b981 0%, #2dd4bf 100%);
+  --brand-gradient-hover: linear-gradient(135deg, #0ea371 0%, #22c7b7 100%);
 
   // Backgrounds
-  --color-bg-primary: #ffffff;
-  --color-bg-secondary: #f8f9fa;
+  --color-bg-primary: #ffffff;    // Card surfaces
+  --color-bg-secondary: #f5f7fb;  // App background
+  --color-bg-tertiary: #eef2f7;   // Chips/badges
+  --glass-bg: rgba(255, 255, 255, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.35);
+  --glass-blur: 12px;
 
   // Text colors
-  --color-text-primary: #212529;
-  --color-text-secondary: #6c757d;
+  --color-text-primary: #0f172a;   // Slate 900
+  --color-text-secondary: #475569; // Slate 600
   --color-text-light: #ffffff;
 
   // Border colors
-  --color-border: #dee2e6;
-  --color-border-light: #e9ecef;
+  --color-border: #e5e7eb;       // Gray 200
+  --color-border-light: #eef2f7; // Light divider
+  --ring-color: rgba(16, 185, 129, 0.25); // Focus ring (emerald)
 }
 
 // Typography Scale

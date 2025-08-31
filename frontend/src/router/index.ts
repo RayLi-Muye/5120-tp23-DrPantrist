@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore } from "@/stores/auth";
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -76,11 +76,11 @@ const router = createRouter({
 
 // Global navigation guards
 router.beforeEach((to, from, next) => {
-  const authStore = useAuthStore()
+  const authStore = useAuthStore();
 
   // Try to load saved user if not already loaded
   if (!authStore.isAuthenticated) {
-    authStore.loadSavedUser()
+    authStore.loadSavedUser();
   }
 
   // Set document title
@@ -88,17 +88,17 @@ router.beforeEach((to, from, next) => {
     document.title = to.meta.title as string;
   }
 
-  const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
-  const requiresGuest = to.matched.some(record => record.meta.requiresGuest)
+  const requiresAuth = to.matched.some((record) => record.meta.requiresAuth);
+  const requiresGuest = to.matched.some((record) => record.meta.requiresGuest);
 
   if (requiresAuth && !authStore.isAuthenticated) {
     // Redirect to auth page if authentication is required but user is not authenticated
-    next('/auth')
-    return
+    next("/auth");
+    return;
   } else if (requiresGuest && authStore.isAuthenticated) {
     // Redirect to home if guest page is accessed but user is authenticated
-    next('/')
-    return
+    next("/");
+    return;
   }
 
   // Loading state management (can be used with a global store)

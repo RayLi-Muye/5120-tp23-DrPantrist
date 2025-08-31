@@ -24,9 +24,7 @@
           <!-- Impact celebration -->
           <div class="impact-celebration">
             <div class="impact-celebration__icon">🎉</div>
-            <h2 id="impact-title" class="impact-celebration__title">
-              Great job!
-            </h2>
+            <h2 id="impact-title" class="impact-celebration__title">Great job!</h2>
             <p class="impact-celebration__message">
               {{ motivationalMessage }}
             </p>
@@ -71,111 +69,116 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
-import type { FormattedImpactData } from '@/stores/impact'
+import { computed, ref, onMounted, onUnmounted, watch } from "vue";
+import type { FormattedImpactData } from "@/stores/impact";
 
 // Props
 interface Props {
-  visible: boolean
-  impact: FormattedImpactData | null
-  motivationalMessage: string
+  visible: boolean;
+  impact: FormattedImpactData | null;
+  motivationalMessage: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   visible: false,
   impact: null,
-  motivationalMessage: 'Great job!'
-})
+  motivationalMessage: "Great job!",
+});
 
 // Emits
 interface Emits {
-  dismissed: []
+  dismissed: [];
 }
 
-const emit = defineEmits<Emits>()
+const emit = defineEmits<Emits>();
 
 // Auto-dismiss timer state
-const remainingSeconds = ref(3)
-const progressWidth = ref(100)
-const autoHideTimer = ref<number | null>(null)
-const progressTimer = ref<number | null>(null)
+const remainingSeconds = ref(3);
+const progressWidth = ref(100);
+const autoHideTimer = ref<number | null>(null);
+const progressTimer = ref<number | null>(null);
 
 // Computed properties
 const formattedImpact = computed(() => {
-  return props.impact || {
-    moneySaved: '$0.00',
-    co2Avoided: '0g CO₂',
-    co2Comparison: '',
-    itemName: '',
-    actionType: 'used'
-  }
-})
+  return (
+    props.impact || {
+      moneySaved: "$0.00",
+      co2Avoided: "0g CO₂",
+      co2Comparison: "",
+      itemName: "",
+      actionType: "used",
+    }
+  );
+});
 
 const progressStyle = computed(() => ({
-  width: `${progressWidth.value}%`
-}))
+  width: `${progressWidth.value}%`,
+}));
 
 // Methods
 function handleBackdropClick() {
-  emit('dismissed')
+  emit("dismissed");
 }
 
 function startAutoHideTimer() {
-  clearTimers()
+  clearTimers();
 
-  remainingSeconds.value = 3
-  progressWidth.value = 100
+  remainingSeconds.value = 3;
+  progressWidth.value = 100;
 
   // Update countdown every 100ms for smooth progress bar
   progressTimer.value = window.setInterval(() => {
-    progressWidth.value -= (100 / 30) // 30 intervals over 3 seconds
+    progressWidth.value -= 100 / 30; // 30 intervals over 3 seconds
 
     if (progressWidth.value <= 0) {
-      progressWidth.value = 0
+      progressWidth.value = 0;
     }
-  }, 100)
+  }, 100);
 
   // Update seconds display every second
   autoHideTimer.value = window.setInterval(() => {
-    remainingSeconds.value--
+    remainingSeconds.value--;
 
     if (remainingSeconds.value <= 0) {
-      emit('dismissed')
+      emit("dismissed");
     }
-  }, 1000)
+  }, 1000);
 }
 
 function clearTimers() {
   if (autoHideTimer.value) {
-    clearInterval(autoHideTimer.value)
-    autoHideTimer.value = null
+    clearInterval(autoHideTimer.value);
+    autoHideTimer.value = null;
   }
 
   if (progressTimer.value) {
-    clearInterval(progressTimer.value)
-    progressTimer.value = null
+    clearInterval(progressTimer.value);
+    progressTimer.value = null;
   }
 }
 
 // Watchers
-watch(() => props.visible, (newVisible) => {
-  if (newVisible) {
-    startAutoHideTimer()
-  } else {
-    clearTimers()
+watch(
+  () => props.visible,
+  (newVisible) => {
+    if (newVisible) {
+      startAutoHideTimer();
+    } else {
+      clearTimers();
+    }
   }
-})
+);
 
 // Lifecycle
 onMounted(() => {
   if (props.visible) {
-    startAutoHideTimer()
+    startAutoHideTimer();
   }
-})
+});
 
 onUnmounted(() => {
-  clearTimers()
-})
+  clearTimers();
+});
 </script>
 
 <style scoped lang="scss">
@@ -350,10 +353,15 @@ onUnmounted(() => {
 
 // Animations
 @keyframes bounce {
-  0%, 20%, 53%, 80%, 100% {
+  0%,
+  20%,
+  53%,
+  80%,
+  100% {
     transform: translate3d(0, 0, 0);
   }
-  40%, 43% {
+  40%,
+  43% {
     transform: translate3d(0, -15px, 0);
   }
   70% {

@@ -1,10 +1,11 @@
 <template>
-  <div class="quick-actions">
+  <div class="quick-actions" data-testid="quick-actions">
     <div class="actions-grid">
       <!-- Primary Action: Add Item -->
       <router-link
         to="/add-item"
         class="action-button action-button--primary"
+        data-testid="add-item-button"
       >
         <div class="action-button__icon">➕</div>
         <div class="action-button__content">
@@ -18,6 +19,7 @@
         class="action-button action-button--secondary"
         @click="viewExpiringItems"
         :disabled="expiringCount === 0"
+        data-testid="view-expiring-button"
       >
         <div class="action-button__icon">⚠️</div>
         <div class="action-button__content">
@@ -122,13 +124,15 @@ const viewExpiringItems = () => {
 }
 
 .action-button--primary {
-  background: var(--color-primary);
+  background: var(--brand-gradient);
   color: white;
   font-weight: 600;
+  border: 0;
+  box-shadow: 0 8px 16px rgba(16,185,129,0.2);
 }
 
 .action-button--primary:hover {
-  background: #0056b3;
+  background: var(--brand-gradient-hover);
 }
 
 .action-button--secondary {

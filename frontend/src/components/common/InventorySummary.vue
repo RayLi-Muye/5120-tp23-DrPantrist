@@ -1,5 +1,5 @@
 <template>
-  <div class="inventory-summary">
+  <div class="inventory-summary" data-testid="inventory-summary">
     <div class="summary-grid">
       <div
         v-for="card in summaryCards"
@@ -12,7 +12,12 @@
           {{ card.icon }}
         </div>
         <div class="summary-card__content">
-          <div class="summary-card__count">{{ card.count }}</div>
+          <div
+            class="summary-card__count"
+            :data-testid="`${card.type}-count`"
+          >
+            {{ card.count }}
+          </div>
           <div class="summary-card__label">{{ card.label }}</div>
         </div>
       </div>

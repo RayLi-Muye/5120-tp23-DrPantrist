@@ -1,7 +1,7 @@
 // Component Styles
 // Use-It-Up PWA Frontend
 
-@use './variables.scss';
+@use "./variables.scss";
 
 // Button Components (Touch-Optimized)
 .btn {
@@ -23,7 +23,7 @@
 
   // Ensure touch targets are accessible
   &::before {
-    content: '';
+    content: "";
     position: absolute;
     top: 50%;
     left: 50%;
@@ -387,7 +387,7 @@
   overflow: hidden;
 
   &::before {
-    content: '';
+    content: "";
     position: absolute;
     top: 50%;
     left: 50%;
