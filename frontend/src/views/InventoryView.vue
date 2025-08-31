@@ -6,11 +6,6 @@
     </header>
 
     <main class="inventory-main">
-      <!-- Impact Statistics -->
-      <section class="impact-section">
-        <ImpactStats />
-      </section>
-
       <!-- Filter Section -->
       <section class="inventory-filters">
         <InventoryFilter />
@@ -79,7 +74,7 @@ import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import InventoryItem from "@/components/inventory/InventoryItem.vue";
 import InventoryFilter from "@/components/inventory/InventoryFilter.vue";
-import ImpactStats from "@/components/inventory/ImpactStats.vue";
+
 import LoadingState from "@/components/common/LoadingState.vue";
 import RetryAction from "@/components/common/RetryAction.vue";
 import { useInventoryStore } from "@/stores/inventory";
@@ -243,9 +238,7 @@ onMounted(async () => {
   margin: 0 auto;
 }
 
-.impact-section {
-  margin-bottom: var(--spacing-lg);
-}
+
 
 .inventory-filters {
   margin-bottom: var(--spacing-lg);

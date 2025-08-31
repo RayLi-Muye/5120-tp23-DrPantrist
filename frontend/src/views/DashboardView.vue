@@ -48,12 +48,24 @@
           </router-link>
         </div>
 
-        <!-- Inventory Content -->
+        <!-- Dashboard Content -->
         <div v-else>
+          <!-- Impact Overview Section -->
+          <section class="impact-overview-section">
+            <h2>Your Environmental Impact</h2>
+            <ImpactStats />
+          </section>
+
           <!-- Inventory Summary Section -->
           <section class="inventory-summary-section">
-            <h2>Your Inventory</h2>
+            <h2>Inventory Overview</h2>
             <InventorySummary />
+          </section>
+
+          <!-- Recent Activity Section -->
+          <section class="recent-activity-section">
+            <h2>Recent Activity</h2>
+            <RecentActivity />
           </section>
 
           <!-- Quick Actions Section -->
@@ -74,6 +86,8 @@ import { useInventoryStore } from '@/stores/inventory'
 import { useAuthStore } from '@/stores/auth'
 import InventorySummary from '@/components/common/InventorySummary.vue'
 import QuickActions from '@/components/common/QuickActions.vue'
+import ImpactStats from '@/components/inventory/ImpactStats.vue'
+import RecentActivity from '@/components/dashboard/RecentActivity.vue'
 import inventoryAPI from '@/api/inventory'
 import { isDevelopment } from '@/config/environment'
 
@@ -252,12 +266,16 @@ onMounted(() => {
 }
 
 /* Content Sections */
+.impact-overview-section,
 .inventory-summary-section,
+.recent-activity-section,
 .quick-actions-section {
   margin-bottom: var(--spacing-xl);
 }
 
+.impact-overview-section h2,
 .inventory-summary-section h2,
+.recent-activity-section h2,
 .quick-actions-section h2 {
   font-size: var(--font-size-lg);
   margin-bottom: var(--spacing-md);

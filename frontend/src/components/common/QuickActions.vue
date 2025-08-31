@@ -34,8 +34,8 @@
       >
         <div class="action-button__icon">📋</div>
         <div class="action-button__content">
-          <div class="action-button__title">View All</div>
-          <div class="action-button__subtitle">Full inventory</div>
+          <div class="action-button__title">Manage Items</div>
+          <div class="action-button__subtitle">Edit & organize</div>
         </div>
       </router-link>
     </div>
