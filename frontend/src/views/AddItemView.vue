@@ -1,9 +1,7 @@
 <template>
   <div class="add-item-view">
     <header class="add-item-header">
-      <button @click="goBack" class="back-button" aria-label="Go back">
-        ←
-      </button>
+      <button @click="goBack" class="back-button" aria-label="Go back">←</button>
       <h1>Add Item</h1>
     </header>
 
@@ -24,10 +22,7 @@
       <!-- Step 1: Grocery Selection -->
       <section v-if="currentStep === 1" class="grocery-selection">
         <h2>Choose from common groceries</h2>
-        <GroceryGrid
-          :groceries="groceriesStore.masterList"
-          @item-selected="handleItemSelected"
-        />
+        <GroceryGrid :groceries="groceriesStore.masterList" @item-selected="handleItemSelected" />
       </section>
 
       <!-- Step 2: Item Details -->
@@ -52,104 +47,109 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { useGroceriesStore } from '@/stores/groceries'
-import { useInventoryStore } from '@/stores/inventory'
-import { useAuthStore } from '@/stores/auth'
-import GroceryGrid from '@/components/inventory/GroceryGrid.vue'
-import AddItemForm from '@/components/inventory/AddItemForm.vue'
-import type { GroceryItem } from '@/stores/groceries'
-import { formatDateForAPI } from '@/utils/dateHelpers'
+import { ref } from "vue";
+import { useRouter } from "vue-router";
+import { useGroceriesStore } from "@/stores/groceries";
+import { useInventoryStore } from "@/stores/inventory";
+import { useAuthStore } from "@/stores/auth";
+import GroceryGrid from "@/components/inventory/GroceryGrid.vue";
+import AddItemForm from "@/components/inventory/AddItemForm.vue";
+import type { GroceryItem } from "@/stores/groceries";
+import { formatDateForAPI } from "@/utils/dateHelpers";
 
-const router = useRouter()
-const groceriesStore = useGroceriesStore()
-const inventoryStore = useInventoryStore()
-const authStore = useAuthStore()
+const router = useRouter();
+const groceriesStore = useGroceriesStore();
+const inventoryStore = useInventoryStore();
+const authStore = useAuthStore();
 
 // Component state
-const currentStep = ref(1)
-const selectedGrocery = ref<GroceryItem | null>(null)
-const isSubmitting = ref(false)
-const error = ref<string | null>(null)
+const currentStep = ref(1);
+const selectedGrocery = ref<GroceryItem | null>(null);
+const isSubmitting = ref(false);
+const error = ref<string | null>(null);
 
 const goBack = () => {
   if (currentStep.value > 1) {
-    currentStep.value--
+    currentStep.value--;
   } else {
     // Check if there's history to go back to, otherwise go to dashboard
     if (window.history.length > 1) {
-      router.back()
+      router.back();
     } else {
-      router.push('/')
+      router.push("/");
     }
   }
-}
+};
 
 const handleItemSelected = (item: GroceryItem) => {
-  selectedGrocery.value = item
-  currentStep.value = 2
-}
+  selectedGrocery.value = item;
+  currentStep.value = 2;
+};
 
-const handleFormSubmit = async (formData: { quantity: number; expiryDate: string; notes: string }) => {
+const handleFormSubmit = async (formData: {
+  quantity: number;
+  expiryDate: string;
+  notes: string;
+}) => {
   if (!selectedGrocery.value) {
-    error.value = 'No item selected. Please go back and select an item.'
-    return
+    error.value = "No item selected. Please go back and select an item.";
+    return;
   }
 
   if (!authStore.user) {
-    error.value = 'User not authenticated. Please log in again.'
-    return
+    error.value = "User not authenticated. Please log in again.";
+    return;
   }
 
-  isSubmitting.value = true
-  error.value = null
+  isSubmitting.value = true;
+  error.value = null;
 
   try {
     // Convert form date to API format
-    const expiryDate = new Date(formData.expiryDate)
+    const expiryDate = new Date(formData.expiryDate);
 
     const addItemRequest = {
       userId: authStore.user.id,
       itemId: selectedGrocery.value.id,
       quantity: formData.quantity,
       customExpiryDate: formatDateForAPI(expiryDate),
-      notes: formData.notes || undefined
-    }
+      notes: formData.notes || undefined,
+    };
 
-    const result = await inventoryStore.addItem(addItemRequest)
+    const result = await inventoryStore.addItem(addItemRequest);
 
     if (result) {
-      // Success - navigate to inventory view
-      router.push('/inventory')
+      // Success - navigate to dashboard
+      router.push("/dashboard");
     } else {
       // Handle case where addItem returns null (error already set in store)
-      error.value = inventoryStore.error || 'Failed to add item. Please try again.'
+      error.value = inventoryStore.error || "Failed to add item. Please try again.";
     }
   } catch (err) {
-    console.error('Error adding item:', err)
-    error.value = 'An unexpected error occurred. Please try again.'
+    console.error("Error adding item:", err);
+    error.value = "An unexpected error occurred. Please try again.";
   } finally {
-    isSubmitting.value = false
+    isSubmitting.value = false;
   }
-}
+};
 
 const handleFormCancel = () => {
-  currentStep.value = 1
-  selectedGrocery.value = null
-  clearError()
-}
+  currentStep.value = 1;
+  selectedGrocery.value = null;
+  clearError();
+};
 
 const clearError = () => {
-  error.value = null
-  inventoryStore.clearError()
-}
+  error.value = null;
+  inventoryStore.clearError();
+};
 </script>
 
 <style scoped>
 .add-item-view {
   padding: var(--spacing-md);
   min-height: 100vh;
+  background: linear-gradient(135deg, #5fb3d4 0%, #6dd5a0 100%);
 }
 
 .add-item-header {
@@ -159,28 +159,31 @@ const clearError = () => {
 }
 
 .back-button {
-  background: none;
-  border: none;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   font-size: var(--font-size-lg);
-  color: var(--color-primary);
+  color: white;
   cursor: pointer;
   padding: var(--spacing-sm);
   margin-right: var(--spacing-md);
-  border-radius: 4px;
-  min-height: 44px;
-  min-width: 44px;
+  border-radius: var(--border-radius-md);
+  min-height: var(--touch-target-min);
+  min-width: var(--touch-target-min);
   display: flex;
   align-items: center;
   justify-content: center;
+  backdrop-filter: blur(10px);
+  transition: all var(--duration-fast) ease;
 }
 
 .back-button:hover {
-  background: var(--color-bg-secondary);
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
 }
 
 .add-item-header h1 {
   font-size: var(--font-size-xl);
-  color: var(--color-primary);
+  color: white;
   margin: 0;
 }
 
@@ -249,6 +252,7 @@ const clearError = () => {
   font-size: var(--font-size-lg);
   margin-bottom: var(--spacing-lg);
   text-align: center;
+  color: white;
 }
 
 .error-banner {

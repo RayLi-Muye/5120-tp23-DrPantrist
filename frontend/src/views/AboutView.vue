@@ -1,9 +1,7 @@
 <template>
   <div class="about-view">
     <header class="about-header">
-      <button @click="goBack" class="back-button" aria-label="Go back">
-        ← Back
-      </button>
+      <button @click="goBack" class="back-button" aria-label="Go back">←</button>
       <h1>About UseItUp</h1>
     </header>
 
@@ -11,8 +9,8 @@
       <section class="about-section">
         <h2>🌱 Our Mission</h2>
         <p>
-          UseItUp helps you reduce food waste and track your environmental impact.
-          Every item you use instead of wasting makes a difference for our planet.
+          UseItUp helps you reduce food waste and track your environmental impact. Every item you
+          use instead of wasting makes a difference for our planet.
         </p>
       </section>
 
@@ -58,8 +56,8 @@
       <section class="about-section">
         <h2>🎯 Your Impact</h2>
         <p>
-          By using UseItUp, you're joining a community committed to reducing food waste.
-          Together, we can make a significant impact on our environment while saving money.
+          By using UseItUp, you're joining a community committed to reducing food waste. Together,
+          we can make a significant impact on our environment while saving money.
         </p>
       </section>
     </main>
@@ -67,24 +65,24 @@
 </template>
 
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
+import { useRouter } from "vue-router";
 
-const router = useRouter()
+const router = useRouter();
 
 const goBack = () => {
   if (window.history.length > 1) {
-    router.back()
+    router.back();
   } else {
-    router.push('/')
+    router.push("/");
   }
-}
+};
 </script>
 
 <style scoped>
 .about-view {
   padding: var(--spacing-md);
   min-height: 100vh;
-  background: var(--color-bg-secondary);
+  background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
 }
 
 .about-header {
@@ -94,10 +92,10 @@ const goBack = () => {
 }
 
 .back-button {
-  background: none;
-  border: none;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   font-size: var(--font-size-lg);
-  color: var(--color-primary);
+  color: white;
   cursor: pointer;
   padding: var(--spacing-sm);
   margin-right: var(--spacing-md);
@@ -107,16 +105,18 @@ const goBack = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color var(--duration-fast) ease;
+  backdrop-filter: blur(10px);
+  transition: all var(--duration-fast) ease;
 }
 
 .back-button:hover {
-  background: var(--color-bg-secondary);
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
 }
 
 .about-header h1 {
   font-size: var(--font-size-xl);
-  color: var(--color-primary);
+  color: white;
   margin: 0;
 }
 

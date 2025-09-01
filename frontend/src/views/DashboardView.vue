@@ -1,8 +1,56 @@
 <template>
   <div class="dashboard-view">
     <header class="dashboard-header">
-      <h1>{{ userDisplayName }}</h1>
-      <p class="subtitle">Your Food Waste Tracker</p>
+      <div class="header-content">
+        <div class="header-left">
+          <h1>{{ userDisplayName }}</h1>
+          <p class="subtitle">Your Food Waste Tracker</p>
+        </div>
+
+        <div class="header-center">
+          <nav class="navigation-bar">
+            <router-link
+              to="/dashboard"
+              class="nav-item"
+              :class="{ active: $route.name === 'dashboard' }"
+            >
+              <span class="nav-icon">🏠</span>
+              <span class="nav-label">Dashboard</span>
+            </router-link>
+            <router-link
+              to="/add-item"
+              class="nav-item"
+              :class="{ active: $route.name === 'add-item' }"
+            >
+              <span class="nav-icon">➕</span>
+              <span class="nav-label">Add Item</span>
+            </router-link>
+            <router-link to="/about" class="nav-item" :class="{ active: $route.name === 'about' }">
+              <span class="nav-icon">ℹ️</span>
+              <span class="nav-label">About</span>
+            </router-link>
+          </nav>
+        </div>
+
+        <div class="header-right">
+          <div class="impact-cards">
+            <div class="impact-card money-card">
+              <div class="card-icon">💰</div>
+              <div class="card-content">
+                <div class="card-value">{{ formattedTotalImpact.totalMoneySaved }}</div>
+                <div class="card-label">Saved</div>
+              </div>
+            </div>
+            <div class="impact-card co2-card">
+              <div class="card-icon">🌱</div>
+              <div class="card-content">
+                <div class="card-value">{{ formattedTotalImpact.totalCo2Avoided }}</div>
+                <div class="card-label">CO₂ Reduced</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- User Info -->
       <div v-if="authStore.user" class="user-info">
@@ -14,7 +62,7 @@
     <main class="dashboard-main">
       <!-- Loading State -->
       <div v-if="inventoryStore.isLoading" class="loading-container">
-        <LoadingState message="Loading your dashboard..." />
+        <LoadingState :visible="true" message="Loading your dashboard..." />
       </div>
 
       <!-- Error State -->
@@ -27,29 +75,40 @@
       </div>
 
       <!-- Dashboard Content -->
-      <div v-else>
-        <!-- Impact Overview Section -->
-        <section class="impact-overview-section">
-          <h2>Your Environmental Impact</h2>
-          <ImpactStats />
-        </section>
+      <div v-else class="dashboard-content">
+        <!-- Inventory Section -->
+        <section class="dashboard-section inventory-section">
+          <div class="section-header">
+            <h2>Inventory Overview</h2>
+            <p class="section-subtitle">Keep track of your items</p>
+          </div>
 
-        <!-- Inventory Summary Section -->
-        <section class="inventory-summary-section">
-          <h2>Inventory Overview</h2>
-          <InventorySummary />
-        </section>
+          <!-- Filter Section -->
+          <div class="inventory-filters">
+            <InventoryFilter />
+          </div>
 
-        <!-- Recent Activity Section
-        <section class="recent-activity-section">
-          <h2>Recent Activity</h2>
-          <RecentActivity />
-        </section> -->
+          <!-- Empty State -->
+          <div v-if="inventoryStore.items.length === 0" class="empty-state">
+            <div class="empty-icon">📦</div>
+            <h3>No items in your inventory</h3>
+            <p>Start by adding some groceries to track</p>
+            <router-link to="/add-item" class="btn btn--primary"> Add Your First Item </router-link>
+          </div>
 
-        <!-- Quick Actions Section -->
-        <section class="quick-actions-section">
-          <h2>Quick Actions</h2>
-          <QuickActions />
+          <!-- Inventory Items -->
+          <div v-else class="inventory-content">
+            <div class="inventory-grid">
+              <InventoryItem
+                v-for="item in inventoryStore.items"
+                :key="item.id"
+                :item="item"
+                :loading="loadingItemId === item.id"
+                @use="handleUseItem"
+                @delete="handleDeleteItem"
+              />
+            </div>
+          </div>
         </section>
       </div>
 
@@ -59,69 +118,111 @@
         <p>API Mode: {{ apiStatus.mode }}</p>
       </div>
     </main>
+
+    <!-- Floating Add Button -->
+    <QuickActions />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { useInventoryStore } from '@/stores/inventory'
-import { useAuthStore } from '@/stores/auth'
-import InventorySummary from '@/components/common/InventorySummary.vue'
-import QuickActions from '@/components/common/QuickActions.vue'
-import ImpactStats from '@/components/inventory/ImpactStats.vue'
-import RecentActivity from '@/components/dashboard/RecentActivity.vue'
-import LoadingState from '@/components/common/LoadingState.vue'
-import inventoryAPI from '@/api/inventory'
-import { isDevelopment } from '@/config/environment'
+import { onMounted, ref, computed } from "vue";
+import { useRouter } from "vue-router";
+import { useInventoryStore } from "@/stores/inventory";
+import { useAuthStore } from "@/stores/auth";
+import QuickActions from "@/components/common/QuickActions.vue";
+import InventoryItem from "@/components/inventory/InventoryItem.vue";
+import InventoryFilter from "@/components/inventory/InventoryFilter.vue";
+import { useImpactStore } from "@/stores/impact";
 
-const router = useRouter()
-const inventoryStore = useInventoryStore()
-const authStore = useAuthStore()
-const apiStatus = ref<{ mode: string } | null>(null)
+import LoadingState from "@/components/common/LoadingState.vue";
+import inventoryAPI from "@/api/inventory";
+import { isDevelopment } from "@/config/environment";
+
+const router = useRouter();
+const inventoryStore = useInventoryStore();
+const authStore = useAuthStore();
+const impactStore = useImpactStore();
+const apiStatus = ref<{ mode: string } | null>(null);
 
 const userDisplayName = computed(() => {
-  return authStore.user?.inventoryName || 'Your Inventory'
-})
+  return authStore.user?.inventoryName || "Your Inventory";
+});
+
+const formattedTotalImpact = computed(() => impactStore.formattedTotalImpact);
+
+// Local state for tracking loading states
+const loadingItemId = ref<string | null>(null);
 
 const retryLoad = async () => {
-  inventoryStore.clearError()
-  await loadInventory()
-}
+  inventoryStore.clearError();
+  await loadInventory();
+};
 
 const loadInventory = async () => {
   if (!authStore.user) {
-    console.error('No authenticated user found')
-    return
+    console.error("No authenticated user found");
+    return;
   }
 
   try {
-    await inventoryStore.fetchInventory(authStore.user.id)
+    await inventoryStore.fetchInventory(authStore.user.id);
+    await impactStore.fetchTotalImpact(authStore.user.id);
 
     // Update API status for development display
     if (isDevelopment()) {
-      apiStatus.value = inventoryAPI.getAPIStatus()
+      apiStatus.value = inventoryAPI.getAPIStatus();
     }
   } catch (error) {
-    console.error('Failed to load inventory:', error)
+    console.error("Failed to load inventory:", error);
   }
-}
+};
+
+const handleUseItem = async (itemId: string) => {
+  if (!authStore.user) return;
+
+  loadingItemId.value = itemId;
+
+  try {
+    const impact = await inventoryStore.markItemAsUsed(itemId);
+    if (impact) {
+      impactStore.showImpact(impact);
+    }
+  } catch (error) {
+    console.error("Failed to mark item as used:", error);
+  } finally {
+    loadingItemId.value = null;
+  }
+};
+
+const handleDeleteItem = async (itemId: string) => {
+  if (!authStore.user) return;
+
+  loadingItemId.value = itemId;
+
+  try {
+    await inventoryStore.deleteItem(itemId);
+  } catch (error) {
+    console.error("Failed to delete item:", error);
+  } finally {
+    loadingItemId.value = null;
+  }
+};
 
 const logout = async () => {
   try {
-    authStore.logout()
+    authStore.logout();
     // Force immediate redirect to auth page
-    await router.replace('/auth')
+    await router.replace("/auth");
   } catch (error) {
-    console.error('Logout error:', error)
+    console.error("Logout error:", error);
     // Fallback: force redirect anyway
-    await router.replace('/auth')
+    await router.replace("/auth");
   }
-}
+};
 
 onMounted(() => {
-  loadInventory()
-})
+  loadInventory();
+});
 </script>
 
 <style scoped>
@@ -132,20 +233,140 @@ onMounted(() => {
 }
 
 .dashboard-header {
-  text-align: center;
   color: white;
   margin-bottom: var(--spacing-xl);
 }
 
-.dashboard-header h1 {
+.header-content {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: flex-start;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.header-left {
+  justify-self: start;
+}
+
+.header-center {
+  justify-self: center;
+}
+
+.header-right {
+  justify-self: end;
+}
+
+.header-left h1 {
   font-size: var(--font-size-xxl);
   font-weight: var(--font-weight-bold);
   margin-bottom: var(--spacing-xs);
 }
 
 .subtitle {
-  color: white(--color-secondary);
+  color: rgba(255, 255, 255, 0.8);
   font-size: var(--font-size-sm);
+}
+
+/* Navigation Bar */
+.navigation-bar {
+  display: flex;
+  gap: var(--spacing-xs);
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: var(--border-radius-lg);
+  padding: var(--spacing-xs);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--border-radius-md);
+  text-decoration: none;
+  color: rgba(255, 255, 255, 0.8);
+  transition: all 0.3s ease;
+  min-width: 60px;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  transform: translateY(-1px);
+}
+
+.nav-item.active {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.nav-icon {
+  font-size: var(--font-size-lg);
+}
+
+.nav-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  text-align: center;
+}
+
+.impact-cards {
+  display: flex;
+  gap: var(--spacing-md);
+}
+
+.impact-card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: var(--border-radius-lg);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  min-width: 120px;
+  transition: all 0.3s ease;
+}
+
+.impact-card:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.money-card {
+  border-left: 3px solid #ffd700;
+}
+
+.co2-card {
+  border-left: 3px solid #28a745;
+}
+
+.card-icon {
+  font-size: var(--font-size-lg);
+  flex-shrink: 0;
+}
+
+.card-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.card-value {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.2;
+  color: white;
+  word-break: break-word;
+}
+
+.card-label {
+  font-size: var(--font-size-xs);
+  color: rgba(255, 255, 255, 0.8);
+  margin-top: 2px;
 }
 
 .user-info {
@@ -153,7 +374,6 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   gap: var(--spacing-md);
-  margin-top: var(--spacing-md);
   padding: var(--spacing-sm);
   background: rgba(255, 255, 255, 0.1);
   border-radius: var(--border-radius-md);
@@ -231,21 +451,88 @@ onMounted(() => {
   border-color: #0056b3;
 }
 
-/* Content Sections */
-.impact-overview-section,
-.inventory-summary-section,
-.recent-activity-section,
-.quick-actions-section {
-  margin-bottom: var(--spacing-xl);
+/* Dashboard Content */
+.dashboard-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
 }
 
-.impact-overview-section h2,
-.inventory-summary-section h2,
-.recent-activity-section h2,
-.quick-actions-section h2 {
-  font-size: var(--font-size-lg);
-  margin-bottom: var(--spacing-md);
+.dashboard-section {
+  background: white;
+  border-radius: var(--border-radius-lg);
+  padding: var(--spacing-xl);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dashboard-section:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+}
+
+.section-header {
+  margin-bottom: var(--spacing-lg);
+  text-align: center;
+}
+
+.section-header h2 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
+  margin-bottom: var(--spacing-xs);
+}
+
+.section-subtitle {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+/* Section-specific styling */
+.inventory-section {
+  background: linear-gradient(135deg, #e3f2fd 0%, #f1f8ff 100%);
+  border-left: 4px solid #007bff;
+}
+
+/* Inventory specific styles */
+.inventory-filters {
+  margin-bottom: var(--spacing-lg);
+}
+
+.empty-state {
+  text-align: center;
+  padding: var(--spacing-xxl);
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: var(--border-radius-lg);
+  margin-top: var(--spacing-lg);
+}
+
+.empty-icon {
+  font-size: 4rem;
+  margin-bottom: var(--spacing-lg);
+  opacity: 0.6;
+}
+
+.empty-state h3 {
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-md);
+  font-size: var(--font-size-lg);
+}
+
+.empty-state p {
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-lg);
+}
+
+.inventory-content {
+  margin-top: var(--spacing-lg);
+}
+
+.inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--spacing-lg);
 }
 
 .dev-info {
@@ -263,12 +550,39 @@ onMounted(() => {
 }
 
 /* Mobile optimizations */
+@media (max-width: 768px) {
+  .header-content {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+    gap: var(--spacing-md);
+  }
+
+  .header-left,
+  .header-center,
+  .header-right {
+    justify-self: center;
+  }
+
+  .impact-cards {
+    justify-content: center;
+  }
+
+  .navigation-bar {
+    order: 2;
+  }
+
+  .header-right {
+    order: 3;
+  }
+}
+
 @media (max-width: 480px) {
   .dashboard-view {
     padding: var(--spacing-sm);
   }
 
-  .dashboard-header h1 {
+  .header-left h1 {
     font-size: var(--font-size-xl);
   }
 
@@ -277,11 +591,61 @@ onMounted(() => {
     gap: var(--spacing-sm);
   }
 
-  .impact-overview-section h2,
-  .inventory-summary-section h2,
-  .recent-activity-section h2,
-  .quick-actions-section h2 {
+  .dashboard-section {
+    padding: var(--spacing-lg);
+  }
+
+  .section-header h2 {
+    font-size: var(--font-size-lg);
+  }
+
+  .dashboard-content {
+    gap: var(--spacing-lg);
+  }
+
+  .impact-cards {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+
+  .impact-card {
+    min-width: auto;
+    padding: var(--spacing-sm);
+  }
+
+  .card-value {
+    font-size: var(--font-size-sm);
+  }
+
+  .inventory-grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+  }
+
+  .empty-state {
+    padding: var(--spacing-xl);
+  }
+
+  .empty-icon {
+    font-size: 3rem;
+  }
+
+  .navigation-bar {
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs);
+  }
+
+  .nav-item {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    min-width: 50px;
+  }
+
+  .nav-icon {
     font-size: var(--font-size-base);
+  }
+
+  .nav-label {
+    font-size: 10px;
   }
 }
 
@@ -293,6 +657,32 @@ onMounted(() => {
 
   .dashboard-view {
     padding: var(--spacing-lg);
+  }
+
+  .dashboard-content {
+    gap: var(--spacing-xxl);
+  }
+
+  .dashboard-section {
+    padding: var(--spacing-xxl);
+  }
+}
+
+/* Tablet */
+@media (min-width: 481px) and (max-width: 768px) {
+  .inventory-grid {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  }
+}
+
+/* Large screens */
+@media (min-width: 1200px) {
+  .dashboard-main {
+    max-width: 1200px;
+  }
+
+  .inventory-grid {
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
   }
 }
 </style>

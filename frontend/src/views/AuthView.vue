@@ -147,7 +147,7 @@ const handleLogin = async () => {
   try {
     const success = authStore.loginWithCode(loginCode.value)
     if (success) {
-      router.push('/')
+      router.push('/dashboard')
     }
   } catch (error) {
     console.error('Login failed:', error)
@@ -158,7 +158,7 @@ const handleLogin = async () => {
 
 const proceedToDashboard = () => {
   newUserCode.value = ''
-  router.push('/')
+  router.push('/dashboard')
 }
 
 // Check if user is already authenticated

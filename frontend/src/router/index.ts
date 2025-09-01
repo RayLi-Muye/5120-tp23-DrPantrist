@@ -5,6 +5,15 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
+      path: "/",
+      name: "home",
+      component: () => import("../views/HomePage.vue"),
+      meta: {
+        title: "Use It Up - Stop Food Waste, Start Saving",
+        requiresGuest: true,
+      },
+    },
+    {
       path: "/auth",
       name: "auth",
       component: () => import("../views/AuthView.vue"),
@@ -14,7 +23,7 @@ const router = createRouter({
       },
     },
     {
-      path: "/",
+      path: "/dashboard",
       name: "dashboard",
       // Lazy-loaded dashboard view
       component: () => import("../views/DashboardView.vue"),
@@ -23,15 +32,10 @@ const router = createRouter({
         requiresAuth: true,
       },
     },
+    // Inventory is now integrated into dashboard
     {
       path: "/inventory",
-      name: "inventory",
-      // Lazy-loaded inventory view
-      component: () => import("../views/InventoryView.vue"),
-      meta: {
-        title: "Inventory - Use It Up",
-        requiresAuth: true,
-      },
+      redirect: "/dashboard",
     },
     {
       path: "/add-item",
@@ -96,8 +100,8 @@ router.beforeEach((to, from, next) => {
     next("/auth");
     return;
   } else if (requiresGuest && authStore.isAuthenticated) {
-    // Redirect to home if guest page is accessed but user is authenticated
-    next("/");
+    // Redirect to dashboard if guest page is accessed but user is authenticated
+    next("/dashboard");
     return;
   }
 
