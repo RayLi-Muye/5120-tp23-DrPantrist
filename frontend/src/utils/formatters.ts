@@ -19,9 +19,9 @@ export function formatCurrency(amount: number): string {
 export function formatCO2(kg: number): string {
   if (kg < 1) {
     const grams = Math.round(kg * 1000)
-    return `${grams}g CO₂`
+    return `${grams}g`
   } else {
-    return `${kg.toFixed(1)}kg CO₂`
+    return `${kg.toFixed(1)}kg`
   }
 }
 
