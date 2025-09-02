@@ -4,7 +4,7 @@
       <div class="header-content">
         <div class="header-left">
           <h1>{{ userDisplayName }}</h1>
-          <p class="subtitle">Your Food Waste Tracker</p>
+          <p class="subtitle">Your Food Inventory Tracker</p>
         </div>
 
         <div class="header-center">
@@ -51,12 +51,6 @@
           </div>
         </div>
       </div>
-
-      <!-- User Info -->
-      <div v-if="authStore.user" class="user-info">
-        <span class="login-code">Code: {{ authStore.user.loginCode }}</span>
-        <button @click="logout" class="logout-btn">Logout</button>
-      </div>
     </header>
 
     <main class="dashboard-main">
@@ -78,10 +72,7 @@
       <div v-else class="dashboard-content">
         <!-- Inventory Section -->
         <section class="dashboard-section inventory-section">
-          <div class="section-header">
-            <h2>Inventory Overview</h2>
-            <p class="section-subtitle">Keep track of your items</p>
-          </div>
+          <div class="section-header"></div>
 
           <!-- Filter Section -->
           <div class="inventory-filters">
@@ -91,8 +82,6 @@
           <!-- Empty State -->
           <div v-if="inventoryStore.items.length === 0" class="empty-state">
             <div class="empty-icon">📦</div>
-            <h3>No items in your inventory</h3>
-            <p>Start by adding some groceries to track</p>
             <router-link to="/add-item" class="btn btn--primary"> Add Your First Item </router-link>
           </div>
 
@@ -110,6 +99,11 @@
             </div>
           </div>
         </section>
+      </div>
+      <!-- User Info -->
+      <div v-if="authStore.user" class="user-info">
+        <span class="login-code">Code: {{ authStore.user.loginCode }}</span>
+        <button @click="logout" class="logout-btn">Logout</button>
       </div>
 
       <!-- Development Info -->
