@@ -10,24 +10,49 @@
       <div class="step-indicator">
         <div class="step" :class="{ active: currentStep === 1 }">
           <span class="step-number">1</span>
-          <span class="step-label">Select Item</span>
+          <span class="step-label">Category</span>
         </div>
         <div class="step-divider"></div>
         <div class="step" :class="{ active: currentStep === 2 }">
           <span class="step-number">2</span>
+          <span class="step-label">Item</span>
+        </div>
+        <div class="step-divider"></div>
+        <div class="step" :class="{ active: currentStep === 3 }">
+          <span class="step-number">3</span>
           <span class="step-label">Details</span>
         </div>
       </div>
 
-      <!-- Step 1: Grocery Selection -->
-      <section v-if="currentStep === 1" class="grocery-selection">
-        <h2>Choose from common groceries</h2>
-        <GroceryGrid :groceries="groceriesStore.masterList" @item-selected="handleItemSelected" />
+      <!-- Step 1: Category Selection -->
+      <section v-if="currentStep === 1" class="category-selection">
+        <h2>Choose a category</h2>
+        <CategoryGrid :categories="categoryList" @category-selected="handleCategorySelected" />
       </section>
 
-      <!-- Step 2: Item Details -->
-      <section v-if="currentStep === 2" class="item-details">
-        <h2>Item Details</h2>
+      <!-- Step 2: Grocery Selection -->
+      <section v-if="currentStep === 2" class="grocery-selection">
+        <div class="section-header">
+          <button @click="goBackToCategories" class="back-to-categories" aria-label="Back to categories">
+            ← {{ selectedCategory?.name }}
+          </button>
+          <h2>Choose an item</h2>
+        </div>
+        <GroceryGrid
+          v-if="selectedCategory"
+          :groceries="groceriesStore.getItemsByCategory(selectedCategory.name)"
+          @item-selected="handleItemSelected"
+        />
+      </section>
+
+      <!-- Step 3: Item Details -->
+      <section v-if="currentStep === 3" class="item-details">
+        <div class="section-header">
+          <button @click="goBackToItems" class="back-to-items" aria-label="Back to items">
+            ← {{ selectedGrocery?.name }}
+          </button>
+          <h2>Item Details</h2>
+        </div>
         <AddItemForm
           v-if="selectedGrocery"
           :selected-grocery="selectedGrocery"
@@ -47,11 +72,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useGroceriesStore } from "@/stores/groceries";
 import { useInventoryStore } from "@/stores/inventory";
 import { useAuthStore } from "@/stores/auth";
+import CategoryGrid, { type CategoryInfo } from "@/components/inventory/CategoryGrid.vue";
 import GroceryGrid from "@/components/inventory/GroceryGrid.vue";
 import AddItemForm from "@/components/inventory/AddItemForm.vue";
 import type { GroceryItem } from "@/stores/groceries";
@@ -64,13 +90,49 @@ const authStore = useAuthStore();
 
 // Component state
 const currentStep = ref(1);
+const selectedCategory = ref<CategoryInfo | null>(null);
 const selectedGrocery = ref<GroceryItem | null>(null);
 const isSubmitting = ref(false);
 const error = ref<string | null>(null);
 
+// Category icons mapping
+const getCategoryIcon = (categoryName: string): string => {
+  const iconMap: Record<string, string> = {
+    'Dairy': '🥛',
+    'Bakery': '🍞',
+    'Beverages': '🥤',
+    'Condiments': '🍯',
+    'Frozen': '🧊',
+    'Grains': '🌾',
+    'Meat': '🥩',
+    'Poultry': '🐔',
+    'Fruit': '🍎',
+    'Vegetable': '🥬',
+    'Seafood': '🐟',
+    'Pantry': '🥫'
+  }
+  return iconMap[categoryName] || '🍽️'
+}
+
+// Computed category list with counts
+const categoryList = computed(() => {
+  return groceriesStore.categories.map(categoryName => ({
+    name: categoryName,
+    icon: getCategoryIcon(categoryName),
+    count: groceriesStore.getItemsByCategory(categoryName).length
+  }))
+})
+
 const goBack = () => {
   if (currentStep.value > 1) {
     currentStep.value--;
+    // Clear selections when going back
+    if (currentStep.value === 1) {
+      selectedCategory.value = null;
+      selectedGrocery.value = null;
+    } else if (currentStep.value === 2) {
+      selectedGrocery.value = null;
+    }
   } else {
     // Check if there's history to go back to, otherwise go to dashboard
     if (window.history.length > 1) {
@@ -81,9 +143,25 @@ const goBack = () => {
   }
 };
 
+const goBackToCategories = () => {
+  currentStep.value = 1;
+  selectedCategory.value = null;
+  selectedGrocery.value = null;
+};
+
+const goBackToItems = () => {
+  currentStep.value = 2;
+  selectedGrocery.value = null;
+};
+
+const handleCategorySelected = (category: CategoryInfo) => {
+  selectedCategory.value = category;
+  currentStep.value = 2;
+};
+
 const handleItemSelected = (item: GroceryItem) => {
   selectedGrocery.value = item;
-  currentStep.value = 2;
+  currentStep.value = 3;
 };
 
 const handleFormSubmit = async (formData: {
@@ -134,7 +212,7 @@ const handleFormSubmit = async (formData: {
 };
 
 const handleFormCancel = () => {
-  currentStep.value = 1;
+  currentStep.value = 2;
   selectedGrocery.value = null;
   clearError();
 };
@@ -257,12 +335,41 @@ onMounted(async () => {
   margin: 0 var(--spacing-md);
 }
 
+.category-selection h2,
 .grocery-selection h2,
 .item-details h2 {
   font-size: var(--font-size-lg);
   margin-bottom: var(--spacing-lg);
   text-align: center;
   color: white;
+}
+
+.section-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+}
+
+.back-to-categories,
+.back-to-items {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.8);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all var(--duration-fast) ease;
+  margin-bottom: var(--spacing-sm);
+  backdrop-filter: blur(5px);
+}
+
+.back-to-categories:hover,
+.back-to-items:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  transform: translateY(-1px);
 }
 
 .error-banner {
@@ -341,6 +448,7 @@ onMounted(async () => {
     margin: 0 var(--spacing-sm);
   }
 
+  .category-selection h2,
   .grocery-selection h2,
   .item-details h2 {
     font-size: var(--font-size-base);
@@ -397,6 +505,7 @@ onMounted(async () => {
     height: 40px;
   }
 
+  .category-selection h2,
   .grocery-selection h2,
   .item-details h2 {
     font-size: var(--font-size-xl);
