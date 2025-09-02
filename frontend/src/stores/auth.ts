@@ -3,12 +3,15 @@
 
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
+import roomsAPI from '@/api/rooms'
 
 export interface User {
   id: string
   inventoryName: string
   loginCode: string
   createdAt: string
+  inventoryId?: string
+  isOwner?: boolean
 }
 
 export interface AuthState {
@@ -38,23 +41,42 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => !!user.value)
 
   // Actions
-  function createInventory(inventoryName: string): User {
+  async function createInventory(inventoryName: string): Promise<User> {
     if (!inventoryName.trim()) {
       throw new Error('Inventory name is required')
     }
 
-    const newUser: User = {
-      id: generateUserId(),
-      inventoryName: inventoryName.trim(),
-      loginCode: generateLoginCode(),
-      createdAt: new Date().toISOString()
+    isLoading.value = true
+    error.value = null
+
+    try {
+      // Generate user ID
+      const userId = generateUserId()
+
+      // Create room via API
+      const roomResponse = await roomsAPI.createRoom(inventoryName.trim(), userId)
+
+      const newUser: User = {
+        id: userId,
+        inventoryName: inventoryName.trim(),
+        loginCode: generateLoginCode(),
+        createdAt: new Date().toISOString(),
+        inventoryId: roomResponse.inventory_id,
+        isOwner: true
+      }
+
+      // Save to localStorage
+      localStorage.setItem('useItUp_user', JSON.stringify(newUser))
+      user.value = newUser
+
+      return newUser
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create inventory'
+      error.value = errorMessage
+      throw new Error(errorMessage)
+    } finally {
+      isLoading.value = false
     }
-
-    // Save to localStorage
-    localStorage.setItem('useItUp_user', JSON.stringify(newUser))
-    user.value = newUser
-
-    return newUser
   }
 
   function loginWithCode(loginCode: string): boolean {
@@ -117,6 +139,50 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
   }
 
+  async function joinInventory(inventoryId: string): Promise<User> {
+    if (!inventoryId.trim()) {
+      throw new Error('Inventory ID is required')
+    }
+
+    isLoading.value = true
+    error.value = null
+
+    try {
+      // Generate user ID
+      const userId = generateUserId()
+
+      // Join room via API
+      await roomsAPI.joinRoom(inventoryId.trim(), userId)
+
+      // Get room details
+      const roomInfo = roomsAPI.getCurrentRoom()
+      if (!roomInfo) {
+        throw new Error('Failed to get room information after joining')
+      }
+
+      const newUser: User = {
+        id: userId,
+        inventoryName: roomInfo.inventoryName,
+        loginCode: generateLoginCode(),
+        createdAt: new Date().toISOString(),
+        inventoryId: roomInfo.inventoryId,
+        isOwner: roomInfo.isOwner
+      }
+
+      // Save to localStorage
+      localStorage.setItem('useItUp_user', JSON.stringify(newUser))
+      user.value = newUser
+
+      return newUser
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to join inventory'
+      error.value = errorMessage
+      throw new Error(errorMessage)
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   function updateInventoryName(newName: string): boolean {
     if (!user.value || !newName.trim()) {
       error.value = 'Invalid inventory name'
@@ -138,6 +204,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     // Actions
     createInventory,
+    joinInventory,
     loginWithCode,
     logout,
     loadSavedUser,

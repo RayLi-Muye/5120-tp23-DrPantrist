@@ -7,7 +7,7 @@
       </div>
 
       <!-- Create New Inventory -->
-      <div v-if="!showLogin" class="auth-form">
+      <div v-if="authMode === 'create'" class="auth-form">
         <h2>Create Your Inventory</h2>
         <p class="form-description">
           Give your inventory a name to get started
@@ -37,16 +37,58 @@
           </button>
         </form>
 
-        <div class="auth-switch">
-          <p>Already have an inventory?</p>
-          <button @click="showLogin = true" class="link-button">
-            Enter login code
+        <div class="auth-options">
+          <button @click="authMode = 'join'" class="option-button">
+            Join Existing Room
+          </button>
+          <button @click="authMode = 'login'" class="option-button">
+            Use Login Code
+          </button>
+        </div>
+      </div>
+
+      <!-- Join Existing Room -->
+      <div v-else-if="authMode === 'join'" class="auth-form">
+        <h2>Join Existing Room</h2>
+        <p class="form-description">
+          Enter the room ID to join an existing inventory
+        </p>
+
+        <form @submit.prevent="handleJoinRoom">
+          <div class="form-group">
+            <label for="roomId">Room ID</label>
+            <input
+              id="roomId"
+              v-model="roomId"
+              type="text"
+              placeholder="Enter room ID"
+              required
+              :disabled="isLoading"
+            />
+          </div>
+
+          <button
+            type="submit"
+            class="btn btn--primary btn--full"
+            :disabled="isLoading || !roomId.trim()"
+          >
+            <span v-if="isLoading">Joining...</span>
+            <span v-else>Join Room</span>
+          </button>
+        </form>
+
+        <div class="auth-options">
+          <button @click="authMode = 'create'" class="option-button">
+            Create New Room
+          </button>
+          <button @click="authMode = 'login'" class="option-button">
+            Use Login Code
           </button>
         </div>
       </div>
 
       <!-- Login with Code -->
-      <div v-else class="auth-form">
+      <div v-else-if="authMode === 'login'" class="auth-form">
         <h2>Enter Login Code</h2>
         <p class="form-description">
           Enter your 6-digit login code to access your inventory
@@ -77,10 +119,12 @@
           </button>
         </form>
 
-        <div class="auth-switch">
-          <p>Don't have an inventory yet?</p>
-          <button @click="showLogin = false" class="link-button">
-            Create new inventory
+        <div class="auth-options">
+          <button @click="authMode = 'create'" class="option-button">
+            Create New Room
+          </button>
+          <button @click="authMode = 'join'" class="option-button">
+            Join Existing Room
           </button>
         </div>
       </div>
@@ -95,8 +139,27 @@
         <h3>🎉 Inventory Created!</h3>
         <p>Your login code is:</p>
         <div class="login-code-display">{{ newUserCode }}</div>
+        <div class="room-id-display">
+          <p>Room ID: <strong>{{ newRoomId }}</strong></p>
+          <p class="room-id-note">Share this ID with others to let them join your inventory</p>
+        </div>
         <p class="code-warning">
-          ⚠️ Save this code! You'll need it to access your inventory.
+          ⚠️ Save this code and room ID! You'll need them to access your inventory.
+        </p>
+        <button @click="proceedToDashboard" class="btn btn--secondary btn--full">
+          Continue to Dashboard
+        </button>
+      </div>
+
+      <!-- Success Message for Joined Room -->
+      <div v-if="joinedRoomName" class="success-message">
+        <h3>🎉 Successfully Joined!</h3>
+        <p>You've joined the inventory:</p>
+        <div class="room-name-display">{{ joinedRoomName }}</div>
+        <p>Your login code is:</p>
+        <div class="login-code-display">{{ newUserCode }}</div>
+        <p class="code-warning">
+          ⚠️ Save this code! You'll need it to access this inventory.
         </p>
         <button @click="proceedToDashboard" class="btn btn--secondary btn--full">
           Continue to Dashboard
@@ -115,11 +178,14 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 // Local state
-const showLogin = ref(false)
+const authMode = ref<'create' | 'join' | 'login'>('create')
 const inventoryName = ref('')
+const roomId = ref('')
 const loginCode = ref('')
 const isLoading = ref(false)
 const newUserCode = ref('')
+const newRoomId = ref('')
+const joinedRoomName = ref('')
 
 const handleCreateInventory = async () => {
   if (!inventoryName.value.trim()) return
@@ -128,11 +194,30 @@ const handleCreateInventory = async () => {
   authStore.clearError()
 
   try {
-    const user = authStore.createInventory(inventoryName.value)
+    const user = await authStore.createInventory(inventoryName.value)
     newUserCode.value = user.loginCode
+    newRoomId.value = user.inventoryId || ''
     inventoryName.value = ''
   } catch (error) {
     console.error('Failed to create inventory:', error)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const handleJoinRoom = async () => {
+  if (!roomId.value.trim()) return
+
+  isLoading.value = true
+  authStore.clearError()
+
+  try {
+    const user = await authStore.joinInventory(roomId.value)
+    newUserCode.value = user.loginCode
+    joinedRoomName.value = user.inventoryName
+    roomId.value = ''
+  } catch (error) {
+    console.error('Failed to join room:', error)
   } finally {
     isLoading.value = false
   }
@@ -158,6 +243,8 @@ const handleLogin = async () => {
 
 const proceedToDashboard = () => {
   newUserCode.value = ''
+  newRoomId.value = ''
+  joinedRoomName.value = ''
   router.push('/dashboard')
 }
 
@@ -296,29 +383,30 @@ onMounted(() => {
   width: 100%;
 }
 
-.auth-switch {
-  text-align: center;
+.auth-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
   margin-top: var(--spacing-lg);
   padding-top: var(--spacing-lg);
   border-top: 1px solid var(--color-border);
 }
 
-.auth-switch p {
-  color: var(--color-text-secondary);
-  margin-bottom: var(--spacing-xs);
-}
-
-.link-button {
+.option-button {
   background: none;
-  border: none;
-  color: var(--color-primary);
-  text-decoration: underline;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--border-radius-md);
   cursor: pointer;
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-sm);
+  transition: all var(--duration-fast) ease;
 }
 
-.link-button:hover {
-  color: #0056b3;
+.option-button:hover {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  border-color: var(--color-primary);
 }
 
 .error-message {
@@ -356,6 +444,35 @@ onMounted(() => {
   letter-spacing: 2px;
 }
 
+.room-id-display {
+  margin: var(--spacing-md) 0;
+  padding: var(--spacing-md);
+  background-color: rgba(0, 123, 255, 0.1);
+  border-radius: var(--border-radius-md);
+}
+
+.room-id-display strong {
+  color: var(--color-primary);
+  font-family: monospace;
+  font-size: var(--font-size-lg);
+}
+
+.room-id-note {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-top: var(--spacing-xs);
+}
+
+.room-name-display {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+  background-color: var(--color-bg-secondary);
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius-md);
+  margin: var(--spacing-md) 0;
+}
+
 .code-warning {
   color: #856404;
   font-size: var(--font-size-sm);
@@ -374,6 +491,15 @@ onMounted(() => {
 
   .auth-title {
     font-size: var(--font-size-xl);
+  }
+
+  .auth-options {
+    gap: var(--spacing-xs);
+  }
+
+  .option-button {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-size-xs);
   }
 }
 </style>
