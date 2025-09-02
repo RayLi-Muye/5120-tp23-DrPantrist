@@ -2,6 +2,7 @@
 // Use-It-Up PWA Frontend
 
 import inventoryAPI from './inventory'
+import groceriesAPI from './groceries'
 import apiClient from './axios'
 
 // Health check function
@@ -16,7 +17,8 @@ export async function checkAPIHealth(): Promise<boolean> {
 }
 
 // Export the main API services
-export { inventoryAPI, apiClient }
+export { inventoryAPI, groceriesAPI, apiClient }
 
 // Export types
 export type { InventoryItem, AddItemRequest, ImpactData, TotalImpactData } from './inventory'
+export type { GroceryItem, APIGroceryItem, APICategory } from './groceries'

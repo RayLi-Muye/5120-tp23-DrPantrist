@@ -1,23 +1,24 @@
 // Groceries Store
 // Use-It-Up PWA Frontend
 
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
+import groceriesAPI, { type GroceryItem } from '@/api/groceries'
 
-export interface GroceryItem {
-  id: string
-  name: string
-  category: string
-  icon: string
-  defaultShelfLife: number
-  avgPrice: number
-  co2Factor: number
-  unit: string
-}
+export { type GroceryItem } from '@/api/groceries'
 
 export const useGroceriesStore = defineStore('groceries', () => {
-  // Master list of 15 common grocery items
-  const masterList = ref<GroceryItem[]>([
+  // State
+  const masterList = ref<GroceryItem[]>([])
+  const isLoading = ref(false)
+  const error = ref<string | null>(null)
+  const lastFetched = ref<Date | null>(null)
+
+  // Cache duration (5 minutes)
+  const CACHE_DURATION = 5 * 60 * 1000
+
+  // Fallback data for offline/error scenarios
+  const fallbackItems: GroceryItem[] = [
     {
       id: 'milk-001',
       name: 'Milk',
@@ -168,32 +169,130 @@ export const useGroceriesStore = defineStore('groceries', () => {
       co2Factor: 11.9,
       unit: 'kg'
     }
-  ])
+  ]
 
-  // Getter to retrieve grocery item by ID
+  // Computed properties
+  const categories = computed(() => {
+    const uniqueCategories = [...new Set(masterList.value.map(item => item.category))]
+    return uniqueCategories.sort()
+  })
+
+  const isDataStale = computed(() => {
+    if (!lastFetched.value) return true
+    return Date.now() - lastFetched.value.getTime() > CACHE_DURATION
+  })
+
+  // Actions
+  const fetchGroceries = async (forceRefresh = false) => {
+    // Skip if data is fresh and not forcing refresh
+    if (!forceRefresh && !isDataStale.value && masterList.value.length > 0) {
+      return
+    }
+
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const groceries = await groceriesAPI.fetchGroceries()
+      masterList.value = groceries
+      lastFetched.value = new Date()
+
+      console.log(`Loaded ${groceries.length} groceries from API`)
+    } catch (err) {
+      console.error('Failed to fetch groceries, using fallback data:', err)
+      error.value = err instanceof Error ? err.message : 'Failed to load groceries'
+
+      // Use fallback data if API fails
+      if (masterList.value.length === 0) {
+        masterList.value = fallbackItems
+        console.log('Using fallback grocery data')
+      }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  const searchGroceries = async (query?: string, category?: string) => {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      // Find category ID if category name is provided
+      let categoryId: number | undefined
+      if (category) {
+        // This is a simplified mapping - in a real app you'd want to fetch categories first
+        const categoryMap: Record<string, number> = {
+          'Dairy': 7,
+          'Bakery': 2,
+          'Beverages': 5,
+          'Condiments': 6,
+          'Frozen': 8,
+          'Grains': 9,
+          'Meat': 10,
+          'Poultry': 15,
+          'Fruit': 18,
+          'Vegetable': 19,
+          'Seafood': 20,
+          'Pantry': 23
+        }
+        categoryId = categoryMap[category]
+      }
+
+      const results = await groceriesAPI.searchGroceries(query, categoryId)
+      return results
+    } catch (err) {
+      console.error('Search failed:', err)
+      error.value = err instanceof Error ? err.message : 'Search failed'
+
+      // Fallback to local filtering
+      let filtered = masterList.value
+      if (query) {
+        filtered = filtered.filter(item =>
+          item.name.toLowerCase().includes(query.toLowerCase())
+        )
+      }
+      if (category) {
+        filtered = filtered.filter(item => item.category === category)
+      }
+      return filtered
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  const clearError = () => {
+    error.value = null
+  }
+
+  // Getters (maintain backward compatibility)
   const getItemById = (id: string): GroceryItem | undefined => {
     return masterList.value.find(item => item.id === id)
   }
 
-  // Getter to get items by category
   const getItemsByCategory = (category: string): GroceryItem[] => {
     return masterList.value.filter(item => item.category === category)
   }
 
-  // Get all unique categories
-  const categories = ref<string[]>([
-    'Dairy',
-    'Bakery',
-    'Fruit',
-    'Vegetable',
-    'Meat',
-    'Seafood',
-    'Pantry'
-  ])
+  // Initialize with fallback data
+  if (masterList.value.length === 0) {
+    masterList.value = fallbackItems
+  }
 
   return {
+    // State
     masterList,
     categories,
+    isLoading,
+    error,
+    lastFetched,
+    isDataStale,
+
+    // Actions
+    fetchGroceries,
+    searchGroceries,
+    clearError,
+
+    // Getters (backward compatibility)
     getItemById,
     getItemsByCategory
   }

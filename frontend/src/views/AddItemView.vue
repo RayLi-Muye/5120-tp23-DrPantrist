@@ -47,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useGroceriesStore } from "@/stores/groceries";
 import { useInventoryStore } from "@/stores/inventory";
@@ -143,6 +143,16 @@ const clearError = () => {
   error.value = null;
   inventoryStore.clearError();
 };
+
+// Load groceries data on component mount
+onMounted(async () => {
+  try {
+    await groceriesStore.fetchGroceries();
+  } catch (err) {
+    console.error('Failed to load groceries:', err);
+    // Error is handled in the store, fallback data will be used
+  }
+});
 </script>
 
 <style scoped>
