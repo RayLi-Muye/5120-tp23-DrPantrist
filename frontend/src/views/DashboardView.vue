@@ -74,10 +74,10 @@
         <section class="dashboard-section inventory-section">
           <div class="section-header"></div>
 
-          <!-- Filter Section -->
+          <!-- Filter Section
           <div class="inventory-filters">
             <InventoryFilter />
-          </div>
+          </div> -->
 
           <!-- Empty State -->
           <div v-if="inventoryStore.items.length === 0" class="empty-state">
