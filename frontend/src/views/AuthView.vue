@@ -15,6 +15,19 @@
 
         <form @submit.prevent="handleCreateInventory">
           <div class="form-group">
+            <label for="displayName">Your Name</label>
+            <input
+              id="displayName"
+              v-model="displayName"
+              type="text"
+              placeholder="e.g., John, Mary"
+              maxlength="30"
+              required
+              :disabled="isLoading"
+            />
+          </div>
+          
+          <div class="form-group">
             <label for="inventoryName">Inventory Name</label>
             <input
               id="inventoryName"
@@ -30,7 +43,7 @@
           <button
             type="submit"
             class="btn btn--primary btn--full"
-            :disabled="isLoading || !inventoryName.trim()"
+            :disabled="isLoading || !inventoryName.trim() || !displayName.trim()"
           >
             <span v-if="isLoading">Creating...</span>
             <span v-else>Create Inventory</span>
@@ -56,6 +69,19 @@
 
         <form @submit.prevent="handleJoinRoom">
           <div class="form-group">
+            <label for="joinDisplayName">Your Name</label>
+            <input
+              id="joinDisplayName"
+              v-model="joinDisplayName"
+              type="text"
+              placeholder="e.g., John, Mary"
+              maxlength="30"
+              required
+              :disabled="isLoading"
+            />
+          </div>
+          
+          <div class="form-group">
             <label for="roomId">Room ID</label>
             <input
               id="roomId"
@@ -70,7 +96,7 @@
           <button
             type="submit"
             class="btn btn--primary btn--full"
-            :disabled="isLoading || !roomId.trim()"
+            :disabled="isLoading || !roomId.trim() || !joinDisplayName.trim()"
           >
             <span v-if="isLoading">Joining...</span>
             <span v-else>Join Room</span>
@@ -179,6 +205,8 @@ const authStore = useAuthStore()
 
 // Local state
 const authMode = ref<'create' | 'join' | 'login'>('create')
+const displayName = ref('')
+const joinDisplayName = ref('')
 const inventoryName = ref('')
 const roomId = ref('')
 const loginCode = ref('')
@@ -188,16 +216,17 @@ const newRoomId = ref('')
 const joinedRoomName = ref('')
 
 const handleCreateInventory = async () => {
-  if (!inventoryName.value.trim()) return
+  if (!inventoryName.value.trim() || !displayName.value.trim()) return
 
   isLoading.value = true
   authStore.clearError()
 
   try {
-    const user = await authStore.createInventory(inventoryName.value)
+    const user = await authStore.createInventory(inventoryName.value, displayName.value)
     newUserCode.value = user.loginCode
     newRoomId.value = user.inventoryId || ''
     inventoryName.value = ''
+    displayName.value = ''
   } catch (error) {
     console.error('Failed to create inventory:', error)
   } finally {
@@ -206,16 +235,17 @@ const handleCreateInventory = async () => {
 }
 
 const handleJoinRoom = async () => {
-  if (!roomId.value.trim()) return
+  if (!roomId.value.trim() || !joinDisplayName.value.trim()) return
 
   isLoading.value = true
   authStore.clearError()
 
   try {
-    const user = await authStore.joinInventory(roomId.value)
+    const user = await authStore.joinInventory(roomId.value, joinDisplayName.value)
     newUserCode.value = user.loginCode
     joinedRoomName.value = user.inventoryName
     roomId.value = ''
+    joinDisplayName.value = ''
   } catch (error) {
     console.error('Failed to join room:', error)
   } finally {

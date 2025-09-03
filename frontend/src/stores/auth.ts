@@ -7,6 +7,7 @@ import roomsAPI from '@/api/rooms'
 
 export interface User {
   id: string
+  displayName: string
   inventoryName: string
   loginCode: string
   createdAt: string
@@ -41,7 +42,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => !!user.value)
 
   // Actions
-  async function createInventory(inventoryName: string): Promise<User> {
+  async function createInventory(inventoryName: string, displayName?: string): Promise<User> {
     if (!inventoryName.trim()) {
       throw new Error('Inventory name is required')
     }
@@ -50,17 +51,21 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
 
     try {
-      // Generate user ID
-      const userId = generateUserId()
-
-      // Create room via API
-      const roomResponse = await roomsAPI.createRoom(inventoryName.trim(), userId)
+      // Use inventory name as display name if not provided
+      const userDisplayName = displayName?.trim() || inventoryName.trim()
+      
+      // Create user and room using the two-step process
+      const { user: userResponse, room: roomResponse } = await roomsAPI.createUserAndRoom(
+        userDisplayName,
+        inventoryName.trim()
+      )
 
       const newUser: User = {
-        id: userId,
+        id: userResponse.user_id,
+        displayName: userResponse.display_name,
         inventoryName: inventoryName.trim(),
         loginCode: generateLoginCode(),
-        createdAt: new Date().toISOString(),
+        createdAt: userResponse.created_at,
         inventoryId: roomResponse.inventory_id,
         isOwner: true
       }
@@ -139,7 +144,7 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
   }
 
-  async function joinInventory(inventoryId: string): Promise<User> {
+  async function joinInventory(inventoryId: string, displayName?: string): Promise<User> {
     if (!inventoryId.trim()) {
       throw new Error('Inventory ID is required')
     }
@@ -148,8 +153,19 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
 
     try {
-      // Generate user ID
-      const userId = generateUserId()
+      // Create user first if display name provided, otherwise use fallback
+      let userId: string
+      let userDisplayName: string
+      
+      if (displayName?.trim()) {
+        const userResponse = await roomsAPI.createUser(displayName.trim())
+        userId = userResponse.user_id
+        userDisplayName = userResponse.display_name
+      } else {
+        // Fallback for backward compatibility
+        userId = generateUserId()
+        userDisplayName = 'User'
+      }
 
       // Join room via API
       await roomsAPI.joinRoom(inventoryId.trim(), userId)
@@ -162,6 +178,7 @@ export const useAuthStore = defineStore('auth', () => {
 
       const newUser: User = {
         id: userId,
+        displayName: userDisplayName,
         inventoryName: roomInfo.inventoryName,
         loginCode: generateLoginCode(),
         createdAt: new Date().toISOString(),
