@@ -258,39 +258,50 @@ const inventoryAPI = {
     return withFallback(
       // Real API call
       async () => {
-        return await retryRequest(async () => {
-          const response = await retryRequest(() =>
-            fetch('http://13.210.101.133:8000/items', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                inventory_id: itemData.inventory_id,
-                grocery_id: itemData.grocery_id,
-                created_by: itemData.created_by,
-                quantity: itemData.quantity,
-                purchased_at: itemData.purchased_at,
-                actual_expiry: itemData.actual_expiry
-              })
+        const response = await retryRequest(() =>
+          fetch('http://13.210.101.133:8000/items', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              inventory_id: itemData.inventory_id,
+              grocery_id: itemData.grocery_id,
+              created_by: itemData.created_by,
+              quantity: itemData.quantity,
+              purchased_at: itemData.purchased_at,
+              actual_expiry: itemData.actual_expiry
             })
-          )
-
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}))
-            throw new InventoryAPIError(
-              errorData.message || `HTTP error! status: ${response.status}`,
-              'addItemToInventory'
-            )
-          }
-
-          const data = await response.json()
-          // Convert response to InventoryItem format if needed
-          return data as InventoryItem
+          })
+        )
+        
+        console.log('📤 /items API request:', {
+          url: 'http://13.210.101.133:8000/items',
+          method: 'POST',
+          data: itemData
         })
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          console.error('❌ /items API failed:', {
+            status: response.status,
+            statusText: response.statusText,
+            errorData
+          })
+          throw new InventoryAPIError(
+            errorData.message || `HTTP error! status: ${response.status}`,
+            'addItemToInventory'
+          )
+        }
+
+        const data = await response.json()
+        console.log('✅ /items API success:', data)
+        // Convert response to InventoryItem format if needed
+        return data as InventoryItem
       },
       // Mock API fallback - convert new format to legacy format for mock
       async () => {
+        console.log('🔄 Using mock API fallback for /items endpoint')
         const legacyItemData: AddItemRequest = {
           userId: itemData.created_by,
           itemId: itemData.grocery_id.toString(),
@@ -298,7 +309,9 @@ const inventoryAPI = {
           customExpiryDate: itemData.actual_expiry,
           notes: ''
         }
-        return await mockInventoryAPI.addItem(legacyItemData)
+        const result = await mockInventoryAPI.addItem(legacyItemData)
+        console.log('✅ Mock API result:', result)
+        return result
       },
       'add item to inventory via /items endpoint'
     )

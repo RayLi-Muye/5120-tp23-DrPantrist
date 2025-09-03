@@ -77,6 +77,7 @@ import { useRouter } from "vue-router";
 import { useGroceriesStore } from "@/stores/groceries";
 import { useInventoryStore } from "@/stores/inventory";
 import roomsAPI from "@/api/rooms";
+import inventoryAPI from "@/api/inventory";
 import { useAuthStore } from "@/stores/auth";
 import CategoryGrid, { type CategoryInfo } from "@/components/inventory/CategoryGrid.vue";
 import GroceryGrid from "@/components/inventory/GroceryGrid.vue";
@@ -209,12 +210,18 @@ const handleFormSubmit = async (formData: {
       actual_expiry: formatDateForAPI(expiryDate)
     };
 
+    console.log('📤 Attempting to add item via /items API:', addItemRequest);
+    
+    // Force reset API mode to ensure we try real API first
+    inventoryAPI.resetAPIMode();
+    
     // Try the new API endpoint first
     let result;
     try {
       result = await inventoryStore.addItemToInventory(addItemRequest);
+      console.log('✅ Successfully added item via /items API:', result);
     } catch (newApiError) {
-      console.log('New API failed, falling back to legacy API:', newApiError);
+      console.error('❌ New /items API failed, falling back to legacy API:', newApiError);
       
       // Fallback to legacy API format
       const legacyAddItemRequest = {
