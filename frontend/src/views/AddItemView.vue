@@ -76,6 +76,7 @@ import { ref, onMounted, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useGroceriesStore } from "@/stores/groceries";
 import { useInventoryStore } from "@/stores/inventory";
+import roomsAPI from "@/api/rooms";
 import { useAuthStore } from "@/stores/auth";
 import CategoryGrid, { type CategoryInfo } from "@/components/inventory/CategoryGrid.vue";
 import GroceryGrid from "@/components/inventory/GroceryGrid.vue";
@@ -179,22 +180,53 @@ const handleFormSubmit = async (formData: {
     return;
   }
 
+  // Get current room info
+  const currentRoom = roomsAPI.getCurrentRoom();
+  if (!currentRoom) {
+    error.value = "No active room found. Please create or join a room first.";
+    return;
+  }
+
   isSubmitting.value = true;
   error.value = null;
 
   try {
     // Convert form date to API format
     const expiryDate = new Date(formData.expiryDate);
+    const today = new Date();
 
+    // Prepare data for new /items API
     const addItemRequest = {
-      userId: authStore.user.id,
-      itemId: selectedGrocery.value.id,
+      inventory_id: currentRoom.inventoryId,
+      grocery_id: (() => {
+        // Extract grocery_id from frontend ID format (grocery-123 -> 123)
+        const groceryIdMatch = selectedGrocery.value.id.match(/grocery-(\d+)/);
+        return groceryIdMatch ? parseInt(groceryIdMatch[1], 10) : parseInt(selectedGrocery.value.id, 10);
+      })(),
+      created_by: authStore.user.id,
       quantity: formData.quantity,
-      customExpiryDate: formatDateForAPI(expiryDate),
-      notes: formData.notes || undefined,
+      purchased_at: formatDateForAPI(today), // Use current date as purchase date
+      actual_expiry: formatDateForAPI(expiryDate)
     };
 
-    const result = await inventoryStore.addItem(addItemRequest);
+    // Try the new API endpoint first
+    let result;
+    try {
+      result = await inventoryStore.addItemToInventory(addItemRequest);
+    } catch (newApiError) {
+      console.log('New API failed, falling back to legacy API:', newApiError);
+      
+      // Fallback to legacy API format
+      const legacyAddItemRequest = {
+        userId: authStore.user.id,
+        itemId: selectedGrocery.value.id,
+        quantity: formData.quantity,
+        customExpiryDate: formatDateForAPI(expiryDate),
+        notes: formData.notes || undefined,
+      };
+      
+      result = await inventoryStore.addItem(legacyAddItemRequest);
+    }
 
     if (result) {
       // Success - navigate to dashboard

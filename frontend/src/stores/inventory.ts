@@ -3,7 +3,7 @@
 
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import inventoryAPI, { type InventoryItem, type AddItemRequest, type ImpactData, InventoryAPIError } from '@/api/inventory'
+import inventoryAPI, { type InventoryItem, type AddItemRequest, type AddItemToInventoryRequest, type ImpactData, InventoryAPIError } from '@/api/inventory'
 import { calculateDaysUntilExpiry } from '@/utils/dateHelpers'
 // Removed error handler imports for MVP
 import type { FreshnessStatus } from '@/composables/useExpiryStatus'
@@ -168,6 +168,42 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
+  async function addItemToInventory(itemData: AddItemToInventoryRequest): Promise<InventoryItem | null> {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const newItem = await inventoryAPI.addItemToInventory(itemData)
+
+      // Add to local state for immediate UI update
+      items.value.push(newItem)
+
+      // Update cache timestamp
+      lastFetch.value = Date.now()
+
+      // Clear any previous errors on successful add
+      error.value = null
+
+      return newItem
+    } catch (err) {
+      const errorMessage = 'add the item to inventory'
+
+      if (err instanceof InventoryAPIError) {
+        error.value = err.message
+      } else if (err instanceof Error && err.message.includes('network')) {
+        error.value = 'Network error - item not added'
+      } else {
+        error.value = 'Failed to add item to inventory. Please try again.'
+      }
+      console.error(errorMessage, err)
+
+      console.error('Failed to add item to inventory:', err)
+      return null
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   async function markItemAsUsed(itemId: string): Promise<ImpactData | null> {
     isLoading.value = true
     error.value = null
@@ -305,6 +341,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     // Actions
     fetchInventory,
     addItem,
+    addItemToInventory,
     markItemAsUsed,
     deleteItem,
     updateFilter,

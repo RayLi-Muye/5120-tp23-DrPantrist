@@ -30,6 +30,16 @@ export interface AddItemRequest {
   notes?: string
 }
 
+// New interface for /items API endpoint
+export interface AddItemToInventoryRequest {
+  inventory_id: string
+  grocery_id: number
+  created_by: string
+  quantity: number
+  purchased_at: string
+  actual_expiry: string
+}
+
 export interface ImpactData {
   itemId: string
   itemName: string
@@ -195,7 +205,7 @@ const inventoryAPI = {
   },
 
   /**
-   * Add a new item to inventory
+   * Add a new item to inventory (Legacy method)
    * @param itemData - The item data to add
    * @returns Promise<InventoryItem> - The created inventory item
    */
@@ -228,6 +238,69 @@ const inventoryAPI = {
         return await mockInventoryAPI.addItem(itemData)
       },
       'add item to inventory'
+    )
+  },
+
+  /**
+   * Add a new item to inventory using /items endpoint
+   * @param itemData - The item data to add
+   * @returns Promise<InventoryItem> - The created inventory item
+   */
+  async addItemToInventory(itemData: AddItemToInventoryRequest): Promise<InventoryItem> {
+    // Validate required fields
+    if (!itemData.inventory_id || !itemData.grocery_id || !itemData.created_by) {
+      throw new InventoryAPIError(
+        'Inventory ID, Grocery ID, and Created By are required',
+        'addItemToInventory'
+      )
+    }
+
+    return withFallback(
+      // Real API call
+      async () => {
+        return await retryRequest(async () => {
+          const response = await retryRequest(() =>
+            fetch('http://13.210.101.133:8000/items', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                inventory_id: itemData.inventory_id,
+                grocery_id: itemData.grocery_id,
+                created_by: itemData.created_by,
+                quantity: itemData.quantity,
+                purchased_at: itemData.purchased_at,
+                actual_expiry: itemData.actual_expiry
+              })
+            })
+          )
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}))
+            throw new InventoryAPIError(
+              errorData.message || `HTTP error! status: ${response.status}`,
+              'addItemToInventory'
+            )
+          }
+
+          const data = await response.json()
+          // Convert response to InventoryItem format if needed
+          return data as InventoryItem
+        })
+      },
+      // Mock API fallback - convert new format to legacy format for mock
+      async () => {
+        const legacyItemData: AddItemRequest = {
+          userId: itemData.created_by,
+          itemId: itemData.grocery_id.toString(),
+          quantity: itemData.quantity,
+          customExpiryDate: itemData.actual_expiry,
+          notes: ''
+        }
+        return await mockInventoryAPI.addItem(legacyItemData)
+      },
+      'add item to inventory via /items endpoint'
     )
   },
 
