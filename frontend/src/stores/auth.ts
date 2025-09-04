@@ -3,7 +3,7 @@
 
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import roomsAPI from '@/api/rooms'
+import inventoryRoomsAPI from '@/api/inventory-rooms'
 
 export interface User {
   id: string
@@ -55,7 +55,7 @@ export const useAuthStore = defineStore('auth', () => {
       const userDisplayName = displayName?.trim() || inventoryName.trim()
       
       // Create user and room using the two-step process
-      const { user: userResponse, room: roomResponse } = await roomsAPI.createUserAndRoom(
+      const { user: userResponse, room: roomResponse } = await inventoryRoomsAPI.createUserAndRoom(
         userDisplayName,
         inventoryName.trim()
       )
@@ -158,7 +158,7 @@ export const useAuthStore = defineStore('auth', () => {
       let userDisplayName: string
       
       if (displayName?.trim()) {
-        const userResponse = await roomsAPI.createUser(displayName.trim())
+        const userResponse = await inventoryRoomsAPI.createUser(displayName.trim())
         userId = userResponse.user_id
         userDisplayName = userResponse.display_name
       } else {
@@ -168,10 +168,10 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       // Join room via API
-      await roomsAPI.joinRoom(inventoryId.trim(), userId)
+      await inventoryRoomsAPI.joinRoom(inventoryId.trim(), userId)
 
       // Get room details
-      const roomInfo = roomsAPI.getCurrentRoom()
+      const roomInfo = inventoryRoomsAPI.getCurrentRoom()
       if (!roomInfo) {
         throw new Error('Failed to get room information after joining')
       }

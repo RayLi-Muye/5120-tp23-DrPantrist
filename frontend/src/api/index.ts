@@ -3,7 +3,7 @@
 
 import inventoryAPI from './inventory'
 import groceriesAPI from './groceries'
-import roomsAPI from './rooms'
+import inventoryRoomsAPI from './inventory-rooms'
 import apiClient from './axios'
 
 // Health check function
@@ -18,9 +18,9 @@ export async function checkAPIHealth(): Promise<boolean> {
 }
 
 // Export the main API services
-export { inventoryAPI, groceriesAPI, roomsAPI, apiClient }
+export { inventoryAPI, groceriesAPI, inventoryRoomsAPI, apiClient }
 
 // Export types
 export type { InventoryItem, AddItemRequest, ImpactData, TotalImpactData } from './inventory'
 export type { GroceryItem, APIGroceryItem, APICategory } from './groceries'
-export type { CreateRoomRequest, CreateRoomResponse, JoinRoomRequest, GetUserRoomsResponse } from './rooms'
+export type { CreateRoomRequest, CreateRoomResponse, JoinRoomRequest, GetUserRoomsResponse, CreateUserRequest, CreateUserResponse } from './inventory-rooms'

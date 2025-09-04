@@ -1,5 +1,6 @@
-// Rooms API Service
+// Inventory Rooms API Service
 // Use-It-Up PWA Frontend
+// Handles user and inventory room management (create users, create/join rooms)
 
 import apiClient, { retryRequest } from './axios'
 
@@ -40,7 +41,7 @@ export interface GetUserRoomsResponse {
 }
 
 // API Service Class
-class RoomsAPI {
+class InventoryRoomsAPI {
   private baseUrl = 'http://13.210.101.133:8000'
 
   /**
@@ -312,5 +313,5 @@ class RoomsAPI {
 }
 
 // Export singleton instance
-const roomsAPI = new RoomsAPI()
-export default roomsAPI
+const inventoryRoomsAPI = new InventoryRoomsAPI()
+export default inventoryRoomsAPI

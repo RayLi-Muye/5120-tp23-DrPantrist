@@ -76,7 +76,7 @@ import { ref, onMounted, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useGroceriesStore } from "@/stores/groceries";
 import { useInventoryStore } from "@/stores/inventory";
-import roomsAPI from "@/api/rooms";
+import inventoryRoomsAPI from "@/api/inventory-rooms";
 import inventoryAPI from "@/api/inventory";
 import { useAuthStore } from "@/stores/auth";
 import CategoryGrid, { type CategoryInfo } from "@/components/inventory/CategoryGrid.vue";
@@ -182,7 +182,7 @@ const handleFormSubmit = async (formData: {
   }
 
   // Get current room info
-  const currentRoom = roomsAPI.getCurrentRoom();
+  const currentRoom = inventoryRoomsAPI.getCurrentRoom();
   if (!currentRoom) {
     error.value = "No active room found. Please create or join a room first.";
     return;
