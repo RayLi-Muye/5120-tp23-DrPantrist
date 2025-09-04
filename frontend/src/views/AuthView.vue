@@ -1,6 +1,18 @@
 <template>
   <div class="auth-view">
     <div class="auth-container">
+      <nav class="top-toggle-nav" aria-label="Primary">
+        <router-link
+          to="/"
+          class="toggle-btn"
+          :class="{ active: $route.path === '/' }"
+        >Home</router-link>
+        <router-link
+          to="/auth"
+          class="toggle-btn"
+          :class="{ active: $route.path === '/auth' }"
+        >Auth</router-link>
+      </nav>
       <div class="auth-header">
         <h1 class="auth-title">UseItUp</h1>
         <p class="auth-subtitle">Track your groceries, reduce waste</p>
@@ -306,6 +318,33 @@ onMounted(async () => {
   justify-content: center;
   padding: var(--spacing-md);
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.top-toggle-nav {
+  display: flex;
+  gap: var(--spacing-sm);
+  justify-content: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.toggle-btn {
+  text-decoration: none;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  color: var(--color-text-secondary);
+  transition: all var(--duration-fast) ease;
+}
+
+.toggle-btn:hover {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+}
+
+.toggle-btn.active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
 }
 
 .auth-container {

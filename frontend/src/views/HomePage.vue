@@ -1,5 +1,18 @@
 <template>
   <div class="home-page">
+    <!-- Simple top nav to switch between Home and Auth -->
+    <nav class="top-toggle-nav" aria-label="Primary">
+      <router-link
+        to="/"
+        class="toggle-btn"
+        :class="{ active: $route.path === '/' }"
+      >Home</router-link>
+      <router-link
+        to="/auth"
+        class="toggle-btn"
+        :class="{ active: $route.path === '/auth' }"
+      >Auth</router-link>
+    </nav>
     <!-- Hero Section -->
     <section class="hero">
       <div class="hero-content">
@@ -157,6 +170,33 @@ const getStarted = () => {
 .home-page {
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.top-toggle-nav {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  padding: 12px 0;
+}
+
+.toggle-btn {
+  text-decoration: none;
+  padding: 6px 12px;
+  border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 8px;
+  color: white;
+  background: rgba(255,255,255,0.12);
+  transition: all 0.2s ease;
+}
+
+.toggle-btn:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+.toggle-btn.active {
+  background: white;
+  color: #4b4b4b;
+  border-color: white;
 }
 
 /* Hero Section */
