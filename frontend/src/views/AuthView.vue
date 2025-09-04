@@ -325,9 +325,6 @@ onMounted(async () => {
   gap: var(--spacing-sm);
   justify-content: center;
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--color-border);
   z-index: 1000;
 }
 
@@ -338,21 +335,21 @@ onMounted(async () => {
 .toggle-btn {
   text-decoration: none;
   padding: 6px 12px;
-  border: 1px solid var(--color-border);
+  border: 1px solid rgba(255,255,255,0.4);
   border-radius: var(--border-radius-md);
-  color: var(--color-text-primary);
-  background: white;
+  color: #fff;
+  background: rgba(255,255,255,0.12);
   transition: all var(--duration-fast) ease;
 }
 
 .toggle-btn:hover {
-  background: var(--color-bg-secondary);
+  background: rgba(255,255,255,0.2);
 }
 
 .toggle-btn.active {
-  background: var(--color-primary);
-  color: #fff;
-  border-color: var(--color-primary);
+  background: #fff;
+  color: #4b4b4b;
+  border-color: #fff;
 }
 
 .auth-container {

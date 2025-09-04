@@ -182,30 +182,27 @@ const getStarted = () => {
   gap: 8px;
   justify-content: center;
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid rgba(0,0,0,0.1);
   z-index: 1000;
 }
 
 .toggle-btn {
   text-decoration: none;
   padding: 6px 12px;
-  border: 1px solid rgba(0,0,0,0.1);
+  border: 1px solid rgba(255,255,255,0.4);
   border-radius: 8px;
-  color: #333;
-  background: white;
+  color: white;
+  background: rgba(255,255,255,0.12);
   transition: all 0.2s ease;
 }
 
 .toggle-btn:hover {
-  background: #f5f5f5;
+  background: rgba(255,255,255,0.2);
 }
 
 .toggle-btn.active {
-  background: #4f46e5;
-  color: #fff;
-  border-color: #4f46e5;
+  background: white;
+  color: #4b4b4b;
+  border-color: white;
 }
 
 /* Hero Section */
