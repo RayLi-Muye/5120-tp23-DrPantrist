@@ -2,6 +2,7 @@
 // Use-It-Up PWA Frontend
 
 import apiClient, { retryRequest } from './axios'
+import { config } from '@/config/environment'
 
 // API Response Types
 export interface APIGroceryItem {
@@ -206,7 +207,7 @@ const transformGroceryItem = (apiItem: APIGroceryItem): GroceryItem => {
 
 // API Service Class
 class GroceriesAPI {
-  private baseUrl = import.meta.env.DEV ? '/api' : 'http://13.210.101.133:8000'
+  private baseUrl = config.apiBaseUrl
 
   // Fetch all groceries from API
   async fetchGroceries(): Promise<GroceryItem[]> {

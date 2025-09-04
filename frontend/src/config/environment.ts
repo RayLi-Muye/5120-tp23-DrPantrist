@@ -27,7 +27,7 @@ const environments: Record<Environment, EnvironmentConfig> = {
     healthCheckEndpoint: '/health'
   },
   staging: {
-    apiBaseUrl: 'https://staging-api.useitup.com/v1',
+    apiBaseUrl: 'https://api.tp23.me',
     appTitle: 'Use-It-Up (Staging)',
     debug: true,
     timeout: 15000,
@@ -37,7 +37,7 @@ const environments: Record<Environment, EnvironmentConfig> = {
     healthCheckEndpoint: '/health'
   },
   production: {
-    apiBaseUrl: 'https://api.useitup.com/v1',
+    apiBaseUrl: 'https://api.tp23.me',
     appTitle: 'Use-It-Up',
     debug: false,
     timeout: 15000,

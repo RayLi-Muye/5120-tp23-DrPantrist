@@ -3,6 +3,7 @@
 // Handles user and inventory room management (create users, create/join rooms)
 
 import { retryRequest } from './axios'
+import { config } from '@/config/environment'
 
 // API Response Types
 export interface CreateUserRequest {
@@ -76,7 +77,7 @@ export interface JoinByLoginCodeRequest {
 
 // API Service Class
 class InventoryRoomsAPI {
-  private baseUrl = import.meta.env.DEV ? '/api' : 'http://13.210.101.133:8000'
+  private baseUrl = config.apiBaseUrl
 
   /**
    * Create a new user (Step 1)

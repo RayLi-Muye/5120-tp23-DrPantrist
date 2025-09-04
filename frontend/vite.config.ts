@@ -18,10 +18,10 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://13.210.101.133:8000',
+        target: 'https://api.tp23.me',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
-        secure: false
+        secure: true
       }
     }
   }

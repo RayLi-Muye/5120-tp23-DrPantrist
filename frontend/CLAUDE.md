@@ -50,7 +50,7 @@ components/
 ### Key Design Patterns
 
 #### API Integration
-The app connects directly to the real backend API at http://13.210.101.133:8000.
+The app connects to the backend via HTTPS domain: https://api.tp23.me.
 
 All API methods include comprehensive error handling and retry logic.
 
@@ -73,7 +73,7 @@ Development server proxies `/api/*` to `http://13.210.101.133:8000` to avoid COR
 server: {
   proxy: {
     '/api': {
-      target: 'http://13.210.101.133:8000',
+      target: 'https://api.tp23.me',
       changeOrigin: true,
       rewrite: (path) => path.replace(/^\/api/, ''),
       secure: false
@@ -85,7 +85,7 @@ server: {
 ### Environment-Aware API URLs
 API services detect environment and use appropriate base URLs:
 ```typescript
-private baseUrl = import.meta.env.DEV ? '/api' : 'http://13.210.101.133:8000'
+private baseUrl = config.apiBaseUrl
 ```
 
 ### Optimistic UI Updates
@@ -161,7 +161,7 @@ expect(authStore.isAuthenticated).toBe(true)
 - API base: `/api` (proxied)
 
 ### Production
-- Direct API calls to `http://13.210.101.133:8000`
+- Direct API calls to `https://api.tp23.me`
 - Optimized builds with code splitting
 - PWA capabilities enabled
 

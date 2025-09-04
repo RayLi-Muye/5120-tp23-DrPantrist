@@ -69,10 +69,11 @@ src/
 
 ## Environment Variables
 
-Create `.env.local` for local development:
-```
-VITE_API_BASE_URL=http://localhost:3000/api
-```
+Environment variables:
+- Local dev: create `.env.local`
+  - `VITE_API_BASE_URL=/api`
+- Production/Staging:
+  - `VITE_API_BASE_URL=https://api.tp23.me`
 
 ## Design System
 

@@ -200,7 +200,7 @@
 
             try {
                 displayResult('apiTest', '🔄 Testing direct API...');
-                const response = await fetch(`http://13.210.101.133:8000/items/by-login-code?login_code=${loginCode}`, {
+                const response = await fetch(`https://api.tp23.me/items/by-login-code?login_code=${loginCode}`, {
                     method: 'GET',
                     headers: { 'Accept': 'application/json' }
                 });
