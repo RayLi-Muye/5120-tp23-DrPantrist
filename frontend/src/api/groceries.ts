@@ -173,8 +173,24 @@ const transformGroceryItem = (apiItem: APIGroceryItem): GroceryItem => {
   const { price, co2 } = estimatePriceAndCO2(apiItem.name, apiItem.category_id)
   const unit = getUnit(apiItem.name, apiItem.category_id)
 
-  // Use refrigerate shelf life as default, fallback to pantry, then default to 7 days
-  const defaultShelfLife = apiItem.dop_refrigerate_max || apiItem.dop_pantry_max || 7
+  // Prefer DOP_Refrigerate_Max for default shelf life.
+  // Be robust to different casing/keys from the backend.
+  const anyItem = apiItem as unknown as Record<string, unknown>
+  const readNum = (val: unknown): number | null => {
+    if (typeof val === 'number') {
+      return Number.isFinite(val) ? val : null
+    }
+    if (typeof val === 'string') {
+      const parsed = Number(val)
+      return Number.isFinite(parsed) ? parsed : null
+    }
+    return null
+  }
+  const refrigerate = readNum(apiItem.dop_refrigerate_max) ?? readNum(anyItem['DOP_Refrigerate_Max']) ?? readNum(anyItem['dopRefrigerateMax'])
+  const pantry = readNum(apiItem.dop_pantry_max) ?? readNum(anyItem['DOP_Pantry_Max']) ?? readNum(anyItem['dopPantryMax'])
+
+  // Strict requirement: prefer Refrigerate, then Pantry, never default to Freeze
+  const defaultShelfLife = refrigerate ?? pantry ?? 7
 
   return {
     id: `grocery-${apiItem.grocery_id}`,
@@ -190,7 +206,7 @@ const transformGroceryItem = (apiItem: APIGroceryItem): GroceryItem => {
 
 // API Service Class
 class GroceriesAPI {
-  private baseUrl = 'http://13.210.101.133:8000'
+  private baseUrl = import.meta.env.DEV ? '/api' : 'http://13.210.101.133:8000'
 
   // Fetch all groceries from API
   async fetchGroceries(): Promise<GroceryItem[]> {

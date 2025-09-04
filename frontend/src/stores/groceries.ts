@@ -17,159 +17,6 @@ export const useGroceriesStore = defineStore('groceries', () => {
   // Cache duration (5 minutes)
   const CACHE_DURATION = 5 * 60 * 1000
 
-  // Fallback data for offline/error scenarios
-  const fallbackItems: GroceryItem[] = [
-    {
-      id: 'milk-001',
-      name: 'Milk',
-      category: 'Dairy',
-      icon: '🥛',
-      defaultShelfLife: 7,
-      avgPrice: 4.50,
-      co2Factor: 1.9,
-      unit: 'L'
-    },
-    {
-      id: 'bread-001',
-      name: 'Bread',
-      category: 'Bakery',
-      icon: '🍞',
-      defaultShelfLife: 5,
-      avgPrice: 3.00,
-      co2Factor: 0.9,
-      unit: 'loaf'
-    },
-    {
-      id: 'eggs-001',
-      name: 'Eggs',
-      category: 'Dairy',
-      icon: '🥚',
-      defaultShelfLife: 21,
-      avgPrice: 6.00,
-      co2Factor: 1.8,
-      unit: 'dozen'
-    },
-    {
-      id: 'bananas-001',
-      name: 'Bananas',
-      category: 'Fruit',
-      icon: '🍌',
-      defaultShelfLife: 7,
-      avgPrice: 4.00,
-      co2Factor: 0.5,
-      unit: 'kg'
-    },
-    {
-      id: 'apples-001',
-      name: 'Apples',
-      category: 'Fruit',
-      icon: '🍎',
-      defaultShelfLife: 14,
-      avgPrice: 5.00,
-      co2Factor: 0.4,
-      unit: 'kg'
-    },
-    {
-      id: 'chicken-001',
-      name: 'Chicken Breast',
-      category: 'Meat',
-      icon: '🐔',
-      defaultShelfLife: 3,
-      avgPrice: 12.00,
-      co2Factor: 6.9,
-      unit: 'kg'
-    },
-    {
-      id: 'yogurt-001',
-      name: 'Yogurt',
-      category: 'Dairy',
-      icon: '🥛',
-      defaultShelfLife: 10,
-      avgPrice: 5.50,
-      co2Factor: 1.2,
-      unit: 'tub'
-    },
-    {
-      id: 'lettuce-001',
-      name: 'Lettuce',
-      category: 'Vegetable',
-      icon: '🥬',
-      defaultShelfLife: 7,
-      avgPrice: 3.50,
-      co2Factor: 0.3,
-      unit: 'head'
-    },
-    {
-      id: 'tomatoes-001',
-      name: 'Tomatoes',
-      category: 'Vegetable',
-      icon: '🍅',
-      defaultShelfLife: 7,
-      avgPrice: 6.00,
-      co2Factor: 1.1,
-      unit: 'kg'
-    },
-    {
-      id: 'cheese-001',
-      name: 'Cheese',
-      category: 'Dairy',
-      icon: '🧀',
-      defaultShelfLife: 14,
-      avgPrice: 8.00,
-      co2Factor: 13.5,
-      unit: 'block'
-    },
-    {
-      id: 'pasta-001',
-      name: 'Pasta',
-      category: 'Pantry',
-      icon: '🍝',
-      defaultShelfLife: 730,
-      avgPrice: 2.50,
-      co2Factor: 1.1,
-      unit: 'pack'
-    },
-    {
-      id: 'rice-001',
-      name: 'Rice',
-      category: 'Pantry',
-      icon: '🍚',
-      defaultShelfLife: 365,
-      avgPrice: 4.00,
-      co2Factor: 2.7,
-      unit: 'kg'
-    },
-    {
-      id: 'carrots-001',
-      name: 'Carrots',
-      category: 'Vegetable',
-      icon: '🥕',
-      defaultShelfLife: 21,
-      avgPrice: 2.50,
-      co2Factor: 0.3,
-      unit: 'kg'
-    },
-    {
-      id: 'potatoes-001',
-      name: 'Potatoes',
-      category: 'Vegetable',
-      icon: '🥔',
-      defaultShelfLife: 30,
-      avgPrice: 3.00,
-      co2Factor: 0.3,
-      unit: 'kg'
-    },
-    {
-      id: 'salmon-001',
-      name: 'Salmon',
-      category: 'Seafood',
-      icon: '🐟',
-      defaultShelfLife: 2,
-      avgPrice: 25.00,
-      co2Factor: 11.9,
-      unit: 'kg'
-    }
-  ]
 
   // Computed properties
   const categories = computed(() => {
@@ -199,14 +46,9 @@ export const useGroceriesStore = defineStore('groceries', () => {
 
       console.log(`Loaded ${groceries.length} groceries from API`)
     } catch (err) {
-      console.error('Failed to fetch groceries, using fallback data:', err)
+      console.error('Failed to fetch groceries:', err)
       error.value = err instanceof Error ? err.message : 'Failed to load groceries'
-
-      // Use fallback data if API fails
-      if (masterList.value.length === 0) {
-        masterList.value = fallbackItems
-        console.log('Using fallback grocery data')
-      }
+      throw err
     } finally {
       isLoading.value = false
     }
@@ -243,18 +85,7 @@ export const useGroceriesStore = defineStore('groceries', () => {
     } catch (err) {
       console.error('Search failed:', err)
       error.value = err instanceof Error ? err.message : 'Search failed'
-
-      // Fallback to local filtering
-      let filtered = masterList.value
-      if (query) {
-        filtered = filtered.filter(item =>
-          item.name.toLowerCase().includes(query.toLowerCase())
-        )
-      }
-      if (category) {
-        filtered = filtered.filter(item => item.category === category)
-      }
-      return filtered
+      throw err
     } finally {
       isLoading.value = false
     }
@@ -273,10 +104,6 @@ export const useGroceriesStore = defineStore('groceries', () => {
     return masterList.value.filter(item => item.category === category)
   }
 
-  // Initialize with fallback data
-  if (masterList.value.length === 0) {
-    masterList.value = fallbackItems
-  }
 
   return {
     // State

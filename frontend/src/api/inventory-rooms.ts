@@ -2,7 +2,7 @@
 // Use-It-Up PWA Frontend
 // Handles user and inventory room management (create users, create/join rooms)
 
-import apiClient, { retryRequest } from './axios'
+import { retryRequest } from './axios'
 
 // API Response Types
 export interface CreateUserRequest {
@@ -12,7 +12,8 @@ export interface CreateUserRequest {
 export interface CreateUserResponse {
   user_id: string
   display_name: string
-  created_at: string
+  login_code: string  // Backend already returns login_code!
+  created_at?: string  // Make optional since it may not always be returned
 }
 
 export interface CreateRoomRequest {
@@ -25,6 +26,7 @@ export interface CreateRoomResponse {
   inventory_name: string
   owner_user_id: string
   share_code: string
+  login_code?: string  // New login_code field from backend
 }
 
 export interface JoinRoomRequest {
@@ -40,9 +42,41 @@ export interface GetUserRoomsResponse {
   is_owner: boolean
 }
 
+// New interfaces for login_code-based operations
+export interface LoginCodeUserResponse {
+  user_id: string
+  display_name: string
+  login_code: string
+  created_at: string
+}
+
+export interface LoginCodeInventoryResponse {
+  inventory_id: string
+  inventory_name: string
+  owner_user_id: string
+  share_code: string
+  created_at: string
+}
+
+export interface LoginCodeInventoryMinResponse {
+  inventory_id: string
+  inventory_name: string
+}
+
+export interface LoginCodeMembersResponse {
+  user_id: string
+  display_name: string
+  role: string
+}
+
+export interface JoinByLoginCodeRequest {
+  login_code: string
+  inventory_id: string
+}
+
 // API Service Class
 class InventoryRoomsAPI {
-  private baseUrl = 'http://13.210.101.133:8000'
+  private baseUrl = import.meta.env.DEV ? '/api' : 'http://13.210.101.133:8000'
 
   /**
    * Create a new user (Step 1)
@@ -309,6 +343,221 @@ class InventoryRoomsAPI {
    */
   getCurrentUserId(): string | null {
     return localStorage.getItem('user_id')
+  }
+
+  /**
+   * Get current login code
+   * @returns string | null
+   */
+  getCurrentLoginCode(): string | null {
+    return localStorage.getItem('login_code')
+  }
+
+  // ============= LOGIN CODE-BASED API METHODS =============
+
+  /**
+   * Get user by login code
+   * @param loginCode - 6-digit login code
+   * @returns Promise<LoginCodeUserResponse>
+   */
+  async getUserByLoginCode(loginCode: string): Promise<LoginCodeUserResponse> {
+    try {
+      const response = await retryRequest(() =>
+        fetch(`${this.baseUrl}/users/by-login-code?login_code=${loginCode}`)
+      )
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data: LoginCodeUserResponse = await response.json()
+      
+      // Store user info in localStorage
+      localStorage.setItem('user_id', data.user_id)
+      localStorage.setItem('login_code', data.login_code)
+      
+      return data
+    } catch (error) {
+      console.error('Failed to get user by login code:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get inventory by login code (full info with share_code)
+   * @param loginCode - 6-digit login code
+   * @returns Promise<LoginCodeInventoryResponse>
+   */
+  async getInventoryByLoginCode(loginCode: string): Promise<LoginCodeInventoryResponse> {
+    try {
+      const response = await retryRequest(() =>
+        fetch(`${this.baseUrl}/inventories/by-login-code?login_code=${loginCode}`)
+      )
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data: LoginCodeInventoryResponse = await response.json()
+      
+      // Store inventory info in localStorage
+      localStorage.setItem('current_room', JSON.stringify({
+        inventoryId: data.inventory_id,
+        inventoryName: data.inventory_name,
+        ownerUserId: data.owner_user_id,
+        isOwner: false  // Will be updated when we get user info
+      }))
+      
+      return data
+    } catch (error) {
+      console.error('Failed to get inventory by login code:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get inventory by login code (minimal info, no share_code)
+   * @param loginCode - 6-digit login code
+   * @returns Promise<LoginCodeInventoryMinResponse>
+   */
+  async getInventoryMinByLoginCode(loginCode: string): Promise<LoginCodeInventoryMinResponse> {
+    try {
+      const response = await retryRequest(() =>
+        fetch(`${this.baseUrl}/inventories/by-login-code/min?login_code=${loginCode}`)
+      )
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Failed to get inventory min by login code:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get inventory members by login code
+   * @param loginCode - 6-digit login code
+   * @returns Promise<LoginCodeMembersResponse[]>
+   */
+  async getInventoryMembersByLoginCode(loginCode: string): Promise<LoginCodeMembersResponse[]> {
+    try {
+      const response = await retryRequest(() =>
+        fetch(`${this.baseUrl}/inventories/members/by-login-code?login_code=${loginCode}`)
+      )
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Failed to get inventory members by login code:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Join inventory by login code
+   * @param loginCode - 6-digit login code
+   * @param inventoryId - Inventory ID to join
+   * @returns Promise<void>
+   */
+  async joinInventoryByLoginCode(loginCode: string, inventoryId: string): Promise<void> {
+    try {
+      const response = await retryRequest(() =>
+        fetch(`${this.baseUrl}/inventories/join/by-login-code`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            login_code: loginCode,
+            inventory_id: inventoryId
+          })
+        })
+      )
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+      }
+
+      // Store login code in localStorage
+      localStorage.setItem('login_code', loginCode)
+      
+    } catch (error) {
+      console.error('Failed to join inventory by login code:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Login with login code (convenience method that gets both user and inventory info)
+   * @param loginCode - 6-digit login code
+   * @returns Promise<{user: LoginCodeUserResponse, inventory: LoginCodeInventoryResponse}>
+   */
+  async loginWithCode(loginCode: string): Promise<{user: LoginCodeUserResponse, inventory: LoginCodeInventoryResponse}> {
+    try {
+      // Get user info first
+      const user = await this.getUserByLoginCode(loginCode)
+      
+      // Get inventory info
+      const inventory = await this.getInventoryByLoginCode(loginCode)
+      
+      // Update room info with correct ownership status
+      const updatedRoomInfo = {
+        inventoryId: inventory.inventory_id,
+        inventoryName: inventory.inventory_name,
+        ownerUserId: inventory.owner_user_id,
+        isOwner: user.user_id === inventory.owner_user_id
+      }
+      
+      localStorage.setItem('current_room', JSON.stringify(updatedRoomInfo))
+      
+      return { user, inventory }
+    } catch (error) {
+      console.error('Failed to login with code:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Enhanced createUserAndRoom that returns login_code from backend
+   * @param displayName - Display name for the user
+   * @param inventoryName - Name of the inventory/room
+   * @returns Promise<{user: CreateUserResponse, room: CreateRoomResponse, loginCode: string}>
+   */
+  async createUserAndRoomWithLoginCode(displayName: string, inventoryName: string): Promise<{user: CreateUserResponse, room: CreateRoomResponse, loginCode: string}> {
+    try {
+      // Step 1: Create user (backend returns login_code)
+      const user = await this.createUser(displayName)
+      
+      // Step 2: Create room with the user ID
+      const room = await this.createRoom(inventoryName, user.user_id)
+      
+      // Use login_code from backend response
+      const loginCode = user.login_code
+      
+      // Store login code
+      localStorage.setItem('login_code', loginCode)
+      
+      return { user, room, loginCode }
+    } catch (error) {
+      console.error('Failed to create user and room with login code:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Clear all authentication data
+   */
+  clearAuthData(): void {
+    localStorage.removeItem('user_id')
+    localStorage.removeItem('login_code')
+    localStorage.removeItem('current_room')
   }
 }
 

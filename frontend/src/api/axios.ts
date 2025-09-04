@@ -39,23 +39,11 @@ const apiClient = axios.create({
 let requestId = 0
 const generateRequestId = () => `req_${Date.now()}_${++requestId}`
 
-// Request interceptor for authentication and logging
+// Request interceptor for basic logging only
 apiClient.interceptors.request.use(
   (config: ExtendedAxiosRequestConfig) => {
     // Add request ID for tracking
     config.metadata = { requestId: generateRequestId() }
-
-    // Add authentication token
-    const token = localStorage.getItem('authToken')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-
-    // Add user ID if available (for multi-tenant scenarios)
-    const userId = localStorage.getItem('userId')
-    if (userId) {
-      config.headers['X-User-ID'] = userId
-    }
 
     // Log request in development
     if (isDevelopment()) {
@@ -94,51 +82,29 @@ apiClient.interceptors.response.use(
     const requestId = (error.config as ExtendedAxiosRequestConfig)?.metadata?.requestId
 
     // Enhanced error logging
-    const errorInfo = {
-      requestId,
-      url: error.config?.url,
-      method: error.config?.method?.toUpperCase(),
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      message: error.message,
-      code: error.code,
-      data: error.response?.data
-    }
-
     if (isDevelopment()) {
-      console.error(`[API Error ${requestId}]`, errorInfo)
+      console.error(`[API Error ${requestId}]`, {
+        url: error.config?.url,
+        method: error.config?.method?.toUpperCase(),
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        message: error.message,
+        requestData: error.config?.data ? JSON.parse(error.config.data) : null,
+        responseData: error.response?.data
+      })
+      console.error(`[API Error Details ${requestId}]`, {
+        fullError: error,
+        requestPayload: error.config?.data,
+        responseBody: error.response?.data
+      })
     }
 
-    // Handle specific error cases
-    if (error.response?.status === 401) {
-      // Handle authentication errors
-      localStorage.removeItem('authToken')
-      localStorage.removeItem('userId')
-
-      // Dispatch custom event for auth error handling
-      window.dispatchEvent(new CustomEvent('auth-error', {
-        detail: { error: errorInfo }
-      }))
-
-      console.warn('Authentication error - tokens cleared')
-    }
-
-    // Handle network errors
-    if (!error.response && error.code === 'NETWORK_ERROR') {
-      console.warn('Network error detected - user may be offline')
-
-      // Dispatch network error event
-      window.dispatchEvent(new CustomEvent('network-error', {
-        detail: { error: errorInfo }
-      }))
-    }
-
-    // Create enhanced error object
+    // Create simple error object
     const responseData = error.response?.data as { message?: string } | undefined
     const apiError: APIError = new Error(
       responseData?.message ||
       error.message ||
-      'An unexpected error occurred'
+      'Network Error'
     )
     apiError.status = error.response?.status
     apiError.code = error.code

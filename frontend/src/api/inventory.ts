@@ -3,7 +3,6 @@
 
 import apiClient, { retryRequest, type APIError } from './axios'
 import { isDevelopment, config } from '../config/environment'
-import { mockInventoryAPI } from './mockInventory'
 
 // Types for API requests/responses
 export interface InventoryItem {
@@ -40,6 +39,28 @@ export interface AddItemToInventoryRequest {
   actual_expiry: string
 }
 
+// New interface for /items/by-login-code API endpoint
+export interface AddItemByLoginCodeRequest {
+  login_code: string
+  grocery_id: number
+  quantity: number
+  purchased_at: string
+  actual_expiry: string
+}
+
+// New interface for /items/{item_id}/consume API endpoint
+export interface MarkAsUsedByLoginCodeRequest {
+  login_code: string
+  consumed: boolean
+}
+
+// Response interface for mark as used
+export interface MarkAsUsedResponse {
+  item_id: string
+  quantity: number
+  updated_at: string
+}
+
 export interface ImpactData {
   itemId: string
   itemName: string
@@ -67,105 +88,19 @@ class InventoryAPIError extends Error {
   }
 }
 
-// API Mode Management
-let useMockAPI = false
-let apiInitialized = false
-let apiHealthCheckAttempted = false
+// Health check function
 
-// Initialize API mode with fallback strategy
-async function initializeAPIMode(): Promise<void> {
-  if (apiInitialized) return
-
+async function checkAPIHealth(): Promise<boolean> {
   try {
-    // Always try the real API first, regardless of environment
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 3000) // 3 second timeout
-
-    const response = await fetch(`${apiClient.defaults.baseURL}${config.healthCheckEndpoint}`, {
-      method: 'GET',
-      signal: controller.signal,
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      }
-    })
-
-    clearTimeout(timeoutId)
-
-    if (response.ok) {
-      useMockAPI = false
-      console.log('✅ Real API is available at', apiClient.defaults.baseURL)
-    } else {
-      throw new Error(`API responded with status: ${response.status}`)
-    }
-  } catch (error) {
-    useMockAPI = true
-    console.log('🔄 Real API not available, using mock API as fallback')
-    if (isDevelopment()) {
-      console.log('   Reason:', (error as Error).message)
-    }
-  } finally {
-    apiInitialized = true
-    apiHealthCheckAttempted = true
-  }
-}
-
-// Ensure API is initialized before any calls
-async function ensureAPIInitialized(): Promise<void> {
-  if (!apiInitialized) {
-    await initializeAPIMode()
-  }
-}
-
-// Fallback mechanism for individual API calls
-async function withFallback<T>(
-  realAPICall: () => Promise<T>,
-  mockAPICall: () => Promise<T>,
-  operation: string
-): Promise<T> {
-  await ensureAPIInitialized()
-
-  // If we're already using mock API, go straight to it
-  if (useMockAPI) {
-    try {
-      return await mockAPICall()
-    } catch (error) {
-      throw new InventoryAPIError(
-        (error as Error).message || `Failed to ${operation}.`,
-        operation
-      )
-    }
-  }
-
-  // Try real API first
-  try {
-    return await realAPICall()
-  } catch (error) {
-    const apiError = error as APIError
-
-    // If it's a network error or server error, fall back to mock API
-    if (!apiError.status || apiError.status >= 500 || apiError.code === 'NETWORK_ERROR') {
-      console.warn(`Real API failed for ${operation}, falling back to mock API`)
-
-      // Switch to mock API for future calls
-      useMockAPI = true
-
-      try {
-        return await mockAPICall()
-      } catch (mockError) {
-        throw new InventoryAPIError(
-          (mockError as Error).message || `Failed to ${operation}.`,
-          operation
-        )
-      }
-    }
-
-    // For client errors (4xx), don't fall back - these are likely real issues
-    throw new InventoryAPIError(
-      apiError.message || `Failed to ${operation}. Please try again.`,
-      operation,
-      apiError
+    const response = await retryRequest(() => 
+      apiClient.get('/health', {
+        timeout: 3000
+      })
     )
+    return response.status === 200
+  } catch (error) {
+    console.error('API health check failed:', error)
+    return false
   }
 }
 
@@ -180,28 +115,88 @@ const inventoryAPI = {
       throw new InventoryAPIError('User ID is required', 'getInventory')
     }
 
-    return withFallback(
-      // Real API call
-      async () => {
-        return await retryRequest(async () => {
-          const response = await apiClient.get('/inventory', {
-            params: { userId }
-          })
-
-          // Validate response data
-          if (!Array.isArray(response.data)) {
-            throw new Error('Invalid response format: expected array')
-          }
-
-          return response.data as InventoryItem[]
+    try {
+      return await retryRequest(async () => {
+        const response = await apiClient.get('/inventory', {
+          params: { userId }
         })
-      },
-      // Mock API fallback
-      async () => {
-        return await mockInventoryAPI.getInventory(userId)
-      },
-      'fetch inventory items'
-    )
+
+        // Validate response data
+        if (!Array.isArray(response.data)) {
+          throw new Error('Invalid response format: expected array')
+        }
+
+        return response.data as InventoryItem[]
+      })
+    } catch (error) {
+      const apiError = error as APIError
+      throw new InventoryAPIError(
+        apiError.message || 'Failed to fetch inventory items. Please try again.',
+        'getInventory',
+        apiError
+      )
+    }
+  },
+
+  /**
+   * Get all inventory items using login_code via /items/by-login-code endpoint
+   * @param loginCode - The user's login code
+   * @returns Promise<InventoryItem[]> - Array of inventory items
+   */
+  async getInventoryByLoginCode(loginCode: string): Promise<InventoryItem[]> {
+    if (!loginCode) {
+      throw new InventoryAPIError('Login code is required', 'getInventoryByLoginCode')
+    }
+
+    try {
+      console.log('📤 /items/by-login-code API request:', {
+        url: `/items/by-login-code?login_code=${loginCode}`,
+        loginCode: loginCode,
+        baseURL: apiClient.defaults.baseURL,
+        timeout: apiClient.defaults.timeout
+      })
+      
+      const response = await retryRequest(async () => {
+        console.log('🔄 Executing API call...')
+        const result = await apiClient.get(`/items/by-login-code?login_code=${loginCode}`)
+        console.log('📥 Raw API response:', {
+          status: result.status,
+          statusText: result.statusText,
+          headers: result.headers,
+          dataLength: Array.isArray(result.data) ? result.data.length : typeof result.data
+        })
+        return result
+      })
+      
+      console.log('✅ /items/by-login-code API success:', response.data)
+      const data = response.data
+      
+      // Convert backend format to frontend InventoryItem format
+      const items: InventoryItem[] = data.map((item: any) => ({
+        id: item.item_id,
+        userId: item.created_by,
+        itemId: item.grocery_id.toString(),
+        name: item.grocery_name || `Item ${item.grocery_id}`,
+        category: 'Unknown', // Backend doesn't provide category in this endpoint
+        quantity: item.quantity || 0,
+        unit: 'pcs', // Default unit
+        addedDate: item.purchased_at || item.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+        expiryDate: item.actual_expiry || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        status: (item.quantity && item.quantity > 0) ? 'active' : 'used',
+        notes: '',
+        createdAt: item.created_at || new Date().toISOString(),
+        updatedAt: item.updated_at || new Date().toISOString()
+      }))
+
+      return items
+    } catch (error) {
+      const apiError = error as APIError
+      throw new InventoryAPIError(
+        apiError.message || 'Failed to fetch inventory items by login code. Please try again.',
+        'getInventoryByLoginCode',
+        apiError
+      )
+    }
   },
 
   /**
@@ -218,27 +213,26 @@ const inventoryAPI = {
       )
     }
 
-    return withFallback(
-      // Real API call
-      async () => {
-        return await retryRequest(async () => {
-          const response = await apiClient.post('/inventory', {
-            userId: itemData.userId,
-            itemId: itemData.itemId,
-            quantity: itemData.quantity || 1,
-            customExpiryDate: itemData.customExpiryDate || null,
-            notes: itemData.notes || ''
-          })
-
-          return response.data as InventoryItem
+    try {
+      return await retryRequest(async () => {
+        const response = await apiClient.post('/inventory', {
+          userId: itemData.userId,
+          itemId: itemData.itemId,
+          quantity: itemData.quantity || 1,
+          customExpiryDate: itemData.customExpiryDate || null,
+          notes: itemData.notes || ''
         })
-      },
-      // Mock API fallback
-      async () => {
-        return await mockInventoryAPI.addItem(itemData)
-      },
-      'add item to inventory'
-    )
+
+        return response.data as InventoryItem
+      })
+    } catch (error) {
+      const apiError = error as APIError
+      throw new InventoryAPIError(
+        apiError.message || 'Failed to add item to inventory. Please try again.',
+        'addItem',
+        apiError
+      )
+    }
   },
 
   /**
@@ -255,66 +249,98 @@ const inventoryAPI = {
       )
     }
 
-    return withFallback(
-      // Real API call
-      async () => {
-        const response = await retryRequest(() =>
-          fetch('http://13.210.101.133:8000/items', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              inventory_id: itemData.inventory_id,
-              grocery_id: itemData.grocery_id,
-              created_by: itemData.created_by,
-              quantity: itemData.quantity,
-              purchased_at: itemData.purchased_at,
-              actual_expiry: itemData.actual_expiry
-            })
-          })
-        )
-        
-        console.log('📤 /items API request:', {
-          url: 'http://13.210.101.133:8000/items',
-          method: 'POST',
-          data: itemData
-        })
-        
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          console.error('❌ /items API failed:', {
-            status: response.status,
-            statusText: response.statusText,
-            errorData
-          })
-          throw new InventoryAPIError(
-            errorData.message || `HTTP error! status: ${response.status}`,
-            'addItemToInventory'
-          )
-        }
-
-        const data = await response.json()
-        console.log('✅ /items API success:', data)
-        // Convert response to InventoryItem format if needed
-        return data as InventoryItem
-      },
-      // Mock API fallback - convert new format to legacy format for mock
-      async () => {
-        console.log('🔄 Using mock API fallback for /items endpoint')
-        const legacyItemData: AddItemRequest = {
-          userId: itemData.created_by,
-          itemId: itemData.grocery_id.toString(),
+    try {
+      console.log('📤 /items API request:', {
+        url: '/items',
+        method: 'POST',
+        data: itemData
+      })
+      
+      const response = await retryRequest(() =>
+        apiClient.post('/items', {
+          inventory_id: itemData.inventory_id,
+          grocery_id: itemData.grocery_id,
+          created_by: itemData.created_by,
           quantity: itemData.quantity,
-          customExpiryDate: itemData.actual_expiry,
-          notes: ''
+          purchased_at: itemData.purchased_at,
+          actual_expiry: itemData.actual_expiry
+        })
+      )
+      
+      console.log('✅ /items API success:', response.data)
+      return response.data as InventoryItem
+    } catch (error) {
+      const apiError = error as APIError
+      throw new InventoryAPIError(
+        apiError.message || 'Failed to add item to inventory. Please try again.',
+        'addItemToInventory',
+        apiError
+      )
+    }
+  },
+
+  /**
+   * Add a new item to inventory using login_code via /items/by-login-code endpoint
+   * @param itemData - The item data to add with login_code
+   * @returns Promise<InventoryItem> - The created inventory item
+   */
+  async addItemByLoginCode(itemData: AddItemByLoginCodeRequest): Promise<InventoryItem> {
+    // Validate required fields
+    if (!itemData.login_code || !itemData.grocery_id) {
+      throw new InventoryAPIError(
+        'Login code and Grocery ID are required',
+        'addItemByLoginCode'
+      )
+    }
+
+    try {
+      const requestPayload = {
+        login_code: itemData.login_code,
+        grocery_id: itemData.grocery_id,
+        quantity: itemData.quantity,
+        purchased_at: itemData.purchased_at,
+        actual_expiry: itemData.actual_expiry
+      }
+      
+      console.log('📤 /items/by-login-code API request:', {
+        url: '/items/by-login-code',
+        method: 'POST',
+        originalData: itemData,
+        payload: requestPayload,
+        payloadTypes: {
+          login_code: typeof requestPayload.login_code,
+          grocery_id: typeof requestPayload.grocery_id,
+          quantity: typeof requestPayload.quantity,
+          purchased_at: typeof requestPayload.purchased_at,
+          actual_expiry: typeof requestPayload.actual_expiry
         }
-        const result = await mockInventoryAPI.addItem(legacyItemData)
-        console.log('✅ Mock API result:', result)
-        return result
-      },
-      'add item to inventory via /items endpoint'
-    )
+      })
+      
+      const response = await retryRequest(() =>
+        apiClient.post('/items/by-login-code', requestPayload)
+      )
+      
+      console.log('✅ /items/by-login-code API success:', response.data)
+      return response.data as InventoryItem
+    } catch (error) {
+      const apiError = error as APIError
+      
+      // Handle duplicate item constraint error
+      if (apiError.status === 422 && apiError.details?.detail?.includes('duplicate key value violates unique constraint')) {
+        const friendlyMessage = 'This item with the same purchase date already exists in your inventory. Try changing the purchase date or check your existing items.'
+        throw new InventoryAPIError(
+          friendlyMessage,
+          'addItemByLoginCode',
+          apiError
+        )
+      }
+      
+      throw new InventoryAPIError(
+        apiError.message || 'Failed to add item to inventory by login code. Please try again.',
+        'addItemByLoginCode',
+        apiError
+      )
+    }
   },
 
   /**
@@ -327,20 +353,59 @@ const inventoryAPI = {
       throw new InventoryAPIError('Item ID is required', 'markAsUsed')
     }
 
-    return withFallback(
-      // Real API call
-      async () => {
-        return await retryRequest(async () => {
-          const response = await apiClient.put(`/inventory/${itemId}/use`)
-          return response.data as ImpactData
+    try {
+      return await retryRequest(async () => {
+        const response = await apiClient.put(`/inventory/${itemId}/use`)
+        return response.data as ImpactData
+      })
+    } catch (error) {
+      const apiError = error as APIError
+      throw new InventoryAPIError(
+        apiError.message || 'Failed to mark item as used. Please try again.',
+        'markAsUsed',
+        apiError
+      )
+    }
+  },
+
+  /**
+   * Mark an item as used via login_code using /items/{item_id}/consume endpoint
+   * @param itemId - The ID of the item to mark as used
+   * @param loginCode - The user's login code
+   * @returns Promise<MarkAsUsedResponse> - Response from the consume endpoint
+   */
+  async markAsUsedByLoginCode(itemId: string, loginCode: string): Promise<MarkAsUsedResponse> {
+    if (!itemId) {
+      throw new InventoryAPIError('Item ID is required', 'markAsUsedByLoginCode')
+    }
+    if (!loginCode) {
+      throw new InventoryAPIError('Login code is required', 'markAsUsedByLoginCode')
+    }
+
+    try {
+      console.log('📤 /items/{item_id}/consume API request:', {
+        url: `/items/${itemId}/consume`,
+        method: 'PATCH',
+        data: { login_code: loginCode, consumed: true }
+      })
+      
+      const response = await retryRequest(() =>
+        apiClient.patch(`/items/${itemId}/consume`, {
+          login_code: loginCode,
+          consumed: true
         })
-      },
-      // Mock API fallback
-      async () => {
-        return await mockInventoryAPI.markAsUsed(itemId)
-      },
-      'mark item as used'
-    )
+      )
+      
+      console.log('✅ /items/{item_id}/consume API success:', response.data)
+      return response.data as MarkAsUsedResponse
+    } catch (error) {
+      const apiError = error as APIError
+      throw new InventoryAPIError(
+        apiError.message || 'Failed to mark item as used by login code. Please try again.',
+        'markAsUsedByLoginCode',
+        apiError
+      )
+    }
   },
 
   /**
@@ -353,19 +418,18 @@ const inventoryAPI = {
       throw new InventoryAPIError('Item ID is required', 'deleteItem')
     }
 
-    return withFallback(
-      // Real API call
-      async () => {
-        await retryRequest(async () => {
-          await apiClient.delete(`/inventory/${itemId}`)
-        })
-      },
-      // Mock API fallback
-      async () => {
-        return await mockInventoryAPI.deleteItem(itemId)
-      },
-      'delete item'
-    )
+    try {
+      await retryRequest(async () => {
+        await apiClient.delete(`/inventory/${itemId}`)
+      })
+    } catch (error) {
+      const apiError = error as APIError
+      throw new InventoryAPIError(
+        apiError.message || 'Failed to delete item. Please try again.',
+        'deleteItem',
+        apiError
+      )
+    }
   },
 
   /**
@@ -378,23 +442,22 @@ const inventoryAPI = {
       throw new InventoryAPIError('User ID is required', 'getTotalImpact')
     }
 
-    return withFallback(
-      // Real API call
-      async () => {
-        return await retryRequest(async () => {
-          const response = await apiClient.get('/impact', {
-            params: { userId }
-          })
-
-          return response.data as TotalImpactData
+    try {
+      return await retryRequest(async () => {
+        const response = await apiClient.get('/impact', {
+          params: { userId }
         })
-      },
-      // Mock API fallback
-      async () => {
-        return await mockInventoryAPI.getTotalImpact(userId)
-      },
-      'fetch impact data'
-    )
+
+        return response.data as TotalImpactData
+      })
+    } catch (error) {
+      const apiError = error as APIError
+      throw new InventoryAPIError(
+        apiError.message || 'Failed to fetch impact data. Please try again.',
+        'getTotalImpact',
+        apiError
+      )
+    }
   },
 
   /**
@@ -402,67 +465,16 @@ const inventoryAPI = {
    * @returns Promise<boolean> - True if API is healthy
    */
   async healthCheck(): Promise<boolean> {
-    return withFallback(
-      // Real API call
-      async () => {
-        const response = await apiClient.get(config.healthCheckEndpoint)
-        return response.status === 200
-      },
-      // Mock API fallback
-      async () => {
-        return await mockInventoryAPI.healthCheck()
-      },
-      'perform health check'
-    )
-  },
-
-  /**
-   * Force a switch to mock API (useful for testing or when real API is known to be down)
-   */
-  forceMockMode(): void {
-    useMockAPI = true
-    console.log('🔄 Forced switch to mock API mode')
-  },
-
-  /**
-   * Reset API mode (will re-check real API on next call)
-   */
-  resetAPIMode(): void {
-    useMockAPI = false
-    apiInitialized = false
-    apiHealthCheckAttempted = false
-    console.log('🔄 API mode reset - will re-check real API on next call')
-  },
-
-  /**
-   * Get current API mode
-   */
-  getCurrentAPIMode(): 'real' | 'mock' {
-    return useMockAPI ? 'mock' : 'real'
-  }
-}
-
-// Export API with additional utilities
-const inventoryAPIWithUtils = {
-  ...inventoryAPI,
-
-  /**
-   * Get API status information
-   */
-  getAPIStatus(): {
-    mode: 'real' | 'mock'
-    initialized: boolean
-    healthCheckAttempted: boolean
-    baseURL: string
-  } {
-    return {
-      mode: useMockAPI ? 'mock' : 'real',
-      initialized: apiInitialized,
-      healthCheckAttempted: apiHealthCheckAttempted,
-      baseURL: apiClient.defaults.baseURL || 'unknown'
+    try {
+      const response = await apiClient.get(config.healthCheckEndpoint)
+      return response.status === 200
+    } catch (error) {
+      console.error('Health check failed:', error)
+      return false
     }
-  }
+  },
+
 }
 
-export default inventoryAPIWithUtils
+export default inventoryAPI
 export { InventoryAPIError }

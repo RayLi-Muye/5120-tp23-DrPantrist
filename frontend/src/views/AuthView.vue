@@ -26,7 +26,7 @@
               :disabled="isLoading"
             />
           </div>
-          
+
           <div class="form-group">
             <label for="inventoryName">Inventory Name</label>
             <input
@@ -80,7 +80,7 @@
               :disabled="isLoading"
             />
           </div>
-          
+
           <div class="form-group">
             <label for="roomId">Room ID</label>
             <input
@@ -127,9 +127,8 @@
               id="loginCode"
               v-model="loginCode"
               type="text"
-              placeholder="123456"
+              placeholder="1ab2c3"
               maxlength="6"
-              pattern="[0-9]{6}"
               required
               :disabled="isLoading"
             />
@@ -260,12 +259,12 @@ const handleLogin = async () => {
   authStore.clearError()
 
   try {
-    const success = authStore.loginWithCode(loginCode.value)
-    if (success) {
-      router.push('/dashboard')
-    }
+    await authStore.loginWithCode(loginCode.value)
+    // If we get here, login was successful
+    router.push('/dashboard')
   } catch (error) {
     console.error('Login failed:', error)
+    // Error handling is done in the auth store
   } finally {
     isLoading.value = false
   }
@@ -279,9 +278,22 @@ const proceedToDashboard = () => {
 }
 
 // Check if user is already authenticated
-onMounted(() => {
+onMounted(async () => {
+  // First try loading saved user data
   if (authStore.loadSavedUser()) {
     router.push('/')
+    return
+  }
+
+  // Try auto-login with saved login code
+  try {
+    const autoLoginSuccess = await authStore.tryAutoLogin()
+    if (autoLoginSuccess) {
+      router.push('/dashboard')
+    }
+  } catch (error) {
+    console.warn('Auto-login failed:', error)
+    // Stay on auth page
   }
 })
 </script>

@@ -57,6 +57,7 @@
           v-if="selectedGrocery"
           :selected-grocery="selectedGrocery"
           :is-submitting="isSubmitting"
+          :key="selectedGrocery.id + '-' + selectedGrocery.defaultShelfLife"
           @submit="handleFormSubmit"
           @cancel="handleFormCancel"
         />
@@ -72,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useGroceriesStore } from "@/stores/groceries";
 import { useInventoryStore } from "@/stores/inventory";
@@ -196,44 +197,73 @@ const handleFormSubmit = async (formData: {
     const expiryDate = new Date(formData.expiryDate);
     const today = new Date();
 
-    // Prepare data for new /items API
-    const addItemRequest = {
-      inventory_id: currentRoom.inventoryId,
-      grocery_id: (() => {
-        // Extract grocery_id from frontend ID format (grocery-123 -> 123)
-        const groceryIdMatch = selectedGrocery.value.id.match(/grocery-(\d+)/);
-        return groceryIdMatch ? parseInt(groceryIdMatch[1], 10) : parseInt(selectedGrocery.value.id, 10);
-      })(),
-      created_by: authStore.user.id,
-      quantity: formData.quantity,
-      purchased_at: formatDateForAPI(today), // Use current date as purchase date
-      actual_expiry: formatDateForAPI(expiryDate)
-    };
+    // Extract grocery_id from frontend ID format (grocery-123 -> 123)
+    const groceryIdMatch = selectedGrocery.value.id.match(/grocery-(\d+)/);
+    const groceryId = groceryIdMatch ? parseInt(groceryIdMatch[1], 10) : parseInt(selectedGrocery.value.id, 10);
 
-    console.log('📤 Attempting to add item via /items API:', addItemRequest);
-    
     // Force reset API mode to ensure we try real API first
-    inventoryAPI.resetAPIMode();
+    // API reset removed
     
-    // Try the new API endpoint first
     let result;
-    try {
-      result = await inventoryStore.addItemToInventory(addItemRequest);
-      console.log('✅ Successfully added item via /items API:', result);
-    } catch (newApiError) {
-      console.error('❌ New /items API failed, falling back to legacy API:', newApiError);
+    
+    // Try login_code-based API first (preferred method)
+    if (authStore.user.loginCode) {
+      console.log('📤 Attempting to add item via login_code API');
       
-      // Fallback to legacy API format
-      const legacyAddItemRequest = {
-        userId: authStore.user.id,
-        itemId: selectedGrocery.value.id,
+      const loginCodeRequest = {
+        login_code: authStore.user.loginCode,
+        grocery_id: groceryId,
         quantity: formData.quantity,
-        customExpiryDate: formatDateForAPI(expiryDate),
-        notes: formData.notes || undefined,
+        purchased_at: formatDateForAPI(today),
+        actual_expiry: formatDateForAPI(expiryDate)
       };
+
+      try {
+        result = await inventoryStore.addItemByLoginCode(loginCodeRequest);
+        console.log('✅ Successfully added item via login_code API:', result);
+      } catch (loginCodeError) {
+        console.warn('⚠️ Login code API failed, trying inventory_id API:', loginCodeError);
+        
+        // Fallback to inventory_id-based API
+        const inventoryRequest = {
+          inventory_id: currentRoom.inventoryId,
+          grocery_id: groceryId,
+          created_by: authStore.user.id,
+          quantity: formData.quantity,
+          purchased_at: formatDateForAPI(today),
+          actual_expiry: formatDateForAPI(expiryDate)
+        };
+
+        try {
+          result = await inventoryStore.addItemToInventory(inventoryRequest);
+          console.log('✅ Successfully added item via inventory_id API:', result);
+        } catch (inventoryError) {
+          console.error('❌ Inventory ID API failed:', inventoryError);
+          throw inventoryError;
+        }
+      }
+    } else {
+      // No login code available, use inventory_id-based API
+      console.log('📤 No login code available, using inventory_id API');
       
-      result = await inventoryStore.addItem(legacyAddItemRequest);
+      const inventoryRequest = {
+        inventory_id: currentRoom.inventoryId,
+        grocery_id: groceryId,
+        created_by: authStore.user.id,
+        quantity: formData.quantity,
+        purchased_at: formatDateForAPI(today),
+        actual_expiry: formatDateForAPI(expiryDate)
+      };
+
+      try {
+        result = await inventoryStore.addItemToInventory(inventoryRequest);
+        console.log('✅ Successfully added item via inventory_id API:', result);
+      } catch (inventoryError) {
+        console.error('❌ Inventory ID API failed:', inventoryError);
+        throw inventoryError;
+      }
     }
+
 
     if (result) {
       // Success - navigate to dashboard
@@ -264,12 +294,24 @@ const clearError = () => {
 // Load groceries data on component mount
 onMounted(async () => {
   try {
-    await groceriesStore.fetchGroceries();
+    // Force refresh to ensure latest shelf life (Refrigerate) is used
+    await groceriesStore.fetchGroceries(true);
   } catch (err) {
     console.error('Failed to load groceries:', err);
-    // Error is handled in the store, fallback data will be used
+    // Error is handled in the store
   }
 });
+
+// When groceries list refreshes, sync selectedGrocery reference
+watch(() => groceriesStore.masterList, (list) => {
+  if (selectedGrocery.value) {
+    const id = selectedGrocery.value.id
+    const updated = list.find(g => g.id === id)
+    if (updated && updated !== selectedGrocery.value) {
+      selectedGrocery.value = updated
+    }
+  }
+})
 </script>
 
 <style scoped>

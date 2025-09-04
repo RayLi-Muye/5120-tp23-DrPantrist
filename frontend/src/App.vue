@@ -7,15 +7,12 @@
       </Transition>
     </RouterView>
 
-    <!-- Global Impact Card -->
-    <ImpactCard />
   </div>
 </template>
 
 <script setup lang="ts">
 import { RouterView, useRouter } from 'vue-router'
 import { ref, watch, onMounted } from 'vue'
-import ImpactCard from '@/components/impact/ImpactCard.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -23,8 +20,17 @@ const transitionName = ref('route')
 const authStore = useAuthStore()
 
 // Initialize auth on app mount
-onMounted(() => {
-  authStore.loadSavedUser()
+onMounted(async () => {
+  // First try loading saved user data
+  if (!authStore.loadSavedUser()) {
+    // If no saved user, try auto-login with saved login code
+    try {
+      await authStore.tryAutoLogin()
+    } catch (error) {
+      console.warn('Auto-login failed on app mount:', error)
+      // Continue with normal flow - user will need to log in manually
+    }
+  }
 })
 
 // Watch for route changes to determine transition direction

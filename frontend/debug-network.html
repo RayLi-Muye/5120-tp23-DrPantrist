@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Network Debug Tool - Use It Up</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 1200px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .button { padding: 10px 15px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        .button:hover { background: #0056b3; }
+        .clear { background: #dc3545; }
+        .clear:hover { background: #c82333; }
+        .success { background: #28a745; }
+        .success:hover { background: #218838; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 3px; }
+        .success-status { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error-status { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        pre { background: #f8f9fa; padding: 15px; border-radius: 3px; overflow: auto; max-height: 300px; }
+        .log { background: #e9ecef; padding: 10px; border-radius: 3px; margin: 5px 0; font-family: monospace; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        input[type="text"] { padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 3px; }
+        .real-time { border: 2px solid #28a745; }
+    </style>
+</head>
+<body>
+    <h1>Use It Up - Network Debug Tool</h1>
+    
+    <div class="grid">
+        <div class="section">
+            <h3>Auth State Debug</h3>
+            <div id="authDebug"></div>
+            <button class="button" onclick="checkAuthState()">Check Auth State</button>
+            <button class="button clear" onclick="clearAllAuth()">Clear All Auth</button>
+        </div>
+
+        <div class="section">
+            <h3>API Connection Test</h3>
+            <div id="apiTest"></div>
+            <input type="text" id="testLoginCode" placeholder="Login code" value="EEN7VT">
+            <button class="button" onclick="testDirectAPI()">Test Direct API</button>
+            <button class="button" onclick="testProxyAPI()">Test Proxy API</button>
+        </div>
+    </div>
+
+    <div class="section real-time">
+        <h3>🔴 Real-Time Request Monitor</h3>
+        <div id="networkLogs"></div>
+        <button class="button success" onclick="startMonitoring()">Start Monitoring</button>
+        <button class="button clear" onclick="stopMonitoring()">Stop Monitoring</button>
+        <button class="button" onclick="clearLogs()">Clear Logs</button>
+    </div>
+
+    <div class="section">
+        <h3>Full Dashboard Load Simulation</h3>
+        <div id="dashboardTest"></div>
+        <input type="text" id="dashboardLoginCode" placeholder="Login code" value="EEN7VT">
+        <button class="button success" onclick="simulateDashboardLoad()">Simulate Dashboard Load</button>
+    </div>
+
+    <div class="section">
+        <h3>Browser Environment</h3>
+        <div id="envInfo"></div>
+        <button class="button" onclick="checkEnvironment()">Check Environment</button>
+    </div>
+
+    <script>
+        let originalFetch = window.fetch;
+        let originalXHR = window.XMLHttpRequest;
+        let monitoring = false;
+        let requestCounter = 0;
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.createElement('div');
+            logElement.className = 'log';
+            logElement.innerHTML = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+            
+            const container = document.getElementById('networkLogs');
+            container.appendChild(logElement);
+            container.scrollTop = container.scrollHeight;
+            
+            console.log(`[DEBUG] ${message}`);
+        }
+
+        function displayResult(elementId, content, isError = false) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="status ${isError ? 'error-status' : 'success-status'}">${content}</div>`;
+        }
+
+        function startMonitoring() {
+            if (monitoring) return;
+            monitoring = true;
+            log('🟢 Starting network monitoring...');
+
+            // Monitor fetch requests
+            window.fetch = async function(...args) {
+                const requestId = ++requestCounter;
+                const url = args[0];
+                const options = args[1] || {};
+                
+                log(`📤 FETCH #${requestId}: ${url}`, 'request');
+                if (options.method && options.method !== 'GET') {
+                    log(`   Method: ${options.method}`, 'request');
+                }
+                if (options.headers) {
+                    log(`   Headers: ${JSON.stringify(options.headers)}`, 'request');
+                }
+
+                try {
+                    const response = await originalFetch.apply(this, args);
+                    log(`📥 FETCH #${requestId}: ${response.status} ${response.statusText}`, response.ok ? 'success' : 'error');
+                    return response;
+                } catch (error) {
+                    log(`❌ FETCH #${requestId}: ${error.message}`, 'error');
+                    throw error;
+                }
+            };
+
+            // Monitor XMLHttpRequest
+            const OriginalXHR = originalXHR;
+            window.XMLHttpRequest = function() {
+                const xhr = new OriginalXHR();
+                const requestId = ++requestCounter;
+                
+                const originalOpen = xhr.open;
+                const originalSend = xhr.send;
+                
+                xhr.open = function(method, url, ...args) {
+                    log(`📤 XHR #${requestId}: ${method} ${url}`, 'request');
+                    return originalOpen.apply(this, [method, url, ...args]);
+                };
+                
+                xhr.send = function(data) {
+                    if (data) {
+                        log(`   Data: ${data}`, 'request');
+                    }
+                    return originalSend.apply(this, [data]);
+                };
+                
+                xhr.addEventListener('load', function() {
+                    log(`📥 XHR #${requestId}: ${this.status} ${this.statusText}`, this.status >= 200 && this.status < 300 ? 'success' : 'error');
+                });
+                
+                xhr.addEventListener('error', function() {
+                    log(`❌ XHR #${requestId}: Network Error`, 'error');
+                });
+                
+                return xhr;
+            };
+        }
+
+        function stopMonitoring() {
+            monitoring = false;
+            window.fetch = originalFetch;
+            window.XMLHttpRequest = originalXHR;
+            log('🔴 Network monitoring stopped');
+        }
+
+        function clearLogs() {
+            document.getElementById('networkLogs').innerHTML = '';
+        }
+
+        function checkAuthState() {
+            const savedUser = localStorage.getItem('useItUp_user');
+            const loginCode = localStorage.getItem('login_code');
+            
+            let result = '<h4>Auth State:</h4>';
+            
+            if (savedUser) {
+                try {
+                    const userData = JSON.parse(savedUser);
+                    result += `<pre>User: ${JSON.stringify(userData, null, 2)}</pre>`;
+                } catch (e) {
+                    result += `<div class="error-status">Invalid user data: ${savedUser}</div>`;
+                }
+            } else {
+                result += '<div class="warning">No saved user found</div>';
+            }
+            
+            if (loginCode) {
+                result += `<div>Login Code: ${loginCode}</div>`;
+            } else {
+                result += '<div class="warning">No login code found</div>';
+            }
+
+            displayResult('authDebug', result);
+        }
+
+        function clearAllAuth() {
+            localStorage.clear();
+            displayResult('authDebug', '✅ All localStorage cleared');
+        }
+
+        async function testDirectAPI() {
+            const loginCode = document.getElementById('testLoginCode').value;
+            if (!loginCode) {
+                displayResult('apiTest', 'Please enter a login code', true);
+                return;
+            }
+
+            try {
+                displayResult('apiTest', '🔄 Testing direct API...');
+                const response = await fetch(`http://13.210.101.133:8000/items/by-login-code?login_code=${loginCode}`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    displayResult('apiTest', `✅ Direct API Success: ${data.length} items<br><pre>${JSON.stringify(data, null, 2)}</pre>`);
+                } else {
+                    displayResult('apiTest', `❌ Direct API Error: ${response.status} ${response.statusText}`, true);
+                }
+            } catch (error) {
+                displayResult('apiTest', `❌ Direct API Error: ${error.message}`, true);
+            }
+        }
+
+        async function testProxyAPI() {
+            const loginCode = document.getElementById('testLoginCode').value;
+            if (!loginCode) {
+                displayResult('apiTest', 'Please enter a login code', true);
+                return;
+            }
+
+            try {
+                displayResult('apiTest', '🔄 Testing proxy API...');
+                const response = await fetch(`/api/items/by-login-code?login_code=${loginCode}`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    displayResult('apiTest', `✅ Proxy API Success: ${data.length} items<br><pre>${JSON.stringify(data, null, 2)}</pre>`);
+                } else {
+                    displayResult('apiTest', `❌ Proxy API Error: ${response.status} ${response.statusText}`, true);
+                }
+            } catch (error) {
+                displayResult('apiTest', `❌ Proxy API Error: ${error.message}`, true);
+            }
+        }
+
+        async function simulateDashboardLoad() {
+            const loginCode = document.getElementById('dashboardLoginCode').value;
+            if (!loginCode) {
+                displayResult('dashboardTest', 'Please enter a login code', true);
+                return;
+            }
+
+            displayResult('dashboardTest', '🔄 Simulating dashboard load...');
+
+            // Clear auth first
+            localStorage.clear();
+
+            // Set up mock auth state
+            const mockUser = {
+                id: 'test-user-id',
+                displayName: 'Test User',
+                inventoryName: 'Test Inventory',
+                loginCode: loginCode,
+                createdAt: new Date().toISOString(),
+                inventoryId: 'test-inventory-id',
+                isOwner: true
+            };
+
+            localStorage.setItem('useItUp_user', JSON.stringify(mockUser));
+
+            try {
+                // Test the exact API call that dashboard would make
+                const response = await fetch(`/api/items/by-login-code?login_code=${loginCode}`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    displayResult('dashboardTest', `✅ Dashboard Load Success!<br>Found ${data.length} items<br><pre>${JSON.stringify(data, null, 2)}</pre>`);
+                } else {
+                    const errorText = await response.text();
+                    displayResult('dashboardTest', `❌ Dashboard Load Failed: ${response.status} ${response.statusText}<br>Response: ${errorText}`, true);
+                }
+            } catch (error) {
+                displayResult('dashboardTest', `❌ Dashboard Load Failed: ${error.message}`, true);
+            }
+        }
+
+        function checkEnvironment() {
+            const info = {
+                userAgent: navigator.userAgent,
+                url: window.location.href,
+                protocol: window.location.protocol,
+                host: window.location.host,
+                pathname: window.location.pathname,
+                localStorage: !!window.localStorage,
+                fetch: !!window.fetch,
+                proxy: window.location.host.includes('localhost') ? 'Development' : 'Production'
+            };
+
+            displayResult('envInfo', `<pre>${JSON.stringify(info, null, 2)}</pre>`);
+        }
+
+        // Auto-check on load
+        checkAuthState();
+        checkEnvironment();
+    </script>
+</body>
+</html>

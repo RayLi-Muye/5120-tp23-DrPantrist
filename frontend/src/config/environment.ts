@@ -17,7 +17,7 @@ export type Environment = 'development' | 'staging' | 'production'
 // Environment-specific configurations
 const environments: Record<Environment, EnvironmentConfig> = {
   development: {
-    apiBaseUrl: 'http://localhost:3000/api',
+    apiBaseUrl: '/api',
     appTitle: 'Use-It-Up (Dev)',
     debug: true,
     timeout: 10000,

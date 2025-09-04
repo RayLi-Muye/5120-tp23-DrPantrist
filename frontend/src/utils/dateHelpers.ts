@@ -39,10 +39,10 @@ export function formatExpiryDate(expiryDate: string | Date, formatString: string
 }
 
 /**
- * Format date for API (ISO string)
+ * Format date for API (YYYY-MM-DD format)
  */
 export function formatDateForAPI(date: Date): string {
-  return date.toISOString()
+  return date.toISOString().split('T')[0]
 }
 
 /**

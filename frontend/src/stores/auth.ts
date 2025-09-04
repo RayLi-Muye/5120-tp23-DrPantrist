@@ -54,8 +54,8 @@ export const useAuthStore = defineStore('auth', () => {
       // Use inventory name as display name if not provided
       const userDisplayName = displayName?.trim() || inventoryName.trim()
       
-      // Create user and room using the two-step process
-      const { user: userResponse, room: roomResponse } = await inventoryRoomsAPI.createUserAndRoom(
+      // Create user and room using the new login_code process
+      const { user: userResponse, room: roomResponse, loginCode } = await inventoryRoomsAPI.createUserAndRoomWithLoginCode(
         userDisplayName,
         inventoryName.trim()
       )
@@ -64,8 +64,8 @@ export const useAuthStore = defineStore('auth', () => {
         id: userResponse.user_id,
         displayName: userResponse.display_name,
         inventoryName: inventoryName.trim(),
-        loginCode: generateLoginCode(),
-        createdAt: userResponse.created_at,
+        loginCode: loginCode,  // Use the loginCode from backend response
+        createdAt: userResponse.created_at || new Date().toISOString(),
         inventoryId: roomResponse.inventory_id,
         isOwner: true
       }
@@ -84,31 +84,40 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function loginWithCode(loginCode: string): boolean {
+  async function loginWithCode(loginCode: string): Promise<User> {
     if (!loginCode.trim()) {
-      error.value = 'Login code is required'
-      return false
+      throw new Error('Login code is required')
     }
 
-    // In a real app, this would validate against a backend
-    // For now, we'll check localStorage for existing users
-    const savedUser = localStorage.getItem('useItUp_user')
+    isLoading.value = true
+    error.value = null
 
-    if (savedUser) {
-      try {
-        const userData: User = JSON.parse(savedUser)
-        if (userData.loginCode === loginCode.trim()) {
-          user.value = userData
-          error.value = null
-          return true
-        }
-      } catch (e) {
-        console.error('Error parsing saved user data:', e)
+    try {
+      // Use the new API-based authentication
+      const { user: userResponse, inventory: inventoryResponse } = await inventoryRoomsAPI.loginWithCode(loginCode.trim())
+
+      const authenticatedUser: User = {
+        id: userResponse.user_id,
+        displayName: userResponse.display_name,
+        inventoryName: inventoryResponse.inventory_name,
+        loginCode: userResponse.login_code,
+        createdAt: userResponse.created_at || new Date().toISOString(),
+        inventoryId: inventoryResponse.inventory_id,
+        isOwner: userResponse.user_id === inventoryResponse.owner_user_id
       }
-    }
 
-    error.value = 'Invalid login code'
-    return false
+      // Save to localStorage
+      localStorage.setItem('useItUp_user', JSON.stringify(authenticatedUser))
+      user.value = authenticatedUser
+
+      return authenticatedUser
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Invalid login code or authentication failed'
+      error.value = errorMessage
+      throw new Error(errorMessage)
+    } finally {
+      isLoading.value = false
+    }
   }
 
   function logout(): void {
@@ -119,7 +128,8 @@ export const useAuthStore = defineStore('auth', () => {
     // Clear localStorage
     localStorage.removeItem('useItUp_user')
 
-    // Clear any other related data
+    // Clear any other related data using the API method
+    inventoryRoomsAPI.clearAuthData()
     localStorage.removeItem('pendingChanges') // If exists
 
     console.log('User logged out successfully')
@@ -135,6 +145,23 @@ export const useAuthStore = defineStore('auth', () => {
       }
     } catch (e) {
       console.error('Error loading saved user:', e)
+      localStorage.removeItem('useItUp_user')
+    }
+    return false
+  }
+
+  async function tryAutoLogin(): Promise<boolean> {
+    try {
+      const savedLoginCode = inventoryRoomsAPI.getCurrentLoginCode()
+      if (savedLoginCode && !user.value) {
+        console.log('Found saved login code, attempting auto-login...')
+        await loginWithCode(savedLoginCode)
+        return true
+      }
+    } catch (e) {
+      console.warn('Auto-login failed:', e)
+      // Clear invalid auth data
+      inventoryRoomsAPI.clearAuthData()
       localStorage.removeItem('useItUp_user')
     }
     return false
@@ -225,6 +252,7 @@ export const useAuthStore = defineStore('auth', () => {
     loginWithCode,
     logout,
     loadSavedUser,
+    tryAutoLogin,
     clearError,
     updateInventoryName
   }

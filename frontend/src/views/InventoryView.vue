@@ -87,9 +87,26 @@ const handleUseItem = async (itemId: string) => {
   loadingItemId.value = itemId;
 
   try {
-    const impact = await inventoryStore.markItemAsUsed(itemId);
-    if (impact) {
-      impactStore.showImpact(impact);
+    if (authStore.user.loginCode) {
+      // Use login_code consume endpoint: PATCH /items/{item_id}/consume
+      const result = await inventoryStore.markItemAsUsedByLoginCode(itemId, authStore.user.loginCode);
+
+      if (result) {
+        // Show a simple impact toast since consume endpoint doesn't return impact
+        const mockImpact = {
+          itemId,
+          itemName: 'Item',
+          moneySaved: 2.5,
+          co2Avoided: 0.5,
+          actionType: 'used' as const,
+          timestamp: new Date().toISOString()
+        };
+        impactStore.showImpact(mockImpact);
+      }
+    } else {
+      // Fallback (legacy) if no login code exists
+      const impact = await inventoryStore.markItemAsUsed(itemId);
+      if (impact) impactStore.showImpact(impact);
     }
   } catch (error) {
     console.error("Failed to mark item as used:", error);
@@ -113,23 +130,29 @@ const handleDeleteItem = async (itemId: string) => {
 };
 
 const retryLoad = async () => {
-  if (authStore.user) {
-    try {
+  if (!authStore.user) return;
+  try {
+    if (authStore.user.loginCode) {
+      await inventoryStore.fetchInventoryByLoginCode(authStore.user.loginCode, true);
+    } else {
       await inventoryStore.fetchInventory(authStore.user.id, true);
-    } catch (error) {
-      console.error("Failed to retry load:", error);
     }
+  } catch (error) {
+    console.error("Failed to retry load:", error);
   }
 };
 
 // Load inventory on mount
 onMounted(async () => {
-  if (authStore.user) {
-    try {
+  if (!authStore.user) return;
+  try {
+    if (authStore.user.loginCode) {
+      await inventoryStore.fetchInventoryByLoginCode(authStore.user.loginCode);
+    } else {
       await inventoryStore.fetchInventory(authStore.user.id);
-    } catch (error) {
-      console.error("Failed to load inventory:", error);
     }
+  } catch (error) {
+    console.error("Failed to load inventory:", error);
   }
 });
 </script>

@@ -3,7 +3,7 @@
 
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import inventoryAPI, { type InventoryItem, type AddItemRequest, type AddItemToInventoryRequest, type ImpactData, InventoryAPIError } from '@/api/inventory'
+import inventoryAPI, { type InventoryItem, type AddItemRequest, type AddItemToInventoryRequest, type AddItemByLoginCodeRequest, type MarkAsUsedResponse, type ImpactData, InventoryAPIError } from '@/api/inventory'
 import { calculateDaysUntilExpiry } from '@/utils/dateHelpers'
 // Removed error handler imports for MVP
 import type { FreshnessStatus } from '@/composables/useExpiryStatus'
@@ -132,6 +132,59 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
+  async function fetchInventoryByLoginCode(loginCode: string, forceRefresh = false): Promise<void> {
+    // Skip fetch if cache is valid and not forcing refresh
+    if (!forceRefresh && isCacheValid.value) {
+      return
+    }
+
+    isLoading.value = true
+    error.value = null
+
+    try {
+      console.log('🔄 Fetching inventory by login code:', loginCode)
+      const data = await inventoryAPI.getInventoryByLoginCode(loginCode)
+      console.log('✅ Successfully fetched inventory data:', data)
+      items.value = data
+      lastFetch.value = Date.now()
+
+      // Clear any previous errors on successful fetch
+      error.value = null
+    } catch (err) {
+      const errorMessage = 'fetch your inventory by login code'
+      
+      console.error('❌ Failed to fetch inventory by login code:', {
+        loginCode,
+        error: err,
+        message: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : 'No stack trace',
+        name: err instanceof Error ? err.name : 'Unknown error type'
+      })
+
+      // Set detailed error message for debugging
+      if (err instanceof InventoryAPIError) {
+        error.value = `API Error: ${err.message} (Operation: ${err.operation})`
+        if (err.originalError) {
+          console.error('Original error details:', err.originalError)
+        }
+      } else if (err instanceof Error) {
+        if (err.message.includes('network') || err.message.includes('Network')) {
+          error.value = `Network error: ${err.message} - please check your connection`
+        } else if (err.message.includes('fetch')) {
+          error.value = `Fetch error: ${err.message} - API may be unavailable`
+        } else {
+          error.value = `Error: ${err.message}`
+        }
+      } else {
+        error.value = `Unknown error: ${String(err)}`
+      }
+      console.error(errorMessage, err)
+      // Don't throw error for network issues to prevent UI breakage
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   async function addItem(itemData: AddItemRequest): Promise<InventoryItem | null> {
     isLoading.value = true
     error.value = null
@@ -198,6 +251,89 @@ export const useInventoryStore = defineStore('inventory', () => {
       console.error(errorMessage, err)
 
       console.error('Failed to add item to inventory:', err)
+      return null
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function addItemByLoginCode(itemData: AddItemByLoginCodeRequest): Promise<InventoryItem | null> {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const newItem = await inventoryAPI.addItemByLoginCode(itemData)
+
+      // Add to local state for immediate UI update
+      items.value.push(newItem)
+
+      // Update cache timestamp
+      lastFetch.value = Date.now()
+
+      // Clear any previous errors on successful add
+      error.value = null
+
+      return newItem
+    } catch (err) {
+      const errorMessage = 'add the item to inventory via login code'
+
+      if (err instanceof InventoryAPIError) {
+        error.value = err.message
+      } else if (err instanceof Error && err.message.includes('network')) {
+        error.value = 'Network error - item not added'
+      } else {
+        error.value = 'Failed to add item to inventory. Please try again.'
+      }
+      console.error(errorMessage, err)
+
+      console.error('Failed to add item to inventory via login code:', err)
+      return null
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function markItemAsUsedByLoginCode(itemId: string, loginCode: string): Promise<MarkAsUsedResponse | null> {
+    isLoading.value = true
+    error.value = null
+
+    // Store item reference for potential rollback
+    const itemIndex = items.value.findIndex(item => item.id === itemId)
+    const itemToRemove = itemIndex !== -1 ? items.value[itemIndex] : null
+
+    try {
+      const result = await inventoryAPI.markAsUsedByLoginCode(itemId, loginCode)
+
+      // Remove item from local state for immediate UI update (consumed items are removed)
+      if (itemIndex !== -1) {
+        items.value.splice(itemIndex, 1)
+      }
+
+      // Update cache timestamp
+      lastFetch.value = Date.now()
+
+      // Clear any previous errors on successful action
+      error.value = null
+
+      return result
+    } catch (err) {
+      // Rollback optimistic update on error
+      if (itemToRemove && itemIndex !== -1) {
+        items.value.splice(itemIndex, 0, itemToRemove)
+      }
+
+      const errorMessage = 'mark the item as used via login code'
+
+      if (err instanceof InventoryAPIError) {
+        error.value = err.message
+      } else if (err instanceof Error && err.message.includes('network')) {
+        error.value = 'Network error - item not marked as used'
+      } else {
+        error.value = 'Failed to mark item as used. Please try again.'
+      }
+      console.error(errorMessage, err)
+
+      console.error('Failed to mark item as used via login code:', err)
       return null
     } finally {
       isLoading.value = false
@@ -340,9 +476,12 @@ export const useInventoryStore = defineStore('inventory', () => {
 
     // Actions
     fetchInventory,
+    fetchInventoryByLoginCode,
     addItem,
     addItemToInventory,
+    addItemByLoginCode,
     markItemAsUsed,
+    markItemAsUsedByLoginCode,
     deleteItem,
     updateFilter,
     clearError,

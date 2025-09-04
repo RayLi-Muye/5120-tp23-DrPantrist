@@ -193,6 +193,11 @@ watch(() => props.selectedGrocery.id, () => {
   clearErrors()
 })
 
+// If default shelf life changes (e.g., after data refresh), reset default date
+watch(() => props.selectedGrocery.defaultShelfLife, () => {
+  resetToDefault()
+})
+
 // Quantity controls
 const incrementQuantity = () => {
   if (formData.value.quantity < 99) {

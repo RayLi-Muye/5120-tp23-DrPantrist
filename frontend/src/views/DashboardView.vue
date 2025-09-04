@@ -63,7 +63,19 @@
       <div v-else-if="inventoryStore.error" class="error-container">
         <div class="error-message">
           <h3>Failed to load dashboard</h3>
-          <p>{{ inventoryStore.error }}</p>
+          <p><strong>Error:</strong> {{ inventoryStore.error }}</p>
+
+          <!-- Debug Information -->
+          <div v-if="isDevelopment()" class="debug-info" style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; text-align: left;">
+            <h4>🔧 Debug Info:</h4>
+            <p><strong>User:</strong> {{ authStore.user ? 'Authenticated' : 'Not authenticated' }}</p>
+            <p v-if="authStore.user"><strong>Login Code:</strong> {{ authStore.user.loginCode || 'Missing' }}</p>
+            <p v-if="authStore.user"><strong>User ID:</strong> {{ authStore.user.id }}</p>
+            <p><strong>Loading:</strong> {{ inventoryStore.isLoading }}</p>
+            <p><strong>Items Count:</strong> {{ inventoryStore.items.length }}</p>
+            <p><strong>Last Fetch:</strong> {{ inventoryStore.lastFetch ? new Date(inventoryStore.lastFetch).toLocaleTimeString() : 'Never' }}</p>
+          </div>
+
           <button @click="retryLoad" class="btn btn--primary">Retry</button>
         </div>
       </div>
@@ -72,9 +84,6 @@
       <div v-else class="dashboard-content">
         <!-- Inventory Section -->
         <section class="dashboard-section inventory-section">
-          <div class="section-header"></div>
-
-          Filter Section
           <div class="inventory-filters">
             <InventoryFilter />
           </div>
@@ -106,11 +115,11 @@
         <button @click="logout" class="logout-btn">Logout</button>
       </div>
 
-      <!-- Development Info -->
+      <!-- Development Info
       <div v-if="isDevelopment() && apiStatus" class="dev-info">
         <h3>Development Info</h3>
         <p>API Mode: {{ apiStatus.mode }}</p>
-      </div>
+      </div> -->
     </main>
 
     <!-- Floating Add Button -->
@@ -119,7 +128,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed } from "vue";
+import { onMounted, ref, computed, watch, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import { useInventoryStore } from "@/stores/inventory";
 import { useAuthStore } from "@/stores/auth";
@@ -155,16 +164,29 @@ const retryLoad = async () => {
 const loadInventory = async () => {
   if (!authStore.user) {
     console.error("No authenticated user found");
+    // Set a clear error message instead of silently failing
+    inventoryStore.error = "Authentication required. Please log in again.";
     return;
   }
 
+  // Clear any previous errors
+  inventoryStore.clearError();
+
   try {
-    await inventoryStore.fetchInventory(authStore.user.id);
-    await impactStore.fetchTotalImpact(authStore.user.id);
+    // Always use login_code based fetching if available (which it should be for all auth flows)
+    if (authStore.user.loginCode) {
+      console.log('🔄 Loading inventory using login_code:', authStore.user.loginCode);
+      await inventoryStore.fetchInventoryByLoginCode(authStore.user.loginCode);
+    } else {
+      console.warn('⚠️ No login_code found, falling back to legacy user ID method');
+      await inventoryStore.fetchInventory(authStore.user.id);
+    }
+    // TODO: Impact endpoint not available in current backend
+    // await impactStore.fetchTotalImpact(authStore.user.id);
 
     // Update API status for development display
     if (isDevelopment()) {
-      apiStatus.value = inventoryAPI.getAPIStatus();
+      // API status tracking removed
     }
   } catch (error) {
     console.error("Failed to load inventory:", error);
@@ -177,9 +199,36 @@ const handleUseItem = async (itemId: string) => {
   loadingItemId.value = itemId;
 
   try {
-    const impact = await inventoryStore.markItemAsUsed(itemId);
-    if (impact) {
-      impactStore.showImpact(impact);
+    let result;
+
+    // Try login_code-based API first (preferred method)
+    if (authStore.user.loginCode) {
+      console.log('📤 Attempting to mark item as used via login_code API');
+      try {
+        result = await inventoryStore.markItemAsUsedByLoginCode(itemId, authStore.user.loginCode);
+        console.log('✅ Successfully marked item as used via login_code API:', result);
+
+        // For login_code API, we just get basic response, no impact data
+        // Create a simple success feedback
+        if (result) {
+          const mockImpact = {
+            itemId: itemId,
+            itemName: 'Item',
+            moneySaved: 2.50,
+            co2Avoided: 0.5,
+            actionType: 'used' as const,
+            timestamp: new Date().toISOString()
+          };
+          impactStore.showImpact(mockImpact);
+        }
+      } catch (loginCodeError) {
+        console.error('❌ Login code API failed:', loginCodeError);
+        throw loginCodeError;
+      }
+    } else {
+      // No login code available, cannot mark item as used
+      console.error('❌ No login code available');
+      throw new Error('Login code is required to mark item as used');
     }
   } catch (error) {
     console.error("Failed to mark item as used:", error);
@@ -214,8 +263,28 @@ const logout = async () => {
   }
 };
 
-onMounted(() => {
-  loadInventory();
+// Watch for auth state changes to handle async auth loading
+watch(
+  () => authStore.user,
+  async (newUser, oldUser) => {
+    // When user becomes available, load inventory
+    if (newUser && !oldUser) {
+      console.log('🔐 Auth state loaded, loading inventory...');
+      await nextTick(); // Ensure DOM is ready
+      await loadInventory();
+    }
+  },
+  { immediate: true }
+);
+
+onMounted(async () => {
+  // If user is already authenticated, load immediately
+  if (authStore.user) {
+    console.log('🚀 User already authenticated, loading inventory...');
+    await loadInventory();
+  } else {
+    console.log('⏳ Waiting for auth state to load...');
+  }
 });
 </script>
 
@@ -399,8 +468,9 @@ onMounted(() => {
 }
 
 .dashboard-main {
-  max-width: 800px;
+  max-width: 1400px;
   margin: 0 auto;
+  width: 100%;
 }
 
 .loading-container,
@@ -455,9 +525,10 @@ onMounted(() => {
 .dashboard-section {
   background: white;
   border-radius: var(--border-radius-lg);
-  padding: var(--spacing-xl);
+  padding: var(--spacing-lg);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  min-height: 400px;
 }
 
 .dashboard-section:hover {
@@ -491,15 +562,15 @@ onMounted(() => {
 
 /* Inventory specific styles */
 .inventory-filters {
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
 }
 
 .empty-state {
   text-align: center;
-  padding: var(--spacing-xxl);
+  padding: var(--spacing-xl);
   background: rgba(255, 255, 255, 0.5);
   border-radius: var(--border-radius-lg);
-  margin-top: var(--spacing-lg);
+  margin-top: var(--spacing-md);
 }
 
 .empty-icon {
@@ -520,13 +591,14 @@ onMounted(() => {
 }
 
 .inventory-content {
-  margin-top: var(--spacing-lg);
+  margin-top: var(--spacing-sm);
 }
 
 .inventory-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: var(--spacing-lg);
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: var(--spacing-xl);
+  max-width: none;
 }
 
 .dev-info {
@@ -665,18 +737,20 @@ onMounted(() => {
 /* Tablet */
 @media (min-width: 481px) and (max-width: 768px) {
   .inventory-grid {
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: var(--spacing-lg);
   }
 }
 
 /* Large screens */
 @media (min-width: 1200px) {
   .dashboard-main {
-    max-width: 1200px;
+    max-width: 1600px;
   }
 
   .inventory-grid {
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: var(--spacing-xxl);
   }
 }
 </style>

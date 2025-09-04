@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Auth State - Use It Up</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .button { padding: 10px 15px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        .button:hover { background: #0056b3; }
+        .clear { background: #dc3545; }
+        .clear:hover { background: #c82333; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 3px; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        pre { background: #f8f9fa; padding: 15px; border-radius: 3px; overflow: auto; }
+    </style>
+</head>
+<body>
+    <h1>Use It Up - Auth Debug Tool</h1>
+    
+    <div class="section">
+        <h3>Current Auth State</h3>
+        <div id="authStatus"></div>
+        <button class="button" onclick="checkAuth()">Check Auth State</button>
+        <button class="button clear" onclick="clearAuth()">Clear All Auth Data</button>
+    </div>
+
+    <div class="section">
+        <h3>Test API Connection</h3>
+        <div id="apiStatus"></div>
+        <input type="text" id="loginCode" placeholder="Enter login code (e.g., EEN7VT)" style="padding: 8px; margin: 5px;">
+        <button class="button" onclick="testAPI()">Test API with Login Code</button>
+    </div>
+
+    <div class="section">
+        <h3>Actions</h3>
+        <button class="button" onclick="location.href='http://localhost:5173/auth'">Go to Auth Page</button>
+        <button class="button" onclick="location.href='http://localhost:5173/dashboard'">Go to Dashboard</button>
+    </div>
+
+    <script>
+        function displayStatus(elementId, message, isError = false) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="status ${isError ? 'error' : 'success'}">${message}</div>`;
+        }
+
+        function checkAuth() {
+            try {
+                const savedUser = localStorage.getItem('useItUp_user');
+                const loginCode = localStorage.getItem('login_code');
+                
+                let html = '<h4>localStorage Data:</h4>';
+                
+                if (savedUser) {
+                    const userData = JSON.parse(savedUser);
+                    html += `<pre>useItUp_user: ${JSON.stringify(userData, null, 2)}</pre>`;
+                } else {
+                    html += '<p>No useItUp_user found in localStorage</p>';
+                }
+                
+                if (loginCode) {
+                    html += `<pre>login_code: ${loginCode}</pre>`;
+                } else {
+                    html += '<p>No login_code found in localStorage</p>';
+                }
+                
+                // Check all localStorage keys related to auth
+                html += '<h4>All Auth-Related Keys:</h4>';
+                const authKeys = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && (key.includes('auth') || key.includes('user') || key.includes('login') || key.includes('useItUp'))) {
+                        authKeys.push(`${key}: ${localStorage.getItem(key)}`);
+                    }
+                }
+                
+                if (authKeys.length > 0) {
+                    html += '<pre>' + authKeys.join('\n') + '</pre>';
+                } else {
+                    html += '<p>No auth-related keys found</p>';
+                }
+                
+                document.getElementById('authStatus').innerHTML = html;
+            } catch (error) {
+                displayStatus('authStatus', `Error checking auth: ${error.message}`, true);
+            }
+        }
+
+        function clearAuth() {
+            try {
+                // Clear all possible auth-related keys
+                const keysToRemove = [
+                    'useItUp_user',
+                    'login_code',
+                    'authToken',
+                    'userId',
+                    'pendingChanges'
+                ];
+                
+                keysToRemove.forEach(key => {
+                    localStorage.removeItem(key);
+                });
+                
+                // Clear any other auth-related keys
+                const allKeys = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    allKeys.push(localStorage.key(i));
+                }
+                
+                allKeys.forEach(key => {
+                    if (key && (key.includes('auth') || key.includes('user') || key.includes('login'))) {
+                        localStorage.removeItem(key);
+                    }
+                });
+                
+                displayStatus('authStatus', 'All auth data cleared successfully!');
+                setTimeout(() => checkAuth(), 1000);
+            } catch (error) {
+                displayStatus('authStatus', `Error clearing auth: ${error.message}`, true);
+            }
+        }
+
+        async function testAPI() {
+            const loginCode = document.getElementById('loginCode').value.trim();
+            if (!loginCode) {
+                displayStatus('apiStatus', 'Please enter a login code', true);
+                return;
+            }
+            
+            displayStatus('apiStatus', 'Testing API connection...');
+            
+            try {
+                // Test direct API
+                const response = await fetch(`/api/items/by-login-code?login_code=${loginCode}`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    displayStatus('apiStatus', `✅ API Success! Found ${data.length} items:<br><pre>${JSON.stringify(data, null, 2)}</pre>`);
+                } else {
+                    displayStatus('apiStatus', `❌ API Error: ${response.status} ${response.statusText}`, true);
+                }
+            } catch (error) {
+                displayStatus('apiStatus', `❌ Network Error: ${error.message}`, true);
+            }
+        }
+
+        // Auto-check auth on load
+        checkAuth();
+    </script>
+</body>
+</html>

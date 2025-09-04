@@ -45,44 +45,51 @@
         transform: isSwipeActive ? `translateX(${Math.min(swipeProgressPercent * 0.3, 30)}px)` : 'translateX(0)'
       }"
     >
-      <!-- Item info -->
-      <div class="inventory-item__info">
-        <h3 class="inventory-item__name">{{ item.name }}</h3>
-        <div class="inventory-item__details">
-          <span class="inventory-item__quantity">{{ formattedQuantity }}</span>
-          <span class="inventory-item__category">{{ item.category }}</span>
-        </div>
-      </div>
-
-      <!-- Expiry status -->
-      <div class="inventory-item__expiry">
-        <div class="freshness-indicator">
-          <div
-            class="freshness-indicator__dot"
-            :class="`freshness-indicator__dot--${status}`"
-          />
-          <span
-            class="freshness-indicator__text"
-            :class="`freshness-indicator__text--${status}`"
-          >
-            {{ statusText }}
-          </span>
-        </div>
-        <div class="inventory-item__expiry-date">
-          {{ formattedExpiryDate }}
-        </div>
-      </div>
-
-      <!-- Action button -->
+      <!-- Action button in top-right corner -->
       <button
-        class="inventory-item__action btn btn--success btn--sm"
+        class="inventory-item__action-button"
         type="button"
         :disabled="isLoading"
         @click="handleMarkAsUsed"
+        title="Mark as Used"
       >
-        <span v-if="isLoading" class="loading" />
-        <span v-else>Mark as Used</span>
+        <span v-if="isLoading" class="loading-spinner">⟳</span>
+        <span v-else>✓</span>
       </button>
+
+      <!-- Item content -->
+      <div class="inventory-item__main">
+        <!-- Item name - full width row -->
+        <h3 class="inventory-item__name">{{ item.name }}</h3>
+        
+        <!-- Item details - horizontal row with consistent spacing -->
+        <div class="inventory-item__details">
+          <span class="inventory-item__detail">
+            <span class="detail-label">Qty:</span>
+            <span class="detail-value">{{ formattedQuantity }}</span>
+          </span>
+          <span class="inventory-item__detail">
+            <span class="detail-label">Category:</span>
+            <span class="detail-value">{{ item.category }}</span>
+          </span>
+          <span class="inventory-item__detail">
+            <span class="detail-label">Expires:</span>
+            <span class="detail-value">{{ formattedExpiryDate }}</span>
+          </span>
+          <span class="inventory-item__detail inventory-item__detail--status">
+            <div
+              class="freshness-indicator__dot"
+              :class="`freshness-indicator__dot--${status}`"
+            />
+            <span
+              class="detail-value"
+              :class="`freshness-indicator__text--${status}`"
+            >
+              {{ statusText }}
+            </span>
+          </span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -106,7 +113,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 // Emits
 interface Emits {
-  itemUsed: [itemId: string]
+  use: [itemId: string]
 }
 
 const emit = defineEmits<Emits>()
@@ -159,7 +166,7 @@ const formattedExpiryDate = computed(() => {
 // Methods
 function handleMarkAsUsed() {
   if (props.isLoading) return
-  emit('itemUsed', props.item.id)
+  emit('use', props.item.id)
 }
 </script>
 
@@ -274,72 +281,134 @@ function handleMarkAsUsed() {
   position: relative;
   z-index: 2;
   background-color: var(--color-bg-primary);
-  padding: var(--spacing-md);
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: var(--spacing-md);
-  align-items: center;
+  padding: var(--spacing-lg);
+  min-height: 120px;
   transition: transform var(--duration-fast) ease;
-
-  // Smooth transform during swipe (handled by dynamic styles)
   will-change: transform;
 }
 
-// Item info section
-.inventory-item__info {
-  min-width: 0; // Allow text truncation
+// Action button in top-right corner (Mac-style)
+.inventory-item__action-button {
+  position: absolute;
+  top: var(--spacing-md);
+  right: var(--spacing-md);
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-success);
+  color: white;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all var(--duration-fast) ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  z-index: 3;
+
+  &:hover {
+    transform: scale(1.1);
+    background: #28a745;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+
+  &:disabled {
+    background: var(--color-text-secondary);
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .loading-spinner {
+    animation: spin 1s linear infinite;
+  }
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+// Main content area (avoiding button area)
+.inventory-item__main {
+  padding-right: var(--spacing-xl); // Leave space for button
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  height: 100%;
+  justify-content: center;
+}
+
+// Item name - single row
 .inventory-item__name {
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
-  margin: 0 0 var(--spacing-xs) 0;
+  margin: 0;
   line-height: var(--line-height-tight);
-}
-
-.inventory-item__details {
-  display: flex;
-  gap: var(--spacing-sm);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-}
-
-.inventory-item__quantity {
-  font-weight: var(--font-weight-medium);
-}
-
-.inventory-item__category {
-  &::before {
-    content: '•';
-    margin-right: var(--spacing-xs);
-  }
-}
-
-// Expiry section
-.inventory-item__expiry {
-  text-align: right;
-  min-width: 0;
-}
-
-.inventory-item__expiry-date {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-  margin-top: var(--spacing-xs);
-}
-
-// Action button
-.inventory-item__action {
-  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-// Mobile-first responsive design
+// Item details - horizontal row with consistent styling
+.inventory-item__details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.inventory-item__detail {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+
+  &--status {
+    .freshness-indicator__dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+  }
+}
+
+.detail-label {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+}
+
+.detail-value {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+}
+
+// Mobile responsive design
 @media (max-width: 374px) {
   .inventory-item__content {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-xs);
-    padding: var(--spacing-sm);
+    padding: var(--spacing-md);
+    min-height: 100px;
+  }
+
+  .inventory-item__action-button {
+    top: var(--spacing-sm);
+    right: var(--spacing-sm);
+    width: 20px;
+    height: 20px;
+    font-size: 12px;
+  }
+
+  .inventory-item__main {
+    padding-right: var(--spacing-lg);
   }
 
   .inventory-item__name {
@@ -347,60 +416,47 @@ function handleMarkAsUsed() {
   }
 
   .inventory-item__details {
+    gap: var(--spacing-xs);
+  }
+
+  .detail-label,
+  .detail-value {
     font-size: var(--font-size-xs);
-    flex-wrap: wrap;
-  }
-
-  .inventory-item__expiry {
-    text-align: left;
-    order: -1;
-  }
-
-  .inventory-item__action {
-    justify-self: stretch;
-    font-size: var(--font-size-sm);
-    padding: var(--spacing-sm);
   }
 }
 
 @media (min-width: 375px) and (max-width: 480px) {
-  .inventory-item__content {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-sm);
-    text-align: left;
-  }
-
-  .inventory-item__expiry {
-    text-align: left;
-    order: -1;
-  }
-
-  .inventory-item__action {
-    justify-self: stretch;
-  }
-
   .inventory-item__details {
     flex-wrap: wrap;
+    gap: var(--spacing-xs);
+  }
+
+  .detail-label,
+  .detail-value {
+    font-size: var(--font-size-sm);
   }
 }
 
 /* Large mobile and tablet optimizations */
 @media (min-width: 481px) and (max-width: 767px) {
-  .inventory-item__content {
-    grid-template-columns: 1fr auto auto;
-    gap: var(--spacing-md);
+  .inventory-item__details {
+    gap: var(--spacing-sm);
   }
 }
 
 /* Desktop optimizations */
 @media (min-width: 768px) {
   .inventory-item__content {
-    padding: var(--spacing-lg);
-    gap: var(--spacing-lg);
+    padding: var(--spacing-xl);
   }
 
   .inventory-item__name {
     font-size: var(--font-size-lg);
+  }
+
+  .detail-label,
+  .detail-value {
+    font-size: var(--font-size-base);
   }
 }
 
