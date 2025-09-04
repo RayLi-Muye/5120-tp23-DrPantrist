@@ -1,6 +1,6 @@
 <template>
   <div class="home-page">
-    <!-- Simple top nav to switch between Home and Auth -->
+    <!-- Fixed top nav to switch between Home and Auth -->
     <nav class="top-toggle-nav" aria-label="Primary">
       <router-link
         to="/"
@@ -170,33 +170,42 @@ const getStarted = () => {
 .home-page {
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding-top: 56px;
 }
 
 .top-toggle-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
   display: flex;
   gap: 8px;
   justify-content: center;
-  padding: 12px 0;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(0,0,0,0.1);
+  z-index: 1000;
 }
 
 .toggle-btn {
   text-decoration: none;
   padding: 6px 12px;
-  border: 1px solid rgba(255,255,255,0.4);
+  border: 1px solid rgba(0,0,0,0.1);
   border-radius: 8px;
-  color: white;
-  background: rgba(255,255,255,0.12);
+  color: #333;
+  background: white;
   transition: all 0.2s ease;
 }
 
 .toggle-btn:hover {
-  background: rgba(255,255,255,0.2);
+  background: #f5f5f5;
 }
 
 .toggle-btn.active {
-  background: white;
-  color: #4b4b4b;
-  border-color: white;
+  background: #4f46e5;
+  color: #fff;
+  border-color: #4f46e5;
 }
 
 /* Hero Section */

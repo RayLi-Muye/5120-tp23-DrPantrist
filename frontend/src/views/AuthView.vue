@@ -1,30 +1,26 @@
 <template>
   <div class="auth-view">
+    <nav class="top-toggle-nav" aria-label="Primary">
+      <router-link
+        to="/"
+        class="toggle-btn"
+        :class="{ active: $route.path === '/' }"
+      >Home</router-link>
+      <router-link
+        to="/auth"
+        class="toggle-btn"
+        :class="{ active: $route.path === '/auth' }"
+      >Auth</router-link>
+    </nav>
     <div class="auth-container">
-      <nav class="top-toggle-nav" aria-label="Primary">
-        <router-link
-          to="/"
-          class="toggle-btn"
-          :class="{ active: $route.path === '/' }"
-        >Home</router-link>
-        <router-link
-          to="/auth"
-          class="toggle-btn"
-          :class="{ active: $route.path === '/auth' }"
-        >Auth</router-link>
-      </nav>
-      <div class="auth-header">
+      <!-- <div class="auth-header">
         <h1 class="auth-title">UseItUp</h1>
         <p class="auth-subtitle">Track your groceries, reduce waste</p>
-      </div>
+      </div> -->
 
       <!-- Create New Inventory -->
       <div v-if="authMode === 'create'" class="auth-form">
-        <h2>Create Your Inventory</h2>
-        <p class="form-description">
-          Give your inventory a name to get started
-        </p>
-
+        <h1>Create Your Inventory</h1>
         <form @submit.prevent="handleCreateInventory">
           <div class="form-group">
             <label for="displayName">Your Name</label>
@@ -316,15 +312,27 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-md);
+  padding: calc(var(--spacing-md) + 56px) var(--spacing-md) var(--spacing-md);
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 .top-toggle-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
   display: flex;
   gap: var(--spacing-sm);
   justify-content: center;
-  margin-bottom: var(--spacing-md);
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--color-border);
+  z-index: 1000;
+}
+
+.top-toggle-nav {
+  display: flex;
 }
 
 .toggle-btn {
@@ -332,13 +340,13 @@ onMounted(async () => {
   padding: 6px 12px;
   border: 1px solid var(--color-border);
   border-radius: var(--border-radius-md);
-  color: var(--color-text-secondary);
+  color: var(--color-text-primary);
+  background: white;
   transition: all var(--duration-fast) ease;
 }
 
 .toggle-btn:hover {
   background: var(--color-bg-secondary);
-  color: var(--color-text-primary);
 }
 
 .toggle-btn.active {
