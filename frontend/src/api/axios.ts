@@ -3,6 +3,7 @@
 
 import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { config, isDevelopment } from '../config/environment'
+import { logger } from '@/utils/logger'
 
 // Enhanced error interface
 export interface APIError extends Error {
@@ -47,19 +48,22 @@ apiClient.interceptors.request.use(
 
     // Log request in development
     if (isDevelopment()) {
-      console.log(`[API Request ${config.metadata?.requestId}]`, {
-        method: config.method?.toUpperCase(),
-        url: config.url,
-        baseURL: config.baseURL,
-        params: config.params,
-        data: config.data
-      })
+      logger.debug(
+        `[API Request ${config.metadata?.requestId}]`,
+        {
+          method: config.method?.toUpperCase(),
+          url: config.url,
+          baseURL: config.baseURL,
+          params: config.params,
+          data: config.data
+        }
+      )
     }
 
     return config
   },
   (error) => {
-    console.error('Request interceptor error:', error)
+    logger.error('Request interceptor error', error)
     return Promise.reject(error)
   }
 )
@@ -69,11 +73,14 @@ apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
     // Log successful response in development
     if (isDevelopment()) {
-      console.log(`[API Response ${(response.config as ExtendedAxiosRequestConfig).metadata?.requestId}]`, {
-        status: response.status,
-        statusText: response.statusText,
-        data: response.data
-      })
+      logger.debug(
+        `[API Response ${(response.config as ExtendedAxiosRequestConfig).metadata?.requestId}]`,
+        {
+          status: response.status,
+          statusText: response.statusText,
+          data: response.data
+        }
+      )
     }
 
     return response
@@ -83,20 +90,32 @@ apiClient.interceptors.response.use(
 
     // Enhanced error logging
     if (isDevelopment()) {
-      console.error(`[API Error ${requestId}]`, {
-        url: error.config?.url,
-        method: error.config?.method?.toUpperCase(),
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        message: error.message,
-        requestData: error.config?.data ? JSON.parse(error.config.data) : null,
-        responseData: error.response?.data
-      })
-      console.error(`[API Error Details ${requestId}]`, {
-        fullError: error,
-        requestPayload: error.config?.data,
-        responseBody: error.response?.data
-      })
+      logger.error(
+        `[API Error ${requestId}]`,
+        {
+          url: error.config?.url,
+          method: error.config?.method?.toUpperCase(),
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          message: error.message,
+          requestData: (() => {
+            try {
+              return error.config?.data ? JSON.parse(error.config.data) : null
+            } catch {
+              return error.config?.data ?? null
+            }
+          })(),
+          responseData: error.response?.data
+        }
+      )
+      logger.error(
+        `[API Error Details ${requestId}]`,
+        {
+          fullError: error,
+          requestPayload: error.config?.data,
+          responseBody: error.response?.data
+        }
+      )
     }
 
     // Create simple error object
@@ -145,7 +164,7 @@ export async function retryRequest<T>(
       const delay = retryDelay * Math.pow(2, attempt)
 
       if (isDevelopment()) {
-        console.log(`Retrying request in ${delay}ms (attempt ${attempt + 1}/${retries})`)
+        logger.debug(`Retrying request in ${delay}ms (attempt ${attempt + 1}/${retries})`)
       }
 
       await new Promise(resolve => setTimeout(resolve, delay))

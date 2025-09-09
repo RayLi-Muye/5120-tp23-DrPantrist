@@ -5,6 +5,7 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import inventoryAPI, { type InventoryItem, type AddItemRequest, type AddItemToInventoryRequest, type AddItemByLoginCodeRequest, type MarkAsUsedResponse, type ImpactData, InventoryAPIError } from '@/api/inventory'
 import { calculateDaysUntilExpiry } from '@/utils/dateHelpers'
+import { logger } from '@/utils/logger'
 // Removed error handler imports for MVP
 import type { FreshnessStatus } from '@/composables/useExpiryStatus'
 
@@ -43,7 +44,7 @@ function getFreshnessStatus(expiryDate: string): FreshnessStatus {
       return 'fresh'
     }
   } catch (error) {
-    console.error('Error calculating freshness status:', error)
+    logger.error('Error calculating freshness status', error)
     return 'expired' // Default to expired for safety
   }
 }
@@ -124,9 +125,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       } else {
         error.value = 'Failed to fetch inventory. Please try again.'
       }
-      console.error(errorMessage, err)
-
-      console.error('Failed to fetch inventory:', err)
+      logger.error(`Failed to ${errorMessage}`, err)
     } finally {
       isLoading.value = false
     }
@@ -142,9 +141,9 @@ export const useInventoryStore = defineStore('inventory', () => {
     error.value = null
 
     try {
-      console.log('🔄 Fetching inventory by login code:', loginCode)
+      logger.info('Fetching inventory by login code', { loginCode })
       const data = await inventoryAPI.getInventoryByLoginCode(loginCode)
-      console.log('✅ Successfully fetched inventory data:', data)
+      logger.info('Fetched inventory data', { count: Array.isArray(data) ? data.length : 0 })
       items.value = data
       lastFetch.value = Date.now()
 
@@ -153,7 +152,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     } catch (err) {
       const errorMessage = 'fetch your inventory by login code'
       
-      console.error('❌ Failed to fetch inventory by login code:', {
+      logger.error('Failed to fetch inventory by login code', {
         loginCode,
         error: err,
         message: err instanceof Error ? err.message : 'Unknown error',
@@ -165,7 +164,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       if (err instanceof InventoryAPIError) {
         error.value = `API Error: ${err.message} (Operation: ${err.operation})`
         if (err.originalError) {
-          console.error('Original error details:', err.originalError)
+          logger.error('Original error details', err.originalError)
         }
       } else if (err instanceof Error) {
         if (err.message.includes('network') || err.message.includes('Network')) {
@@ -178,8 +177,8 @@ export const useInventoryStore = defineStore('inventory', () => {
       } else {
         error.value = `Unknown error: ${String(err)}`
       }
-      console.error(errorMessage, err)
-      // Don't throw error for network issues to prevent UI breakage
+      logger.error(`Failed to ${errorMessage}`, err)
+      // Do not throw to prevent UI breakage on network failures
     } finally {
       isLoading.value = false
     }
@@ -212,9 +211,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       } else {
         error.value = 'Failed to add item. Please try again.'
       }
-      console.error(errorMessage, err)
-
-      console.error('Failed to add item:', err)
+      logger.error(`Failed to ${errorMessage}`, err)
       return null
     } finally {
       isLoading.value = false
@@ -248,9 +245,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       } else {
         error.value = 'Failed to add item to inventory. Please try again.'
       }
-      console.error(errorMessage, err)
-
-      console.error('Failed to add item to inventory:', err)
+      logger.error(`Failed to ${errorMessage}`, err)
       return null
     } finally {
       isLoading.value = false
@@ -284,9 +279,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       } else {
         error.value = 'Failed to add item to inventory. Please try again.'
       }
-      console.error(errorMessage, err)
-
-      console.error('Failed to add item to inventory via login code:', err)
+      logger.error(`Failed to ${errorMessage}`, err)
       return null
     } finally {
       isLoading.value = false
@@ -331,9 +324,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       } else {
         error.value = 'Failed to mark item as used. Please try again.'
       }
-      console.error(errorMessage, err)
-
-      console.error('Failed to mark item as used via login code:', err)
+      logger.error(`Failed to ${errorMessage}`, err)
       return null
     } finally {
       isLoading.value = false
@@ -378,9 +369,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       } else {
         error.value = 'Failed to mark item as used. Please try again.'
       }
-      console.error(errorMessage, err)
-
-      console.error('Failed to mark item as used:', err)
+      logger.error(`Failed to ${errorMessage}`, err)
       return null
     } finally {
       isLoading.value = false
@@ -425,9 +414,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       } else {
         error.value = 'Failed to delete item. Please try again.'
       }
-      console.error(errorMessage, err)
-
-      console.error('Failed to delete item:', err)
+      logger.error(`Failed to ${errorMessage}`, err)
       return false
     } finally {
       isLoading.value = false

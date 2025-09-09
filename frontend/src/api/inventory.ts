@@ -3,6 +3,7 @@
 
 import apiClient, { retryRequest, type APIError } from './axios'
 import { isDevelopment, config } from '../config/environment'
+import { logger } from '@/utils/logger'
 
 // Types for API requests/responses
 export interface InventoryItem {
@@ -92,15 +93,39 @@ class InventoryAPIError extends Error {
 
 async function checkAPIHealth(): Promise<boolean> {
   try {
-    const response = await retryRequest(() => 
+    const response = await retryRequest(() =>
       apiClient.get('/health', {
         timeout: 3000
       })
     )
     return response.status === 200
   } catch (error) {
-    console.error('API health check failed:', error)
+    logger.error('API health check failed', error)
     return false
+  }
+}
+
+// Map backend item shape to frontend InventoryItem
+function mapBackendItemToInventoryItem(item: any): InventoryItem {
+  return {
+    id: item.item_id,
+    userId: item.created_by,
+    itemId: String(item.grocery_id),
+    name: item.grocery_name || `Item ${item.grocery_id}`,
+    category: 'Unknown',
+    quantity: item.quantity || 0,
+    unit: 'pcs',
+    addedDate:
+      item.purchased_at ||
+      item.created_at?.split('T')[0] ||
+      new Date().toISOString().split('T')[0],
+    expiryDate:
+      item.actual_expiry ||
+      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    status: item.quantity && item.quantity > 0 ? 'active' : 'used',
+    notes: '',
+    createdAt: item.created_at || new Date().toISOString(),
+    updatedAt: item.updated_at || new Date().toISOString()
   }
 }
 
@@ -149,7 +174,7 @@ const inventoryAPI = {
     }
 
     try {
-      console.log('📤 /items/by-login-code API request:', {
+      logger.debug('Request: GET /items/by-login-code', {
         url: `/items/by-login-code?login_code=${loginCode}`,
         loginCode: loginCode,
         baseURL: apiClient.defaults.baseURL,
@@ -157,9 +182,9 @@ const inventoryAPI = {
       })
       
       const response = await retryRequest(async () => {
-        console.log('🔄 Executing API call...')
+        logger.debug('Executing API call for /items/by-login-code')
         const result = await apiClient.get(`/items/by-login-code?login_code=${loginCode}`)
-        console.log('📥 Raw API response:', {
+        logger.debug('Raw API response for /items/by-login-code', {
           status: result.status,
           statusText: result.statusText,
           headers: result.headers,
@@ -168,27 +193,9 @@ const inventoryAPI = {
         return result
       })
       
-      console.log('✅ /items/by-login-code API success:', response.data)
+      logger.debug('Success: /items/by-login-code', response.data)
       const data = response.data
-      
-      // Convert backend format to frontend InventoryItem format
-      const items: InventoryItem[] = data.map((item: any) => ({
-        id: item.item_id,
-        userId: item.created_by,
-        itemId: item.grocery_id.toString(),
-        name: item.grocery_name || `Item ${item.grocery_id}`,
-        category: 'Unknown', // Backend doesn't provide category in this endpoint
-        quantity: item.quantity || 0,
-        unit: 'pcs', // Default unit
-        addedDate: item.purchased_at || item.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
-        expiryDate: item.actual_expiry || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        status: (item.quantity && item.quantity > 0) ? 'active' : 'used',
-        notes: '',
-        createdAt: item.created_at || new Date().toISOString(),
-        updatedAt: item.updated_at || new Date().toISOString()
-      }))
-
-      return items
+      return (data as any[]).map(mapBackendItemToInventoryItem)
     } catch (error) {
       const apiError = error as APIError
       throw new InventoryAPIError(
@@ -250,7 +257,7 @@ const inventoryAPI = {
     }
 
     try {
-      console.log('📤 /items API request:', {
+      logger.debug('Request: POST /items', {
         url: '/items',
         method: 'POST',
         data: itemData
@@ -267,7 +274,7 @@ const inventoryAPI = {
         })
       )
       
-      console.log('✅ /items API success:', response.data)
+      logger.debug('Success: POST /items', response.data)
       return response.data as InventoryItem
     } catch (error) {
       const apiError = error as APIError
@@ -302,7 +309,7 @@ const inventoryAPI = {
         actual_expiry: itemData.actual_expiry
       }
       
-      console.log('📤 /items/by-login-code API request:', {
+      logger.debug('Request: POST /items/by-login-code', {
         url: '/items/by-login-code',
         method: 'POST',
         originalData: itemData,
@@ -320,13 +327,13 @@ const inventoryAPI = {
         apiClient.post('/items/by-login-code', requestPayload)
       )
       
-      console.log('✅ /items/by-login-code API success:', response.data)
+      logger.debug('Success: POST /items/by-login-code', response.data)
       return response.data as InventoryItem
     } catch (error) {
       const apiError = error as APIError
       
       // Handle duplicate item constraint error
-      if (apiError.status === 422 && apiError.details?.detail?.includes('duplicate key value violates unique constraint')) {
+      if (apiError.status === 422 && (apiError as any).details?.detail?.includes('duplicate key value violates unique constraint')) {
         const friendlyMessage = 'This item with the same purchase date already exists in your inventory. Try changing the purchase date or check your existing items.'
         throw new InventoryAPIError(
           friendlyMessage,
@@ -383,7 +390,7 @@ const inventoryAPI = {
     }
 
     try {
-      console.log('📤 /items/{item_id}/consume API request:', {
+      logger.debug('Request: PATCH /items/{item_id}/consume', {
         url: `/items/${itemId}/consume`,
         method: 'PATCH',
         data: { login_code: loginCode, consumed: true }
@@ -396,7 +403,7 @@ const inventoryAPI = {
         })
       )
       
-      console.log('✅ /items/{item_id}/consume API success:', response.data)
+      logger.debug('Success: PATCH /items/{item_id}/consume', response.data)
       return response.data as MarkAsUsedResponse
     } catch (error) {
       const apiError = error as APIError
@@ -469,7 +476,7 @@ const inventoryAPI = {
       const response = await apiClient.get(config.healthCheckEndpoint)
       return response.status === 200
     } catch (error) {
-      console.error('Health check failed:', error)
+      logger.error('Health check failed', error)
       return false
     }
   },

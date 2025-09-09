@@ -1,0 +1,21 @@
+// Small helper to standardize loading and error state handling
+// Use simple, descriptive naming and clear flow
+
+export async function runWithLoadingAndError<T>(
+  action: () => Promise<T>,
+  setState: (state: { loading: boolean; error: string | null }) => void
+): Promise<T> {
+  setState({ loading: true, error: null })
+  try {
+    const result = await action()
+    return result
+  } catch (e: any) {
+    const message = typeof e?.message === 'string' ? e.message : 'Operation failed'
+    setState({ loading: false, error: message })
+    throw e
+  } finally {
+    // Ensure loading is cleared on success as well
+    setState({ loading: false, error: null })
+  }
+}
+

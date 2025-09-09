@@ -64,6 +64,7 @@ import LoadingState from "@/components/common/LoadingState.vue";
 import { useInventoryStore } from "@/stores/inventory";
 import { useImpactStore } from "@/stores/impact";
 import { useAuthStore } from "@/stores/auth";
+import { logger } from "@/utils/logger";
 
 const router = useRouter();
 const inventoryStore = useInventoryStore();
@@ -109,7 +110,7 @@ const handleUseItem = async (itemId: string) => {
       if (impact) impactStore.showImpact(impact);
     }
   } catch (error) {
-    console.error("Failed to mark item as used:", error);
+    logger.error("Failed to mark item as used", error);
   } finally {
     loadingItemId.value = null;
   }
@@ -123,7 +124,7 @@ const handleDeleteItem = async (itemId: string) => {
   try {
     await inventoryStore.deleteItem(itemId);
   } catch (error) {
-    console.error("Failed to delete item:", error);
+    logger.error("Failed to delete item", error);
   } finally {
     loadingItemId.value = null;
   }
@@ -138,7 +139,7 @@ const retryLoad = async () => {
       await inventoryStore.fetchInventory(authStore.user.id, true);
     }
   } catch (error) {
-    console.error("Failed to retry load:", error);
+    logger.error("Failed to retry load", error);
   }
 };
 
@@ -152,7 +153,7 @@ onMounted(async () => {
       await inventoryStore.fetchInventory(authStore.user.id);
     }
   } catch (error) {
-    console.error("Failed to load inventory:", error);
+    logger.error("Failed to load inventory", error);
   }
 });
 </script>
