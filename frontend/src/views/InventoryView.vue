@@ -64,12 +64,14 @@ import LoadingState from "@/components/common/LoadingState.vue";
 import { useInventoryStore } from "@/stores/inventory";
 import { useImpactStore } from "@/stores/impact";
 import { useAuthStore } from "@/stores/auth";
+import { useInventoryAccess } from "@/composables/useInventoryAccess";
 import { logger } from "@/utils/logger";
 
 const router = useRouter();
 const inventoryStore = useInventoryStore();
 const impactStore = useImpactStore();
 const authStore = useAuthStore();
+const { loadInventory, markItemAsUsedUnified, deleteInventoryItem } = useInventoryAccess();
 
 // Local state for tracking loading states
 const loadingItemId = ref<string | null>(null);
@@ -88,26 +90,20 @@ const handleUseItem = async (itemId: string) => {
   loadingItemId.value = itemId;
 
   try {
-    if (authStore.user.loginCode) {
-      // Use login_code consume endpoint: PATCH /items/{item_id}/consume
-      const result = await inventoryStore.markItemAsUsedByLoginCode(itemId, authStore.user.loginCode);
-
-      if (result) {
-        // Show a simple impact toast since consume endpoint doesn't return impact
-        const mockImpact = {
-          itemId,
-          itemName: 'Item',
-          moneySaved: 2.5,
-          co2Avoided: 0.5,
-          actionType: 'used' as const,
-          timestamp: new Date().toISOString()
-        };
-        impactStore.showImpact(mockImpact);
-      }
-    } else {
-      // Fallback (legacy) if no login code exists
-      const impact = await inventoryStore.markItemAsUsed(itemId);
-      if (impact) impactStore.showImpact(impact);
+    const { impact, consumedResponse } = await markItemAsUsedUnified(itemId);
+    if (impact) {
+      impactStore.showImpact(impact);
+    } else if (consumedResponse) {
+      // Show a simple impact toast since consume endpoint does not return impact
+      const mockImpact = {
+        itemId,
+        itemName: 'Item',
+        moneySaved: 2.5,
+        co2Avoided: 0.5,
+        actionType: 'used' as const,
+        timestamp: new Date().toISOString()
+      };
+      impactStore.showImpact(mockImpact);
     }
   } catch (error) {
     logger.error("Failed to mark item as used", error);
@@ -122,7 +118,7 @@ const handleDeleteItem = async (itemId: string) => {
   loadingItemId.value = itemId;
 
   try {
-    await inventoryStore.deleteItem(itemId);
+    await deleteInventoryItem(itemId);
   } catch (error) {
     logger.error("Failed to delete item", error);
   } finally {
@@ -133,11 +129,7 @@ const handleDeleteItem = async (itemId: string) => {
 const retryLoad = async () => {
   if (!authStore.user) return;
   try {
-    if (authStore.user.loginCode) {
-      await inventoryStore.fetchInventoryByLoginCode(authStore.user.loginCode, true);
-    } else {
-      await inventoryStore.fetchInventory(authStore.user.id, true);
-    }
+    await loadInventory(true);
   } catch (error) {
     logger.error("Failed to retry load", error);
   }
@@ -147,225 +139,9 @@ const retryLoad = async () => {
 onMounted(async () => {
   if (!authStore.user) return;
   try {
-    if (authStore.user.loginCode) {
-      await inventoryStore.fetchInventoryByLoginCode(authStore.user.loginCode);
-    } else {
-      await inventoryStore.fetchInventory(authStore.user.id);
-    }
+    await loadInventory();
   } catch (error) {
     logger.error("Failed to load inventory", error);
   }
 });
 </script>
-
-<style scoped>
-.inventory-view {
-  padding: var(--spacing-md);
-  min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.inventory-header {
-  margin-bottom: var(--spacing-xl);
-}
-
-.back-button {
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  font-size: var(--font-size-base);
-  color: white;
-  cursor: pointer;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-radius: var(--border-radius-md);
-  min-height: var(--touch-target-min);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--duration-fast) ease;
-  backdrop-filter: blur(10px);
-}
-
-.back-button:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateY(-1px);
-}
-
-.inventory-main {
-  max-width: 1000px;
-  margin: 0 auto;
-}
-
-/* Dashboard Section Styling */
-.dashboard-section {
-  background: white;
-  border-radius: var(--border-radius-lg);
-  padding: var(--spacing-xl);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.dashboard-section:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
-}
-
-.section-header {
-  margin-bottom: var(--spacing-lg);
-  text-align: center;
-}
-
-.section-header h2 {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text-primary);
-  margin-bottom: var(--spacing-xs);
-}
-
-.section-subtitle {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-  margin: 0;
-}
-
-.inventory-section {
-  background: linear-gradient(135deg, #e3f2fd 0%, #f1f8ff 100%);
-  border-left: 4px solid #007bff;
-}
-
-.inventory-filters {
-  margin-bottom: var(--spacing-lg);
-}
-
-.loading-container,
-.error-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 300px;
-}
-
-.error-message {
-  text-align: center;
-  padding: var(--spacing-lg);
-  background: white;
-  border-radius: var(--border-radius-lg);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.empty-state {
-  text-align: center;
-  padding: var(--spacing-xxl);
-  background: white;
-  border-radius: var(--border-radius-lg);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.empty-icon {
-  font-size: 4rem;
-  margin-bottom: var(--spacing-lg);
-  opacity: 0.6;
-}
-
-.empty-state h2 {
-  color: var(--color-text-primary);
-  margin-bottom: var(--spacing-md);
-}
-
-.empty-state p {
-  color: var(--color-text-secondary);
-  margin-bottom: var(--spacing-lg);
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--spacing-md) var(--spacing-lg);
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-medium);
-  text-decoration: none;
-  border: 1px solid transparent;
-  border-radius: var(--border-radius-md);
-  cursor: pointer;
-  transition: all var(--duration-fast) ease;
-  min-height: var(--touch-target-min);
-}
-
-.btn--primary {
-  color: white;
-  background-color: var(--color-primary);
-  border-color: var(--color-primary);
-}
-
-.btn--primary:hover {
-  background-color: #0056b3;
-  border-color: #0056b3;
-}
-
-.inventory-content {
-  margin-top: var(--spacing-lg);
-}
-
-.inventory-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: var(--spacing-lg);
-}
-
-/* Mobile optimizations */
-@media (max-width: 480px) {
-  .inventory-view {
-    padding: var(--spacing-sm);
-  }
-
-  .dashboard-section {
-    padding: var(--spacing-lg);
-  }
-
-  .section-header h2 {
-    font-size: var(--font-size-lg);
-  }
-
-  .inventory-grid {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-md);
-  }
-
-  .empty-state {
-    padding: var(--spacing-xl);
-  }
-
-  .empty-icon {
-    font-size: 3rem;
-  }
-}
-
-/* Tablet */
-@media (min-width: 481px) and (max-width: 768px) {
-  .inventory-grid {
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  }
-}
-
-/* Tablet and desktop */
-@media (min-width: 768px) {
-  .inventory-main {
-    max-width: 1200px;
-  }
-
-  .inventory-view {
-    padding: var(--spacing-lg);
-  }
-
-  .dashboard-section {
-    padding: var(--spacing-xxl);
-  }
-}
-
-/* Desktop */
-@media (min-width: 1200px) {
-  .inventory-grid {
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  }
-}
-</style>

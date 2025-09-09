@@ -8,6 +8,7 @@ import { calculateDaysUntilExpiry } from '@/utils/dateHelpers'
 import { logger } from '@/utils/logger'
 // Removed error handler imports for MVP
 import type { FreshnessStatus } from '@/composables/useExpiryStatus'
+import { runWithLoadingAndError } from '@/utils/asyncAction'
 
 export type FilterType = 'all' | 'fresh' | 'warning' | 'expired'
 
@@ -105,29 +106,26 @@ export const useInventoryStore = defineStore('inventory', () => {
       return
     }
 
-    isLoading.value = true
-    error.value = null
-
     try {
-      const data = await inventoryAPI.getInventory(userId)
-      items.value = data
-      lastFetch.value = Date.now()
-
-      // Clear any previous errors on successful fetch
-      error.value = null
+      await runWithLoadingAndError(async () => {
+        const data = await inventoryAPI.getInventory(userId)
+        items.value = data
+        lastFetch.value = Date.now()
+      }, ({ loading, error: err }) => {
+        isLoading.value = loading
+        // Let this action control user-facing error messages below
+        if (err === null && !loading) error.value = null
+      })
     } catch (err) {
       const errorMessage = 'fetch your inventory'
-
       if (err instanceof InventoryAPIError) {
         error.value = err.message
-      } else if (err instanceof Error && err.message.includes('network')) {
+      } else if (err instanceof Error && err.message.toLowerCase().includes('network')) {
         error.value = 'Network error - using cached data if available'
       } else {
         error.value = 'Failed to fetch inventory. Please try again.'
       }
       logger.error(`Failed to ${errorMessage}`, err)
-    } finally {
-      isLoading.value = false
     }
   }
 
@@ -137,18 +135,17 @@ export const useInventoryStore = defineStore('inventory', () => {
       return
     }
 
-    isLoading.value = true
-    error.value = null
-
     try {
-      logger.info('Fetching inventory by login code', { loginCode })
-      const data = await inventoryAPI.getInventoryByLoginCode(loginCode)
-      logger.info('Fetched inventory data', { count: Array.isArray(data) ? data.length : 0 })
-      items.value = data
-      lastFetch.value = Date.now()
-
-      // Clear any previous errors on successful fetch
-      error.value = null
+      await runWithLoadingAndError(async () => {
+        logger.info('Fetching inventory by login code', { loginCode })
+        const data = await inventoryAPI.getInventoryByLoginCode(loginCode)
+        logger.info('Fetched inventory data', { count: Array.isArray(data) ? data.length : 0 })
+        items.value = data
+        lastFetch.value = Date.now()
+      }, ({ loading, error: err }) => {
+        isLoading.value = loading
+        if (err === null && !loading) error.value = null
+      })
     } catch (err) {
       const errorMessage = 'fetch your inventory by login code'
       
@@ -167,7 +164,7 @@ export const useInventoryStore = defineStore('inventory', () => {
           logger.error('Original error details', err.originalError)
         }
       } else if (err instanceof Error) {
-        if (err.message.includes('network') || err.message.includes('Network')) {
+        if (err.message.toLowerCase().includes('network')) {
           error.value = `Network error: ${err.message} - please check your connection`
         } else if (err.message.includes('fetch')) {
           error.value = `Fetch error: ${err.message} - API may be unavailable`
@@ -179,8 +176,6 @@ export const useInventoryStore = defineStore('inventory', () => {
       }
       logger.error(`Failed to ${errorMessage}`, err)
       // Do not throw to prevent UI breakage on network failures
-    } finally {
-      isLoading.value = false
     }
   }
 

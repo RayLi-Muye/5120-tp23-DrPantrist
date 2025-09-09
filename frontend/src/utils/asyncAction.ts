@@ -8,14 +8,11 @@ export async function runWithLoadingAndError<T>(
   setState({ loading: true, error: null })
   try {
     const result = await action()
+    setState({ loading: false, error: null })
     return result
   } catch (e: any) {
     const message = typeof e?.message === 'string' ? e.message : 'Operation failed'
     setState({ loading: false, error: message })
     throw e
-  } finally {
-    // Ensure loading is cleared on success as well
-    setState({ loading: false, error: null })
   }
 }
-
