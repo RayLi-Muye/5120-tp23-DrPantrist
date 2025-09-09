@@ -1,6 +1,13 @@
 <template>
-  <section class="home-carousel" aria-label="Food waste insights">
-    <div class="slides" :style="{ transform: `translateX(-${currentIndex * 100}%)` }">
+  <section
+    class="home-carousel"
+    aria-label="Food waste insights"
+    @touchstart="handleTouchStart"
+    @touchmove="handleTouchMove"
+    @touchend="handleTouchEnd"
+    @touchcancel="handleTouchCancel"
+  >
+    <div class="slides" :style="slidesStyle">
       <!-- Slide 1: Real-world headline stats -->
       <article class="slide slide--stats" aria-label="Global food waste facts">
         <h2 class="slide-title">Food Waste At A Glance</h2>
@@ -19,6 +26,9 @@
           </li>
         </ul>
         <p class="sources">Sources: FAO; UNEP Food Waste Index</p>
+        <div class="cta-row">
+          <router-link :to="ctaTo" class="cta-btn">Start Tracking</router-link>
+        </div>
       </article>
 
       <!-- Slide 2: Interactive donut chart -->
@@ -44,6 +54,9 @@
           <button class="toggle-btn" :class="{ active: mode === 'household' }" @click="setMode('household')">Households (~17%)</button>
         </div>
         <p class="note">Percentages are indicative; values vary by method and country.</p>
+        <div class="cta-row">
+          <router-link :to="ctaTo" class="cta-btn ghost">Try It Now</router-link>
+        </div>
       </article>
 
       <!-- Slide 3: Animated macro bar visualization -->
@@ -65,6 +78,9 @@
           </label>
         </div>
         <p class="note">Illustrative distribution for exploration only; actual shares differ by region and product.</p>
+        <div class="cta-row">
+          <router-link :to="ctaTo" class="cta-btn">Reduce My Waste</router-link>
+        </div>
       </article>
     </div>
 
@@ -88,13 +104,26 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
+import { useSwipeGesture } from '@/composables/useSwipeGesture'
+import { useAuthStore } from '@/stores/auth'
 
 const currentIndex = ref(0)
 
 function go(i: number) { currentIndex.value = Math.min(2, Math.max(0, i)) }
 function next() { go(currentIndex.value + 1) }
 function prev() { go(currentIndex.value - 1) }
+
+// Swipe gesture integration with slight parallax feedback
+const { handleTouchStart, handleTouchMove, handleTouchEnd, handleTouchCancel, swipeProgress } = useSwipeGesture(
+  () => prev(),
+  () => next(),
+  { threshold: 60, velocityThreshold: 0.2, maxTime: 400, direction: 'horizontal', feedbackThreshold: 10 }
+)
+const slidesStyle = computed(() => {
+  const offset = (swipeProgress.direction === 'left' ? -1 : swipeProgress.direction === 'right' ? 1 : 0) * Math.min(swipeProgress.distance, 30)
+  return { transform: `translateX(calc(-${currentIndex.value * 100}% + ${offset}px))` }
+})
 
 // Slide 2: donut toggle between global (~33%) and household (~17%)
 type Mode = 'global' | 'household'
@@ -124,6 +153,10 @@ function onKey(e: KeyboardEvent) {
 if (typeof window !== 'undefined') {
   window.addEventListener('keydown', onKey)
 }
+
+// CTA destination depends on auth
+const authStore = useAuthStore()
+const ctaTo = computed(() => (authStore.isAuthenticated ? '/dashboard' : '/auth'))
 </script>
 
 <style scoped>
@@ -141,6 +174,9 @@ if (typeof window !== 'undefined') {
 .slides { display: flex; transition: transform 400ms ease; }
 .slide { flex: 0 0 100%; padding: 28px 24px 56px; }
 .slide-title { text-align: center; margin-bottom: 16px; }
+.cta-row { display:flex; justify-content:center; margin-top: 12px; }
+.cta-btn { text-decoration:none; padding:10px 14px; border-radius:10px; background: var(--color-primary, #667eea); color:#fff; border: 1px solid transparent; }
+.cta-btn.ghost { background: #fff; color: var(--color-primary, #667eea); border-color: currentColor; }
 
 .slide--stats .fact-list { display:flex; flex-wrap: wrap; justify-content:center; gap:16px; }
 .slide--stats .fact-list li { display:flex; flex-direction:column; align-items:center; background:white; padding:16px 20px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.06); min-width:180px; }
@@ -180,4 +216,3 @@ if (typeof window !== 'undefined') {
   .bar { grid-template-columns: 90px 1fr 40px; }
 }
 </style>
-
