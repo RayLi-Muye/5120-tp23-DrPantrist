@@ -1,7 +1,7 @@
 <template>
   <div class="home-page">
-    <!-- New carousel with bottom navigation -->
-    <HomeCarousel />
+    <!-- Fixed background video with dark overlay -->
+    <HomeBackgroundVideo />
 
     <!-- Hero Section -->
     <section class="hero">
@@ -42,7 +42,7 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import HomeCarousel from '@/components/home/HomeCarousel.vue'
+import HomeBackgroundVideo from '@/components/home/HomeBackgroundVideo.vue'
 
 const router = useRouter()
 
@@ -53,8 +53,11 @@ const getStarted = () => {
 
 <style scoped>
 .home-page {
+  position: relative;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  /* Fallback background if video not available */
+  background: linear-gradient(135deg, #3b82f6 0%, #7c3aed 100%);
 }
 
 
@@ -77,7 +80,8 @@ const getStarted = () => {
 }
 
 .hero-text {
-  color: white;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.35);
 }
 
 .hero-title {
