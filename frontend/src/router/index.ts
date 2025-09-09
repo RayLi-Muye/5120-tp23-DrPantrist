@@ -10,7 +10,7 @@ const router = createRouter({
       component: () => import("../views/HomePage.vue"),
       meta: {
         title: "Use It Up - Stop Food Waste, Start Saving",
-        requiresGuest: true,
+        // Home is public; allow access when authenticated as well
       },
     },
     {
@@ -58,7 +58,7 @@ const router = createRouter({
       component: () => import("../views/AboutView.vue"),
       meta: {
         title: "About - Use It Up",
-        requiresAuth: true,
+        // About is public
       },
     },
     // Catch-all route for 404 handling
