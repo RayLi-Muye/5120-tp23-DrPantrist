@@ -3,7 +3,9 @@
 
 import { useAuthStore } from '@/stores/auth'
 import { useInventoryStore } from '@/stores/inventory'
-import type { ImpactData, MarkAsUsedResponse } from '@/api/inventory'
+import type { ImpactData, MarkAsUsedResponse, InventoryItem } from '@/api/inventory'
+import inventoryRoomsAPI from '@/api/inventory-rooms'
+import { logger } from '@/utils/logger'
 
 export function useInventoryAccess() {
   const authStore = useAuthStore()
@@ -37,10 +39,50 @@ export function useInventoryAccess() {
     return inventoryStore.deleteItem(itemId)
   }
 
+  async function addInventoryItemUnified(params: {
+    groceryId: number
+    quantity: number
+    purchasedAt: string
+    actualExpiry: string
+  }): Promise<InventoryItem | null> {
+    if (!authStore.user) return null
+
+    // Prefer login code flow when available
+    if (authStore.user.loginCode) {
+      try {
+        return await inventoryStore.addItemByLoginCode({
+          login_code: authStore.user.loginCode,
+          grocery_id: params.groceryId,
+          quantity: params.quantity,
+          purchased_at: params.purchasedAt,
+          actual_expiry: params.actualExpiry
+        })
+      } catch (err) {
+        logger.warn('Login code add failed, will try inventory_id flow', err)
+        // fallthrough to inventory flow
+      }
+    }
+
+    const currentRoom = inventoryRoomsAPI.getCurrentRoom()
+    if (!currentRoom) {
+      logger.error('No active room found when adding item')
+      return null
+    }
+
+    return await inventoryStore.addItemToInventory({
+      inventory_id: currentRoom.inventoryId,
+      grocery_id: params.groceryId,
+      created_by: authStore.user.id,
+      quantity: params.quantity,
+      purchased_at: params.purchasedAt,
+      actual_expiry: params.actualExpiry
+    })
+  }
+
   return {
     loadInventory,
     markItemAsUsedUnified,
-    deleteInventoryItem
+    deleteInventoryItem,
+    addInventoryItemUnified
   }
 }
-

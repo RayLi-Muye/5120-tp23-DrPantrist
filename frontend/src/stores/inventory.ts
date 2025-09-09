@@ -180,21 +180,16 @@ export const useInventoryStore = defineStore('inventory', () => {
   }
 
   async function addItem(itemData: AddItemRequest): Promise<InventoryItem | null> {
-    isLoading.value = true
-    error.value = null
-
     try {
-      const newItem = await inventoryAPI.addItem(itemData)
-
-      // Add to local state for immediate UI update
-      items.value.push(newItem)
-
-      // Update cache timestamp
-      lastFetch.value = Date.now()
-
-      // Clear any previous errors on successful add
-      error.value = null
-
+      const newItem = await runWithLoadingAndError(async () => {
+        const created = await inventoryAPI.addItem(itemData)
+        items.value.push(created)
+        lastFetch.value = Date.now()
+        return created
+      }, ({ loading, error: err }) => {
+        isLoading.value = loading
+        if (err === null && !loading) error.value = null
+      })
       return newItem
     } catch (err) {
       const errorMessage = 'add the item'
@@ -208,27 +203,20 @@ export const useInventoryStore = defineStore('inventory', () => {
       }
       logger.error(`Failed to ${errorMessage}`, err)
       return null
-    } finally {
-      isLoading.value = false
     }
   }
 
   async function addItemToInventory(itemData: AddItemToInventoryRequest): Promise<InventoryItem | null> {
-    isLoading.value = true
-    error.value = null
-
     try {
-      const newItem = await inventoryAPI.addItemToInventory(itemData)
-
-      // Add to local state for immediate UI update
-      items.value.push(newItem)
-
-      // Update cache timestamp
-      lastFetch.value = Date.now()
-
-      // Clear any previous errors on successful add
-      error.value = null
-
+      const newItem = await runWithLoadingAndError(async () => {
+        const created = await inventoryAPI.addItemToInventory(itemData)
+        items.value.push(created)
+        lastFetch.value = Date.now()
+        return created
+      }, ({ loading, error: err }) => {
+        isLoading.value = loading
+        if (err === null && !loading) error.value = null
+      })
       return newItem
     } catch (err) {
       const errorMessage = 'add the item to inventory'
@@ -242,27 +230,20 @@ export const useInventoryStore = defineStore('inventory', () => {
       }
       logger.error(`Failed to ${errorMessage}`, err)
       return null
-    } finally {
-      isLoading.value = false
     }
   }
 
   async function addItemByLoginCode(itemData: AddItemByLoginCodeRequest): Promise<InventoryItem | null> {
-    isLoading.value = true
-    error.value = null
-
     try {
-      const newItem = await inventoryAPI.addItemByLoginCode(itemData)
-
-      // Add to local state for immediate UI update
-      items.value.push(newItem)
-
-      // Update cache timestamp
-      lastFetch.value = Date.now()
-
-      // Clear any previous errors on successful add
-      error.value = null
-
+      const newItem = await runWithLoadingAndError(async () => {
+        const created = await inventoryAPI.addItemByLoginCode(itemData)
+        items.value.push(created)
+        lastFetch.value = Date.now()
+        return created
+      }, ({ loading, error: err }) => {
+        isLoading.value = loading
+        if (err === null && !loading) error.value = null
+      })
       return newItem
     } catch (err) {
       const errorMessage = 'add the item to inventory via login code'
@@ -276,33 +257,26 @@ export const useInventoryStore = defineStore('inventory', () => {
       }
       logger.error(`Failed to ${errorMessage}`, err)
       return null
-    } finally {
-      isLoading.value = false
     }
   }
 
   async function markItemAsUsedByLoginCode(itemId: string, loginCode: string): Promise<MarkAsUsedResponse | null> {
-    isLoading.value = true
-    error.value = null
-
     // Store item reference for potential rollback
     const itemIndex = items.value.findIndex(item => item.id === itemId)
     const itemToRemove = itemIndex !== -1 ? items.value[itemIndex] : null
 
     try {
-      const result = await inventoryAPI.markAsUsedByLoginCode(itemId, loginCode)
-
-      // Remove item from local state for immediate UI update (consumed items are removed)
-      if (itemIndex !== -1) {
-        items.value.splice(itemIndex, 1)
-      }
-
-      // Update cache timestamp
-      lastFetch.value = Date.now()
-
-      // Clear any previous errors on successful action
-      error.value = null
-
+      const result = await runWithLoadingAndError(async () => {
+        const res = await inventoryAPI.markAsUsedByLoginCode(itemId, loginCode)
+        if (itemIndex !== -1) {
+          items.value.splice(itemIndex, 1)
+        }
+        lastFetch.value = Date.now()
+        return res
+      }, ({ loading, error: err }) => {
+        isLoading.value = loading
+        if (err === null && !loading) error.value = null
+      })
       return result
     } catch (err) {
       // Rollback optimistic update on error
@@ -321,33 +295,26 @@ export const useInventoryStore = defineStore('inventory', () => {
       }
       logger.error(`Failed to ${errorMessage}`, err)
       return null
-    } finally {
-      isLoading.value = false
     }
   }
 
   async function markItemAsUsed(itemId: string): Promise<ImpactData | null> {
-    isLoading.value = true
-    error.value = null
-
     // Store item reference for potential rollback
     const itemIndex = items.value.findIndex(item => item.id === itemId)
     const itemToRemove = itemIndex !== -1 ? items.value[itemIndex] : null
 
     try {
-      const impactData = await inventoryAPI.markAsUsed(itemId)
-
-      // Remove item from local state for immediate UI update
-      if (itemIndex !== -1) {
-        items.value.splice(itemIndex, 1)
-      }
-
-      // Update cache timestamp
-      lastFetch.value = Date.now()
-
-      // Clear any previous errors on successful action
-      error.value = null
-
+      const impactData = await runWithLoadingAndError(async () => {
+        const impact = await inventoryAPI.markAsUsed(itemId)
+        if (itemIndex !== -1) {
+          items.value.splice(itemIndex, 1)
+        }
+        lastFetch.value = Date.now()
+        return impact
+      }, ({ loading, error: err }) => {
+        isLoading.value = loading
+        if (err === null && !loading) error.value = null
+      })
       return impactData
     } catch (err) {
       // Rollback optimistic update on error
@@ -366,32 +333,25 @@ export const useInventoryStore = defineStore('inventory', () => {
       }
       logger.error(`Failed to ${errorMessage}`, err)
       return null
-    } finally {
-      isLoading.value = false
     }
   }
 
   async function deleteItem(itemId: string): Promise<boolean> {
-    isLoading.value = true
-    error.value = null
-
     // Store item reference for potential rollback
     const itemIndex = items.value.findIndex(item => item.id === itemId)
     const itemToDelete = itemIndex !== -1 ? items.value[itemIndex] : null
 
     try {
-      await inventoryAPI.deleteItem(itemId)
-
-      // Remove item from local state for immediate UI update
-      if (itemIndex !== -1) {
-        items.value.splice(itemIndex, 1)
-      }
-
-      // Update cache timestamp
-      lastFetch.value = Date.now()
-
-      // Clear any previous errors on successful delete
-      error.value = null
+      await runWithLoadingAndError(async () => {
+        await inventoryAPI.deleteItem(itemId)
+        if (itemIndex !== -1) {
+          items.value.splice(itemIndex, 1)
+        }
+        lastFetch.value = Date.now()
+      }, ({ loading, error: err }) => {
+        isLoading.value = loading
+        if (err === null && !loading) error.value = null
+      })
 
       return true
     } catch (err) {
@@ -411,8 +371,6 @@ export const useInventoryStore = defineStore('inventory', () => {
       }
       logger.error(`Failed to ${errorMessage}`, err)
       return false
-    } finally {
-      isLoading.value = false
     }
   }
 

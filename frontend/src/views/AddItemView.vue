@@ -85,11 +85,14 @@ import GroceryGrid from "@/components/inventory/GroceryGrid.vue";
 import AddItemForm from "@/components/inventory/AddItemForm.vue";
 import type { GroceryItem } from "@/stores/groceries";
 import { formatDateForAPI } from "@/utils/dateHelpers";
+import { useInventoryAccess } from "@/composables/useInventoryAccess";
+import { logger } from "@/utils/logger";
 
 const router = useRouter();
 const groceriesStore = useGroceriesStore();
 const inventoryStore = useInventoryStore();
 const authStore = useAuthStore();
+const { addInventoryItemUnified } = useInventoryAccess();
 
 // Component state
 const currentStep = ref(1);
@@ -201,69 +204,12 @@ const handleFormSubmit = async (formData: {
     const groceryIdMatch = selectedGrocery.value.id.match(/grocery-(\d+)/);
     const groceryId = groceryIdMatch ? parseInt(groceryIdMatch[1], 10) : parseInt(selectedGrocery.value.id, 10);
 
-    // Force reset API mode to ensure we try real API first
-    // API reset removed
-    
-    let result;
-    
-    // Try login_code-based API first (preferred method)
-    if (authStore.user.loginCode) {
-      console.log('📤 Attempting to add item via login_code API');
-      
-      const loginCodeRequest = {
-        login_code: authStore.user.loginCode,
-        grocery_id: groceryId,
-        quantity: formData.quantity,
-        purchased_at: formatDateForAPI(today),
-        actual_expiry: formatDateForAPI(expiryDate)
-      };
-
-      try {
-        result = await inventoryStore.addItemByLoginCode(loginCodeRequest);
-        console.log('✅ Successfully added item via login_code API:', result);
-      } catch (loginCodeError) {
-        console.warn('⚠️ Login code API failed, trying inventory_id API:', loginCodeError);
-        
-        // Fallback to inventory_id-based API
-        const inventoryRequest = {
-          inventory_id: currentRoom.inventoryId,
-          grocery_id: groceryId,
-          created_by: authStore.user.id,
-          quantity: formData.quantity,
-          purchased_at: formatDateForAPI(today),
-          actual_expiry: formatDateForAPI(expiryDate)
-        };
-
-        try {
-          result = await inventoryStore.addItemToInventory(inventoryRequest);
-          console.log('✅ Successfully added item via inventory_id API:', result);
-        } catch (inventoryError) {
-          console.error('❌ Inventory ID API failed:', inventoryError);
-          throw inventoryError;
-        }
-      }
-    } else {
-      // No login code available, use inventory_id-based API
-      console.log('📤 No login code available, using inventory_id API');
-      
-      const inventoryRequest = {
-        inventory_id: currentRoom.inventoryId,
-        grocery_id: groceryId,
-        created_by: authStore.user.id,
-        quantity: formData.quantity,
-        purchased_at: formatDateForAPI(today),
-        actual_expiry: formatDateForAPI(expiryDate)
-      };
-
-      try {
-        result = await inventoryStore.addItemToInventory(inventoryRequest);
-        console.log('✅ Successfully added item via inventory_id API:', result);
-      } catch (inventoryError) {
-        console.error('❌ Inventory ID API failed:', inventoryError);
-        throw inventoryError;
-      }
-    }
-
+    const result = await addInventoryItemUnified({
+      groceryId,
+      quantity: formData.quantity,
+      purchasedAt: formatDateForAPI(today),
+      actualExpiry: formatDateForAPI(expiryDate)
+    });
 
     if (result) {
       // Success - navigate to dashboard
@@ -273,7 +219,7 @@ const handleFormSubmit = async (formData: {
       error.value = inventoryStore.error || "Failed to add item. Please try again.";
     }
   } catch (err) {
-    console.error("Error adding item:", err);
+    logger.error("Error adding item", err);
     error.value = "An unexpected error occurred. Please try again.";
   } finally {
     isSubmitting.value = false;
@@ -297,7 +243,7 @@ onMounted(async () => {
     // Force refresh to ensure latest shelf life (Refrigerate) is used
     await groceriesStore.fetchGroceries(true);
   } catch (err) {
-    console.error('Failed to load groceries:', err);
+    logger.error('Failed to load groceries', err);
     // Error is handled in the store
   }
 });
