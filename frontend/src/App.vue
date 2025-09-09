@@ -1,5 +1,6 @@
 <template>
   <div id="app">
+    <NavBar />
     <!-- Router View with Transitions -->
     <RouterView v-slot="{ Component, route }">
       <Transition :name="transitionName" mode="out-in">
@@ -14,6 +15,7 @@
 import { RouterView, useRouter } from 'vue-router'
 import { ref, watch, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import NavBar from '@/components/common/NavBar.vue'
 
 const router = useRouter()
 const transitionName = ref('route')

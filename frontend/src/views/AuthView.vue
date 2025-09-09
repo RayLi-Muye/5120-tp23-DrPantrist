@@ -1,17 +1,5 @@
 <template>
   <div class="auth-view">
-    <nav class="top-toggle-nav" aria-label="Primary">
-      <router-link
-        to="/"
-        class="toggle-btn"
-        :class="{ active: $route.path === '/' }"
-      >Home</router-link>
-      <router-link
-        to="/auth"
-        class="toggle-btn"
-        :class="{ active: $route.path === '/auth' }"
-      >Auth</router-link>
-    </nav>
     <div class="auth-container">
       <!-- <div class="auth-header">
         <h1 class="auth-title">UseItUp</h1>

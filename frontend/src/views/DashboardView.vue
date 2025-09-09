@@ -7,30 +7,7 @@
           <p class="subtitle">Your Food Inventory Tracker</p>
         </div>
 
-        <div class="header-center">
-          <nav class="navigation-bar">
-            <router-link
-              to="/dashboard"
-              class="nav-item"
-              :class="{ active: $route.name === 'dashboard' }"
-            >
-              <span class="nav-icon">🏠</span>
-              <span class="nav-label">Dashboard</span>
-            </router-link>
-            <router-link
-              to="/add-item"
-              class="nav-item"
-              :class="{ active: $route.name === 'add-item' }"
-            >
-              <span class="nav-icon">➕</span>
-              <span class="nav-label">Add Item</span>
-            </router-link>
-            <router-link to="/about" class="nav-item" :class="{ active: $route.name === 'about' }">
-              <span class="nav-icon">ℹ️</span>
-              <span class="nav-label">About</span>
-            </router-link>
-          </nav>
-        </div>
+        <div class="header-center"></div>
 
         <div class="header-right">
           <div class="impact-cards">
