@@ -6,9 +6,9 @@
       :src="videoUrl"
       autoplay
       muted
-      loop
       playsinline
       preload="auto"
+      @ended="onEnded"
     />
     <div class="home-bg__overlay"></div>
   </div>
@@ -31,6 +31,16 @@ const videoModulesB = import.meta.glob('/src/asset/**/*.{mp4,webm,ogg,mov}', { e
 const discovered = [...Object.values(videoModulesA), ...Object.values(videoModulesB)][0] || ''
 
 const videoUrl = computed(() => props.src || foundFromEnv || discovered)
+
+function onEnded(e: Event) {
+  const el = e.target as HTMLVideoElement
+  try {
+    // Ensure the video remains on the last frame and does not restart
+    el.pause()
+  } catch {
+    // no-op
+  }
+}
 </script>
 
 <style scoped>
