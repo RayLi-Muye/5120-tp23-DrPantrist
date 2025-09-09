@@ -2,7 +2,10 @@
   <nav class="app-navbar" aria-label="Primary">
     <div class="nav-inner">
       <div class="nav-left">
-        <router-link to="/" class="brand">UseItUp</router-link>
+        <router-link to="/" class="brand" aria-label="Go to home">
+          <img :src="logoUrl" alt="UseItUp logo" class="brand-logo" />
+          <span class="brand-text">UseItUp</span>
+        </router-link>
       </div>
       <div class="nav-center">
         <router-link
@@ -48,10 +51,18 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+// Prefer custom logo if available; fallback to default svg
+// The bundler will include the asset and resolve the URL
+// Adjust the import path if your logo file name changes
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import customLogo from '@/assets/logo/5120-wk1-reference.png'
+import defaultLogo from '@/assets/logo.svg'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const isAuthenticated = computed(() => authStore.isAuthenticated)
+const logoUrl = (customLogo as string) || (defaultLogo as string)
 
 async function handleLogout() {
   try {
@@ -89,8 +100,20 @@ async function handleLogout() {
 
 .brand {
   text-decoration: none;
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   color: var(--color-text-primary, #333);
+}
+
+.brand-logo {
+  height: 28px;
+  width: auto;
+  display: block;
+}
+
+.brand-text {
+  font-weight: 700;
 }
 
 .nav-link {
@@ -122,4 +145,3 @@ async function handleLogout() {
   background: rgba(220, 53, 69, 0.15);
 }
 </style>
-
