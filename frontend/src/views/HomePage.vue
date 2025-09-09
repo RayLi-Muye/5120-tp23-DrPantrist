@@ -1,5 +1,8 @@
 <template>
   <div class="home-page">
+    <!-- New carousel with bottom navigation -->
+    <HomeCarousel />
+
     <!-- Hero Section -->
     <section class="hero">
       <div class="hero-content">
@@ -32,112 +35,6 @@
             <span class="button-icon">🚀</span>
           </button>
         </div>
-        <div class="hero-visual">
-          <div class="phone-mockup">
-            <div class="phone-screen">
-              <div class="app-preview">
-                <div class="preview-header">
-                  <div class="preview-title">Your Inventory</div>
-                  <div class="preview-stats">
-                    <span class="stat-item">💰 $45 saved</span>
-                    <span class="stat-item">🌱 12kg CO₂ avoided</span>
-                  </div>
-                </div>
-                <div class="preview-items">
-                  <div class="preview-item fresh">
-                    <span class="item-emoji">🥕</span>
-                    <span class="item-name">Carrots</span>
-                    <span class="item-status">Fresh</span>
-                  </div>
-                  <div class="preview-item warning">
-                    <span class="item-emoji">🥛</span>
-                    <span class="item-name">Milk</span>
-                    <span class="item-status">2 days left</span>
-                  </div>
-                  <div class="preview-item fresh">
-                    <span class="item-emoji">🍎</span>
-                    <span class="item-name">Apples</span>
-                    <span class="item-status">Fresh</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Features Section -->
-    <section class="features">
-      <div class="container">
-        <h2 class="section-title">How Use It Up Helps You</h2>
-        <div class="features-grid">
-          <div class="feature-card">
-            <div class="feature-icon">📱</div>
-            <h3>Smart Tracking</h3>
-            <p>Easily add groceries with expiry dates and get timely reminders before items go bad.</p>
-          </div>
-          <div class="feature-card">
-            <div class="feature-icon">💰</div>
-            <h3>Save Money</h3>
-            <p>Track how much money you save by using items instead of throwing them away.</p>
-          </div>
-          <div class="feature-card">
-            <div class="feature-icon">🌍</div>
-            <h3>Help Environment</h3>
-            <p>See your positive environmental impact with CO₂ reduction tracking.</p>
-          </div>
-          <div class="feature-card">
-            <div class="feature-icon">📊</div>
-            <h3>Visual Insights</h3>
-            <p>Get clear insights into your consumption patterns and waste reduction progress.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Impact Section -->
-    <section class="impact">
-      <div class="container">
-        <div class="impact-content">
-          <div class="impact-text">
-            <h2>Make Every Meal Count</h2>
-            <p>
-              Food waste is one of the biggest environmental challenges we face.
-              When you throw away food, you're not just wasting money – you're wasting
-              all the resources that went into producing it.
-            </p>
-            <ul class="impact-list">
-              <li>🌱 Reduce your carbon footprint</li>
-              <li>💧 Save water and energy</li>
-              <li>💰 Keep money in your pocket</li>
-              <li>🏆 Feel good about your choices</li>
-            </ul>
-          </div>
-          <div class="impact-visual">
-            <div class="impact-circle">
-              <div class="circle-content">
-                <span class="circle-emoji">🌍</span>
-                <span class="circle-text">Together we can make a difference</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- CTA Section -->
-    <section class="final-cta">
-      <div class="container">
-        <div class="cta-content">
-          <h2>Ready to Start Your Journey?</h2>
-          <p>Join thousands of users who are already making a difference</p>
-          <button @click="getStarted" class="cta-button large">
-            Start Tracking Now
-            <span class="button-icon">✨</span>
-          </button>
-          <p class="cta-note">Free to use • No credit card required • Start immediately</p>
-        </div>
       </div>
     </section>
   </div>
@@ -145,6 +42,7 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import HomeCarousel from '@/components/home/HomeCarousel.vue'
 
 const router = useRouter()
 
