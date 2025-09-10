@@ -1,9 +1,8 @@
 <template>
   <div class="home-bg" aria-hidden="true">
     <video
-      v-if="videoUrl"
       class="home-bg__video"
-      :src="videoUrl"
+      :src="VIDEO_SRC"
       autoplay
       muted
       playsinline
@@ -12,25 +11,15 @@
     />
     <div class="home-bg__overlay"></div>
   </div>
+  
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-
-interface Props { src?: string }
-const props = defineProps<Props>()
-
-// Try prop -> env -> first matching asset in src/assets
-const foundFromEnv = (import.meta.env.VITE_HOME_BG_VIDEO as string | undefined) || ''
-// Eagerly collect common video types under src/assets or src/asset (typo-friendly)
-// Vite replaces these with URLs during build
-// @ts-ignore - vite glob typing for non-code assets
-const videoModulesA = import.meta.glob('/src/assets/**/*.{mp4,webm,ogg,mov}', { eager: true, as: 'url' }) as Record<string, string>
-// @ts-ignore
-const videoModulesB = import.meta.glob('/src/asset/**/*.{mp4,webm,ogg,mov}', { eager: true, as: 'url' }) as Record<string, string>
-const discovered = [...Object.values(videoModulesA), ...Object.values(videoModulesB)][0] || ''
-
-const videoUrl = computed(() => props.src || foundFromEnv || discovered)
+// Import a specific asset so Vite bundles and fingerprints it correctly
+// This ensures a stable path in development and in cloud deployments
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - Vite returns a string URL for assets
+import VIDEO_SRC from '@/assets/homepage/homepage_background.mp4'
 
 function onEnded(e: Event) {
   const el = e.target as HTMLVideoElement
