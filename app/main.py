@@ -27,21 +27,20 @@ class JoinByLoginCodeIn(BaseModel):
     login_code: str = Field(..., min_length=4, max_length=16)
     inventory_id: str = Field(..., min_length=1)   
 
-class CreateItemIn(BaseModel):
-    inventory_id: str = Field(..., min_length=1)
-    grocery_id: int
-    created_by: str = Field(..., min_length=1, max_length=120)
-    quantity: float = 1.0
-    # "YYYY-MM-DD"
-    purchased_at: Optional[date] = None
-    actual_expiry: Optional[date] = None
-
 class MarkConsumedIn(BaseModel):
     login_code: str
     consumed: bool
 
 class CreateUserIn(BaseModel):
     display_name: str
+
+class CreateItemByLoginCodeIn(BaseModel):
+    login_code: str
+    grocery_id: int
+    quantity: float = 1.0
+    purchased_at: Optional[date] = None
+    actual_expiry: Optional[date] = None
+
 
 engine = create_async_engine(DATABASE_URL, pool_pre_ping=True, echo=False)
 SessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
@@ -249,49 +248,6 @@ async def get_user_inventory(user_id: str = Query(...)):
 
 
 
-# Add new food entries (non-members will be rejected by triggers in your database)
-@app.post("/items")
-async def create_item(body: CreateItemIn):
-    async with SessionLocal() as db:
-        try:
-            q = text("""
-                 INSERT INTO inventory_items(inventory_id, grocery_id, quantity,
-                                             purchased_at, actual_expiry, created_by)
-                 VALUES (:inv, :gid, :qty, :pdate, :edate, :creator)
-                 ON CONFLICT (inventory_id, grocery_id, purchased_at)
-                 DO UPDATE SET
-                     quantity      = inventory_items.quantity + EXCLUDED.quantity,
-                actual_expiry = COALESCE(EXCLUDED.actual_expiry, inventory_items.actual_expiry),
-                updated_at    = now()
-                RETURNING item_id, inventory_id, grocery_id, quantity,
-              purchased_at, actual_expiry, created_by, created_at, updated_at
-             """)
-
-            res = await db.execute(q, {
-                "inv": body.inventory_id,
-                "gid": body.grocery_id,
-                "qty": body.quantity,
-                "pdate": body.purchased_at,
-                "edate": body.actual_expiry,
-                "creator": body.created_by
-            })
-            await db.commit()
-            row = res.first()
-            return {
-                "item_id": row.item_id,
-                "inventory_id": row.inventory_id,
-                "grocery_id": row.grocery_id,
-                "quantity": float(row.quantity),
-                "purchased_at": row.purchased_at,
-                "actual_expiry": row.actual_expiry,
-                "created_by": row.created_by,
-                "created_at": row.created_at,
-                "updated_at": row.updated_at
-            }
-        except Exception as e:
-            await db.rollback()
-            raise HTTPException(400, f"create item failed: {e}")
-
 # View food lists by room (with item names for front-end display)
 @app.get("/items")
 async def list_items(inventory_id: str = Query(...), limit: int = Query(200, ge=1, le=500)):
@@ -331,7 +287,7 @@ async def list_items(inventory_id: str = Query(...), limit: int = Query(200, ge=
 
 
 
-# 2.1 Retrieve user by login_code 
+# Retrieve user by login_code 
 @app.get("/users/by-login-code")
 async def get_user_by_login_code(login_code: str = Query(..., min_length=4, max_length=16)):
     async with SessionLocal() as db:
@@ -351,7 +307,7 @@ async def get_user_by_login_code(login_code: str = Query(..., min_length=4, max_
             "login_code": row.login_code
         }
 
-# 2.2 Directly search for rooms using the login_code
+# Directly search for rooms using the login_code
 @app.get("/inventories/by-login-code")
 async def get_inventory_by_login_code(login_code: str = Query(..., min_length=4, max_length=16)):
     async with SessionLocal() as db:
@@ -379,8 +335,6 @@ async def get_inventory_by_login_code(login_code: str = Query(..., min_length=4,
             "role": row.role,
             "joined_at": row.joined_at
         }
-
-# --------- NEW: endpoints that operate purely by users.login_code ---------
 
 # Get inventory (minimal payload) via login_code (does not expose share_code)
 @app.get("/inventories/by-login-code/min")
@@ -461,30 +415,23 @@ async def list_items_by_login_code(login_code: str = Query(...), limit: int = Qu
 
 
 # Create item via login_code (actor inferred from code)
-class CreateItemByLoginCodeIn(BaseModel):
-    login_code: str
-    grocery_id: int
-    quantity: float = 1.0
-    purchased_at: Optional[date] = None
-    actual_expiry: Optional[date] = None
-
 @app.post("/items/by-login-code")
 async def create_item_by_login_code(body: CreateItemByLoginCodeIn):
     async with SessionLocal() as db:
-        # resolve (user_id, inventory_id)
         u_id, inv_id = await _resolve_user_and_inventory_by_login_code(db, body.login_code)
 
         try:
-            res = await db.execute(text("""
-                INSERT INTO inventory_items(inventory_id, grocery_id, quantity, purchased_at, actual_expiry, created_by)
-                VALUES (:inv, :gid, :qty, :pdate, :edate, :creator)
-                ON CONFLICT (inventory_id, grocery_id, purchased_at)
-                DO UPDATE SET
-                    quantity      = inventory_items.quantity + EXCLUDED.quantity,
-                    actual_expiry = COALESCE(EXCLUDED.actual_expiry, inventory_items.actual_expiry),
-                    updated_at    = now()
-                RETURNING item_id, inventory_id, grocery_id, quantity, purchased_at,
-                          actual_expiry, created_by, created_at, updated_at
+            # insert new item
+            ins = await db.execute(text("""
+                INSERT INTO inventory_items(
+                    inventory_id, grocery_id, quantity, purchased_at, actual_expiry, created_by
+                )
+                VALUES (
+                    :inv, :gid, :qty,
+                    COALESCE(:pdate, CURRENT_DATE),
+                    :edate, :creator
+                )
+                RETURNING item_id
             """), {
                 "inv": inv_id,
                 "gid": body.grocery_id,
@@ -493,50 +440,78 @@ async def create_item_by_login_code(body: CreateItemByLoginCodeIn):
                 "edate": body.actual_expiry,
                 "creator": u_id
             })
+            new_id = ins.first().item_id
+            await db.commit() 
 
-            await db.commit()
-            r = res.first()
-            return {
-                "item_id": r.item_id,
-                "inventory_id": r.inventory_id,
-                "grocery_id": r.grocery_id,
-                "quantity": float(r.quantity),
-                "purchased_at": r.purchased_at,
-                "actual_expiry": r.actual_expiry,
-                "created_by": r.created_by,
-                "created_at": r.created_at,
-                "updated_at": r.updated_at
+            # return the full inserted row
+            row = (await db.execute(text("""
+                SELECT i.item_id, i.inventory_id, i.grocery_id, i.quantity,
+                       i.purchased_at, i.actual_expiry, i.created_by,
+                       i.created_at, i.updated_at,
+                       g.name AS grocery_name,
+                       g.category_id,
+                       c.category_name
+                FROM inventory_items i
+                JOIN groceries g ON g.grocery_id = i.grocery_id
+                JOIN categories c ON c.category_id = g.category_id
+                WHERE i.item_id = :id
+            """), {"id": new_id})).first()
+
+            inserted_full = {
+                "item_id": row.item_id,
+                "inventory_id": row.inventory_id,
+                "grocery_id": row.grocery_id,
+                "grocery_name": row.grocery_name,
+                "category_id": row.category_id,
+                "category_name": row.category_name,
+                "quantity": float(row.quantity),
+                "purchased_at": row.purchased_at,
+                "actual_expiry": row.actual_expiry,
+                "created_by": row.created_by,
+                "created_at": row.created_at,
+                "updated_at": row.updated_at
             }
+
+            # dont need to refreash again
+            rows = (await db.execute(text("""
+                SELECT i.item_id, i.inventory_id, i.grocery_id, i.quantity,
+                       i.purchased_at, i.actual_expiry, i.created_by,
+                       i.created_at, i.updated_at,
+                       g.name AS grocery_name,
+                       g.category_id,
+                       c.category_name
+                FROM inventory_items i
+                JOIN groceries g ON g.grocery_id = i.grocery_id
+                JOIN categories c ON c.category_id = g.category_id
+                WHERE i.inventory_id = :iid
+                ORDER BY i.created_at DESC
+                LIMIT :limit
+            """), {"iid": inv_id, "limit": 200})).fetchall()
+
+            items = [{
+                "item_id": x.item_id,
+                "inventory_id": x.inventory_id,
+                "grocery_id": x.grocery_id,
+                "grocery_name": x.grocery_name,
+                "category_id": x.category_id,
+                "category_name": x.category_name,
+                "quantity": float(x.quantity),
+                "purchased_at": x.purchased_at,
+                "actual_expiry": x.actual_expiry,
+                "created_by": x.created_by,
+                "created_at": x.created_at,
+                "updated_at": x.updated_at
+            } for x in rows]
+
+            return {"inserted": inserted_full, "items": items}
+
         except Exception as e:
             await db.rollback()
             raise HTTPException(400, f"create item failed: {e}")
 
-# Mark an item as used via login_code (minimal implementation: set quantity to 0)
-@app.patch("/items/{item_id}/consume")
-async def consume_item_by_login_code(item_id: str, body: MarkConsumedIn):
-    async with SessionLocal() as db:
-        # resolve (user_id, inventory_id) to ensure the caller belongs to this inventory
-        u_id, inv_id = await _resolve_user_and_inventory_by_login_code(db, body.login_code)
 
-        try:
-            res = await db.execute(text("""
-                UPDATE inventory_items
-                SET quantity = CASE WHEN :consumed THEN 0 ELSE quantity END,
-                    updated_at = now()
-                WHERE item_id = :item_id
-                  AND inventory_id = :iid
-                RETURNING item_id, quantity, updated_at
-            """), {"consumed": body.consumed, "item_id": item_id, "iid": inv_id})
-            row = res.first()
-            if not row:
-                raise HTTPException(404, "item not found in your inventory")
-            await db.commit()
-            return {"item_id": row.item_id, "quantity": float(row.quantity), "updated_at": row.updated_at}
-        except Exception as e:
-            await db.rollback()
-            raise HTTPException(400, f"update item failed: {e}")
 
-# Optional: delete item via login_code
+# delete item via login_code
 @app.delete("/items/{item_id}/by-login-code")
 async def delete_item_by_login_code(item_id: str, login_code: str = Query(..., min_length=4, max_length=16)):
     async with SessionLocal() as db:
@@ -557,8 +532,6 @@ async def delete_item_by_login_code(item_id: str, login_code: str = Query(..., m
         except Exception as e:
             await db.rollback()
             raise HTTPException(400, f"delete item failed: {e}")
-
-# --------- end of login_code-based endpoints ---------
 
 
 # List all categories
