@@ -1,14 +1,15 @@
 <template>
   <div id="app">
     <BackgroundVideo />
-    <NavBar />
-    <!-- Router View with Transitions -->
-    <RouterView v-slot="{ Component, route }">
-      <Transition :name="transitionName" mode="out-in">
-        <component :is="Component" :key="route.path" />
-      </Transition>
-    </RouterView>
-
+    <div class="app-content">
+      <NavBar />
+      <!-- Router View with Transitions -->
+      <RouterView v-slot="{ Component, route }">
+        <Transition :name="transitionName" mode="out-in">
+          <component :is="Component" :key="route.path" />
+        </Transition>
+      </RouterView>
+    </div>
   </div>
 </template>
 
@@ -58,6 +59,11 @@ watch(
 #app {
   min-height: 100vh;
   background-color: var(--color-bg-primary);
+}
+
+.app-content {
+  position: relative;
+  z-index: 2; /* Ensure content is above background video */
 }
 
 /* Route transitions */

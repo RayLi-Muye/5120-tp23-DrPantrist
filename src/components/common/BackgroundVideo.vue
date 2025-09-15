@@ -26,7 +26,7 @@
       @ended="handleIntroEnd"
     />
 
-    <div class="bgv__overlay" />
+    
   </div>
 </template>
 
@@ -103,9 +103,7 @@ watch(
   object-fit: cover;
 }
 
-.bgv__video--loop {
-  filter: brightness(0.5) saturate(0.95);
-}
+.bgv__video--loop {}
 
 .bgv__video--intro {
   transition: opacity 600ms ease;
@@ -115,10 +113,5 @@ watch(
   opacity: 0;
 }
 
-.bgv__overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to bottom, rgba(0,0,0,0.4), rgba(0,0,0,0.6));
-}
-</style>
 
+</style>
