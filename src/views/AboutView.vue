@@ -7,35 +7,53 @@
 
     <main class="about-main">
       <section class="about-section">
-        <h2>🌱 Our Mission</h2>
+        <h2>🌱 What Is Use It Up?</h2>
         <p>
-          UseItUp helps you reduce food waste and track your environmental impact. Every item you
-          use instead of wasting makes a difference for our planet.
+          Use It Up is a simple, household‑friendly web app that helps you track groceries,
+          avoid waste, and see your positive impact. It’s designed to be fast, mobile‑first,
+          and easy to share with housemates.
         </p>
       </section>
 
       <section class="about-section">
-        <h2>📱 How It Works</h2>
+        <h2>🏠 Key Concepts</h2>
+        <ul class="features-list">
+          <li><strong>Households</strong> — Create a household and share the join PIN with others.</li>
+          <li><strong>Join via PIN</strong> — Housemates join using the Household ID + PIN.</li>
+          <li><strong>Shared vs Private</strong> — Add items to a shared section or your
+            own private section. Others can see private items but can’t change them.</li>
+          <li><strong>Login Code</strong> — A 6‑character code lets you sign in on any device.</li>
+        </ul>
+      </section>
+
+      <section class="about-section">
+        <h2>📱 Get Started in 3 Steps</h2>
         <div class="steps">
           <div class="step">
             <div class="step-number">1</div>
             <div class="step-content">
-              <h3>Add Items</h3>
-              <p>Log your groceries with expiry dates</p>
+              <h3>Create or Join</h3>
+              <p>
+                Create a household on the Auth page, or join one with a PIN on the
+                Household screen.
+              </p>
             </div>
           </div>
           <div class="step">
             <div class="step-number">2</div>
             <div class="step-content">
-              <h3>Track Usage</h3>
-              <p>Mark items as used before they expire</p>
+              <h3>Add Items</h3>
+              <p>
+                Choose a grocery, set an expiry date, and pick <em>Shared</em> or
+                <em>Private</em>.
+              </p>
             </div>
           </div>
           <div class="step">
             <div class="step-number">3</div>
             <div class="step-content">
-              <h3>See Impact</h3>
-              <p>View your money saved and CO₂ reduced</p>
+              <h3>Use It Up</h3>
+              <p>Mark items as used before expiry and track your savings and impact.</p>
             </div>
           </div>
         </div>
@@ -44,20 +62,33 @@
       <section class="about-section">
         <h2>💡 Features</h2>
         <ul class="features-list">
-          <li>📦 Smart inventory tracking</li>
-          <li>⏰ Expiry date reminders</li>
-          <li>💰 Money savings calculator</li>
-          <li>🌍 Environmental impact tracking</li>
-          <li>📱 Mobile-first design</li>
-          <li>🔒 Simple code-based authentication</li>
+          <li>🏠 Household management with join PIN</li>
+          <li>👥 Shared and per‑member Private sections</li>
+          <li>📦 Fast item adding with expiry guidance</li>
+          <li>✅ Swipe or tap to mark as used</li>
+          <li>🌍 Environmental and money‑saving impact</li>
+          <li>🔒 Simple code‑based authentication, no passwords</li>
+          <li>📱 Mobile‑first, works great on phones</li>
         </ul>
       </section>
 
       <section class="about-section">
-        <h2>🎯 Your Impact</h2>
+        <h2>🔐 Sign‑In & Privacy</h2>
         <p>
-          By using UseItUp, you're joining a community committed to reducing food waste. Together,
-          we can make a significant impact on our environment while saving money.
+          You sign in with a short login code—no passwords to remember. Your login code lets the
+          app fetch your household and inventory securely from our API.
+        </p>
+        <p>
+          You can reset local data by logging out. Never share your login code or household PIN in
+          public places.
+        </p>
+      </section>
+
+      <section class="about-section">
+        <h2>🎯 Why It Matters</h2>
+        <p>
+          Food waste contributes to avoidable costs and emissions. By tracking what you buy and use,
+          you’ll save money and reduce your footprint—one item at a time.
         </p>
       </section>
     </main>
