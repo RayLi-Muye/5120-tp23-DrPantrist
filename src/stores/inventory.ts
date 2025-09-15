@@ -57,6 +57,16 @@ export const useInventoryStore = defineStore('inventory', () => {
   const error = ref<string | null>(null)
   const currentFilter = ref<FilterType>('all')
   const lastFetch = ref<number | null>(null)
+  // Client-side visibility overrides (temporary until backend adds visibility)
+  function loadVisibilityOverrides(): Record<string, 'shared' | 'private'> {
+    try {
+      const raw = localStorage.getItem('item_visibility_overrides')
+      return raw ? JSON.parse(raw) : {}
+    } catch {
+      return {}
+    }
+  }
+  const visibilityOverrides = ref<Record<string, 'shared' | 'private'>>(loadVisibilityOverrides())
 
   // Getters
   const activeItems = computed(() =>
@@ -260,6 +270,25 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
+  // Visibility helpers (temporary)
+  function setItemVisibility(itemId: string, visibility: 'shared' | 'private') {
+    visibilityOverrides.value[itemId] = visibility
+    try {
+      localStorage.setItem('item_visibility_overrides', JSON.stringify(visibilityOverrides.value))
+    } catch {}
+  }
+
+  function getItemVisibility(itemId: string, fallback: 'shared' | 'private' = 'shared'): 'shared' | 'private' {
+    return visibilityOverrides.value[itemId] || fallback
+  }
+
+  function removeVisibilityOverride(itemId: string) {
+    if (itemId in visibilityOverrides.value) {
+      delete visibilityOverrides.value[itemId]
+      try { localStorage.setItem('item_visibility_overrides', JSON.stringify(visibilityOverrides.value)) } catch {}
+    }
+  }
+
   async function markItemAsUsedByLoginCode(itemId: string, loginCode: string): Promise<MarkAsUsedResponse | null> {
     // Store item reference for potential rollback
     const itemIndex = items.value.findIndex(item => item.id === itemId)
@@ -406,6 +435,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     error,
     currentFilter,
     lastFetch,
+    visibilityOverrides,
 
     // Getters
     activeItems,
@@ -426,6 +456,10 @@ export const useInventoryStore = defineStore('inventory', () => {
     updateFilter,
     clearError,
     invalidateCache,
-    getItemById
+    getItemById,
+    // Visibility helpers
+    setItemVisibility,
+    getItemVisibility,
+    removeVisibilityOverride
   }
 })

@@ -8,52 +8,64 @@
 
       <!-- Create New Inventory -->
       <div v-if="authMode === 'create'" class="auth-form">
-        <h1>Create Your Inventory</h1>
-        <form @submit.prevent="handleCreateInventory">
-          <div class="form-group">
-            <label for="displayName">Your Name</label>
-            <input
-              id="displayName"
-              v-model="displayName"
-              type="text"
-              placeholder="e.g., John, Mary"
-              maxlength="30"
-              required
-              :disabled="isLoading"
-            />
+        <template v-if="!newUserCode">
+          <h1>Create Your Inventory</h1>
+          <form @submit.prevent="handleCreateInventory">
+            <div class="form-group">
+              <label for="displayName">Your Name</label>
+              <input
+                id="displayName"
+                v-model="displayName"
+                type="text"
+                placeholder="e.g., John, Mary"
+                maxlength="30"
+                required
+                :disabled="isLoading"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="inventoryName">Inventory Name</label>
+              <input
+                id="inventoryName"
+                v-model="inventoryName"
+                type="text"
+                placeholder="e.g., My Kitchen, Family Pantry"
+                maxlength="50"
+                required
+                :disabled="isLoading"
+              />
+            </div>
+
+            <button
+              type="submit"
+              class="btn btn--primary btn--full"
+              :disabled="isLoading || !inventoryName.trim() || !displayName.trim()"
+            >
+              <span v-if="isLoading">Creating...</span>
+              <span v-else>Create Inventory</span>
+            </button>
+          </form>
+
+          <div class="auth-options">
+            <button @click="authMode = 'join'" class="option-button">
+              Join Existing Room
+            </button>
+            <button @click="authMode = 'login'" class="option-button">
+              Use Login Code
+            </button>
           </div>
+        </template>
 
-          <div class="form-group">
-            <label for="inventoryName">Inventory Name</label>
-            <input
-              id="inventoryName"
-              v-model="inventoryName"
-              type="text"
-              placeholder="e.g., My Kitchen, Family Pantry"
-              maxlength="50"
-              required
-              :disabled="isLoading"
-            />
-          </div>
-
-          <button
-            type="submit"
-            class="btn btn--primary btn--full"
-            :disabled="isLoading || !inventoryName.trim() || !displayName.trim()"
-          >
-            <span v-if="isLoading">Creating...</span>
-            <span v-else>Create Inventory</span>
+        <!-- Post-create state: show only login code and CTA -->
+        <template v-else>
+          <h1>You're All Set</h1>
+          <p class="form-description">Your login code:</p>
+          <div class="login-code-display">{{ newUserCode }}</div>
+          <button @click="proceedToDashboard" class="btn btn--primary btn--full">
+            Go to Dashboard
           </button>
-        </form>
-
-        <div class="auth-options">
-          <button @click="authMode = 'join'" class="option-button">
-            Join Existing Room
-          </button>
-          <button @click="authMode = 'login'" class="option-button">
-            Use Login Code
-          </button>
-        </div>
+        </template>
       </div>
 
       <!-- Join Existing Room -->
@@ -155,25 +167,10 @@
         {{ authStore.error }}
       </div>
 
-      <!-- Success Message for New User -->
-      <div v-if="newUserCode" class="success-message">
-        <h3>🎉 Inventory Created!</h3>
-        <p>Your login code is:</p>
-        <div class="login-code-display">{{ newUserCode }}</div>
-        <div class="room-id-display">
-          <p>Room ID: <strong>{{ newRoomId }}</strong></p>
-          <p class="room-id-note">Share this ID with others to let them join your inventory</p>
-        </div>
-        <p class="code-warning">
-          ⚠️ Save this code and room ID! You'll need them to access your inventory.
-        </p>
-        <button @click="proceedToDashboard" class="btn btn--secondary btn--full">
-          Continue to Dashboard
-        </button>
-      </div>
+      <!-- Success Message for New User moved into create section; Room ID intentionally hidden -->
 
       <!-- Success Message for Joined Room -->
-      <div v-if="joinedRoomName" class="success-message">
+      <div v-if="authMode === 'join' && joinedRoomName" class="success-message">
         <h3>🎉 Successfully Joined!</h3>
         <p>You've joined the inventory:</p>
         <div class="room-name-display">{{ joinedRoomName }}</div>
@@ -207,7 +204,6 @@ const roomId = ref('')
 const loginCode = ref('')
 const isLoading = ref(false)
 const newUserCode = ref('')
-const newRoomId = ref('')
 const joinedRoomName = ref('')
 
 const handleCreateInventory = async () => {
@@ -219,7 +215,6 @@ const handleCreateInventory = async () => {
   try {
     const user = await authStore.createInventory(inventoryName.value, displayName.value)
     newUserCode.value = user.loginCode
-    newRoomId.value = user.inventoryId || ''
     inventoryName.value = ''
     displayName.value = ''
   } catch (error) {
@@ -268,7 +263,6 @@ const handleLogin = async () => {
 
 const proceedToDashboard = () => {
   newUserCode.value = ''
-  newRoomId.value = ''
   joinedRoomName.value = ''
   router.push('/dashboard')
 }

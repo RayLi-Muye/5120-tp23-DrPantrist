@@ -20,6 +20,9 @@ export interface InventoryItem {
   notes?: string
   createdAt: string
   updatedAt: string
+  // Ownership and visibility (EPIC4 support)
+  ownerUserId?: string
+  visibility?: 'shared' | 'private'
 }
 
 export interface AddItemRequest {
@@ -43,10 +46,10 @@ export interface AddItemToInventoryRequest {
 // New interface for /items/by-login-code API endpoint
 export interface AddItemByLoginCodeRequest {
   login_code: string
-  grocery_id: number
-  quantity: number
-  purchased_at: string
-  actual_expiry: string
+  grocery_id: number | string
+  quantity: number | string
+  purchased_at: string | Date
+  actual_expiry: string | Date
 }
 
 // New interface for /items/{item_id}/consume API endpoint
@@ -105,6 +108,17 @@ async function checkAPIHealth(): Promise<boolean> {
   }
 }
 
+// Helpers
+function toDateYYYYMMDD(input?: string | Date): string | undefined {
+  if (input == null) return undefined
+  if (typeof input === 'string') return input
+  const d = new Date(input)
+  if (Number.isNaN(d.getTime())) return undefined
+  const m = `${d.getMonth() + 1}`.padStart(2, '0')
+  const day = `${d.getDate()}`.padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
+}
+
 // Map backend item shape to frontend InventoryItem
 function mapBackendItemToInventoryItem(item: any): InventoryItem {
   return {
@@ -125,7 +139,9 @@ function mapBackendItemToInventoryItem(item: any): InventoryItem {
     status: item.quantity && item.quantity > 0 ? 'active' : 'used',
     notes: '',
     createdAt: item.created_at || new Date().toISOString(),
-    updatedAt: item.updated_at || new Date().toISOString()
+    updatedAt: item.updated_at || new Date().toISOString(),
+    ownerUserId: item.created_by,
+    visibility: item.visibility === 'private' || item.visibility === 'shared' ? item.visibility : 'shared'
   }
 }
 
@@ -293,7 +309,7 @@ const inventoryAPI = {
    */
   async addItemByLoginCode(itemData: AddItemByLoginCodeRequest): Promise<InventoryItem> {
     // Validate required fields
-    if (!itemData.login_code || !itemData.grocery_id) {
+    if (!itemData.login_code || itemData.grocery_id == null) {
       throw new InventoryAPIError(
         'Login code and Grocery ID are required',
         'addItemByLoginCode'
@@ -301,12 +317,22 @@ const inventoryAPI = {
     }
 
     try {
+      const groceryIdNum = Number(itemData.grocery_id)
+      const quantityNum = Number(itemData.quantity)
+
+      if (!Number.isFinite(groceryIdNum) || groceryIdNum <= 0) {
+        throw new InventoryAPIError('Invalid grocery selection. Please reselect the item.', 'addItemByLoginCode')
+      }
+      if (!Number.isFinite(quantityNum) || quantityNum <= 0) {
+        throw new InventoryAPIError('Quantity must be a positive number.', 'addItemByLoginCode')
+      }
+
       const requestPayload = {
-        login_code: itemData.login_code,
-        grocery_id: itemData.grocery_id,
-        quantity: itemData.quantity,
-        purchased_at: itemData.purchased_at,
-        actual_expiry: itemData.actual_expiry
+        login_code: String(itemData.login_code).trim(),
+        grocery_id: groceryIdNum,
+        quantity: quantityNum,
+        ...(itemData.purchased_at ? { purchased_at: toDateYYYYMMDD(itemData.purchased_at)! } : {}),
+        ...(itemData.actual_expiry ? { actual_expiry: toDateYYYYMMDD(itemData.actual_expiry)! } : {})
       }
       
       logger.debug('Request: POST /items/by-login-code', {
@@ -331,17 +357,23 @@ const inventoryAPI = {
       return response.data as InventoryItem
     } catch (error) {
       const apiError = error as APIError
-      
-      // Handle duplicate item constraint error
-      if (apiError.status === 422 && (apiError as any).details?.detail?.includes('duplicate key value violates unique constraint')) {
-        const friendlyMessage = 'This item with the same purchase date already exists in your inventory. Try changing the purchase date or check your existing items.'
-        throw new InventoryAPIError(
-          friendlyMessage,
-          'addItemByLoginCode',
-          apiError
-        )
+      const detail = (apiError as any)?.response?.data?.detail || (apiError as any)?.details?.detail || ''
+
+      // Friendly messages for common server-side validations
+      const duplicateConstraint = 'duplicate key value violates unique constraint'
+      const foreignKeyConstraint = 'foreign key constraint'
+
+      if (detail && typeof detail === 'string') {
+        if (detail.toLowerCase().includes(duplicateConstraint)) {
+          const friendlyMessage = 'This item with the same purchase date already exists in your inventory. Try changing the purchase date or check your existing items.'
+          throw new InventoryAPIError(friendlyMessage, 'addItemByLoginCode', apiError)
+        }
+        if (detail.toLowerCase().includes(foreignKeyConstraint) || detail.toLowerCase().includes('f405')) {
+          const friendlyMessage = 'Selected grocery is not recognized by the server. Please pick the item again from the list.'
+          throw new InventoryAPIError(friendlyMessage, 'addItemByLoginCode', apiError)
+        }
       }
-      
+
       throw new InventoryAPIError(
         apiError.message || 'Failed to add item to inventory by login code. Please try again.',
         'addItemByLoginCode',

@@ -84,6 +84,42 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // Create a household (inventory) for the current user (EPIC3 #1)
+  async function createHousehold(inventoryName: string): Promise<User> {
+    if (!user.value) {
+      throw new Error('You must be logged in to create a household')
+    }
+    if (!inventoryName.trim()) {
+      throw new Error('Household name is required')
+    }
+
+    isLoading.value = true
+    error.value = null
+
+    try {
+      // Create a room for the existing user
+      const room = await inventoryRoomsAPI.createRoom(inventoryName.trim(), user.value.id)
+
+      // Update user state with new inventory
+      const updatedUser: User = {
+        ...user.value,
+        inventoryName: room.inventory_name,
+        inventoryId: room.inventory_id,
+        isOwner: true
+      }
+      localStorage.setItem('useItUp_user', JSON.stringify(updatedUser))
+      user.value = updatedUser
+
+      return updatedUser
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to create household'
+      error.value = msg
+      throw new Error(msg)
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   async function loginWithCode(loginCode: string): Promise<User> {
     if (!loginCode.trim()) {
       throw new Error('Login code is required')
@@ -250,6 +286,7 @@ export const useAuthStore = defineStore('auth', () => {
     createInventory,
     joinInventory,
     loginWithCode,
+    createHousehold,
     logout,
     loadSavedUser,
     tryAutoLogin,

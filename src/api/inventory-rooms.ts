@@ -185,7 +185,7 @@ class InventoryRoomsAPI {
    * @param userId - User ID (optional, will generate if not provided)
    * @returns Promise<void>
    */
-  async joinRoom(inventoryId: string, userId?: string): Promise<void> {
+  async joinRoom(inventoryId: string, userId?: string, shareCode?: string): Promise<void> {
     try {
       // Generate or use provided user ID
       const actualUserId = userId || this.generateUserId()
@@ -200,7 +200,8 @@ class InventoryRoomsAPI {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            user_id: actualUserId
+            user_id: actualUserId,
+            ...(shareCode ? { share_code: shareCode } : {})
           })
         })
       )
@@ -242,7 +243,10 @@ class InventoryRoomsAPI {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      return await response.json()
+      const data = await response.json().catch(() => null as any)
+      if (!data) return []
+      if (Array.isArray(data)) return data as GetUserRoomsResponse[]
+      return [data as GetUserRoomsResponse]
     } catch (error) {
       console.error('Failed to get user rooms:', error)
       throw error

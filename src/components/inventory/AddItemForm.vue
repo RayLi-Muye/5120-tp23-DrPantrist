@@ -80,6 +80,22 @@
         </div>
       </div>
 
+      <!-- Ownership Selection (EPIC4) -->
+      <div class="form-group">
+        <label class="form-label">Add To</label>
+        <div class="segmented">
+          <label class="segmented-option">
+            <input type="radio" name="visibility" value="shared" v-model="visibilityChoice" />
+            <span>Shared Items</span>
+          </label>
+          <label class="segmented-option">
+            <input type="radio" name="visibility" value="private" v-model="visibilityChoice" />
+            <span>My Private Items</span>
+          </label>
+        </div>
+        <div v-if="errors.visibility" class="error-message">{{ errors.visibility }}</div>
+      </div>
+
       <!-- Notes Field (Optional) -->
       <div class="form-group">
         <label for="notes" class="form-label">
@@ -137,8 +153,10 @@ interface FormData {
   notes: string
 }
 
+type Visibility = 'shared' | 'private'
+interface SubmitData extends FormData { visibility: Visibility }
 interface Emits {
-  (e: 'submit', data: FormData): void
+  (e: 'submit', data: SubmitData): void
   (e: 'cancel'): void
 }
 
@@ -155,10 +173,13 @@ const formData = ref<FormData>({
   notes: ''
 })
 
+const visibilityChoice = ref<Visibility | ''>('')
+
 // Form validation errors
 const errors = ref({
   quantity: '',
-  expiryDate: ''
+  expiryDate: '',
+  visibility: ''
 })
 
 // Calculate default expiry date
@@ -178,8 +199,10 @@ const isFormValid = computed(() => {
          formData.value.quantity <= 99 &&
          formData.value.expiryDate &&
          isValidDate(formData.value.expiryDate) &&
-         !errors.value.quantity &&
-         !errors.value.expiryDate
+         (visibilityChoice.value === 'shared' || visibilityChoice.value === 'private') &&
+          !errors.value.quantity &&
+         !errors.value.expiryDate &&
+         !errors.value.visibility
 })
 
 // Initialize form with default values
@@ -221,7 +244,8 @@ const resetToDefault = () => {
 const clearErrors = () => {
   errors.value = {
     quantity: '',
-    expiryDate: ''
+    expiryDate: '',
+    visibility: ''
   }
 }
 
@@ -255,19 +279,30 @@ const validateExpiryDate = () => {
   }
 }
 
+const validateVisibility = () => {
+  if (visibilityChoice.value !== 'shared' && visibilityChoice.value !== 'private') {
+    errors.value.visibility = 'Please choose where to add the item'
+  } else {
+    errors.value.visibility = ''
+  }
+}
+
 // Watch for form changes to validate
 watch(() => formData.value.quantity, validateQuantity)
 watch(() => formData.value.expiryDate, validateExpiryDate)
+watch(() => visibilityChoice.value, validateVisibility)
 
 // Handle form submission
 const handleSubmit = () => {
   // Validate all fields
   validateQuantity()
   validateExpiryDate()
+  validateVisibility()
 
   // If form is valid, emit submit event
   if (isFormValid.value) {
-    emit('submit', { ...formData.value })
+    const payload: SubmitData = { ...formData.value, visibility: visibilityChoice.value as Visibility }
+    emit('submit', payload)
   }
 }
 </script>
@@ -310,6 +345,22 @@ const handleSubmit = () => {
 .form-group {
   margin-bottom: var(--spacing-lg);
 }
+
+.segmented {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 8px;
+}
+.segmented-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--color-bg-secondary);
+  border-radius: 8px;
+  user-select: none;
+}
+.segmented-option input { accent-color: var(--color-primary); }
 
 .form-label {
   display: block;

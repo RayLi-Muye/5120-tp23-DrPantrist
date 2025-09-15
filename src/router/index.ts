@@ -7,7 +7,7 @@ const router = createRouter({
     {
       path: "/",
       name: "home",
-      component: () => import("../views/HomePage.vue"),
+      component: () => import("../views/HomeView.vue"),
       meta: {
         title: "Use It Up - Stop Food Waste, Start Saving",
         // Home is public; allow access when authenticated as well
@@ -29,6 +29,15 @@ const router = createRouter({
       component: () => import("../views/DashboardView.vue"),
       meta: {
         title: "Dashboard - Use It Up",
+        requiresAuth: true,
+      },
+    },
+    {
+      path: "/household",
+      name: "household",
+      component: () => import("../views/HouseholdView.vue"),
+      meta: {
+        title: "Household Management - Use It Up",
         requiresAuth: true,
       },
     },

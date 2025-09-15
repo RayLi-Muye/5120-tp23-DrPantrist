@@ -79,9 +79,15 @@ async function handleLogout() {
   background: rgba(255, 255, 255, 0.85);
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   backdrop-filter: blur(8px);
+  opacity: 0.50;
   position: sticky;
   top: 0;
   z-index: 100;
+}
+
+.app-navbar:hover {
+  opacity: 0.85;
+  transition: opacity 0.3s ease-in-out;
 }
 
 .nav-inner {

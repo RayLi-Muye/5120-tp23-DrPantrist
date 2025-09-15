@@ -44,19 +44,24 @@ export function useInventoryAccess() {
     quantity: number
     purchasedAt: string
     actualExpiry: string
+    visibility?: 'shared' | 'private'
   }): Promise<InventoryItem | null> {
     if (!authStore.user) return null
 
     // Prefer login code flow when available
     if (authStore.user.loginCode) {
       try {
-        return await inventoryStore.addItemByLoginCode({
+        const created = await inventoryStore.addItemByLoginCode({
           login_code: authStore.user.loginCode,
           grocery_id: params.groceryId,
           quantity: params.quantity,
           purchased_at: params.purchasedAt,
           actual_expiry: params.actualExpiry
         })
+        if (created && params.visibility) {
+          inventoryStore.setItemVisibility(created.id, params.visibility)
+        }
+        return created
       } catch (err) {
         logger.warn('Login code add failed, will try inventory_id flow', err)
         // fallthrough to inventory flow
@@ -69,7 +74,7 @@ export function useInventoryAccess() {
       return null
     }
 
-    return await inventoryStore.addItemToInventory({
+    const created = await inventoryStore.addItemToInventory({
       inventory_id: currentRoom.inventoryId,
       grocery_id: params.groceryId,
       created_by: authStore.user.id,
@@ -77,6 +82,10 @@ export function useInventoryAccess() {
       purchased_at: params.purchasedAt,
       actual_expiry: params.actualExpiry
     })
+    if (created && params.visibility) {
+      inventoryStore.setItemVisibility(created.id, params.visibility)
+    }
+    return created
   }
 
   return {

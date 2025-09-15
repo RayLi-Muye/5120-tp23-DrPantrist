@@ -1,154 +1,266 @@
-GET（直接网址能打开）
-根目录:
-http://13.210.101.133:8000/
+UseItUp Minimal API — Endpoints & Examples
+Generated: 2025-09-12T07:31:22.210240Z
 
-健康检查:
-http://13.210.101.133:8000/health
+Base URL
+  https://api.tp23.me/
 
-获取分类:
-http://13.210.101.133:8000/categories
+Health
+GET /health
+Example:
+  curl https://api.tp23.me/health
+Response:
+  {"status":"ok"}
 
-获取所有食材:
-http://13.210.101.133:8000/groceries
+Categories & Groceries
+GET /categories
+Example:
+  curl https://api.tp23.me/categories
+Response:
+  [{"category_id":1,"category_name":"Fruits"},{"category_id":2,"category_name":"Vegetables"}]
+Groceries:
+curl  https://api.tp23.me/groceries
+GET /groceries?q=apple&category_id=1&limit=2&offset=0
+Example:
+  curl "https://api.tp23.me/groceries?q=apple&category_id=1&limit=2&offset=0"
+Response (sample):
+  [
+    {
+      "grocery_id": 101,
+      "product_id": 5001,
+      "name": "Apple",
+      "category_id": 1,
+      "dop_pantry_max": 7,
+      "dop_pantry_metric": "days",
+      "dop_refrigerate_max": 30,
+      "dop_refrigerate_metric": "days",
+      "dop_freeze_max": null,
+      "dop_freeze_metric": null,
+      "created_at": "2025-09-01T03:12:45.123456+00:00"
+    }
+  ]
 
-通过 login_code 获取用户:
-http://13.210.101.133:8000/users/by-login-code
+GET /groceries/{grocery_id}
+Example:
+  curl https://api.tp23.me/groceries/101
+Response (sample):
+  {
+    "grocery_id": 101,
+    "product_id": 5001,
+    "name": "Apple",
+    "category_id": 1,
+    "dop_pantry_max": 7,
+    "dop_pantry_metric": "days",
+    "dop_refrigerate_max": 30,
+    "dop_refrigerate_metric": "days",
+    "dop_freeze_max": null,
+    "dop_freeze_metric": null,
+    "created_at": "2025-09-01T03:12:45.123456+00:00"
+  }
 
-通过 login_code 获取房间（完整信息，含 share_code）:
-http://13.210.101.133:8000/inventories/by-login-code
+Users & Inventories
+GET /users/by-login-code?login_code=ABCD12
+Example:
+  curl "https://api.tp23.me/users/by-login-code?login_code=ABCD12"
+Response:
+  {
+    "user_id": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
+    "display_name": "Alice",
+    "login_code": "ABCD12"
+  }
 
-通过 login_code 获取房间（精简信息，不含 share_code）:
-http://13.210.101.133:8000/inventories/by-login-code/min
+GET /inventories/by-login-code?login_code=ABCD12      (includes share_code)
+Example:
+  curl "https://api.tp23.me/inventories/by-login-code?login_code=ABCD12"
+Response:
+  {
+    "inventory_id": "15a1ce33-350c-4df9-bec5-9bc005d261bd",
+    "inventory_name": "Mykitchen",
+    "owner_user_id": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
+    "share_code": "K7M2Q9XZ",
+    "role": "owner",
+    "joined_at": "2025-09-10T05:30:00.000000+00:00"
+  }
 
-通过 login_code 获取房间成员:
-http://13.210.101.133:8000/inventories/members/by-login-code
+GET /inventories/by-login-code/min?login_code=ABCD12  (without share_code)
+Example:
+  curl "https://api.tp23.me/inventories/by-login-code/min?login_code=ABCD12"
+Response:
+  {
+    "inventory_id": "15a1ce33-350c-4df9-bec5-9bc005d261bd",
+    "inventory_name": "Mykitchen",
+    "owner_user_id": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
+    "role": "owner",
+    "joined_at": "2025-09-10T05:30:00.000000+00:00"
+  }
 
-通过 login_code 获取房间内的食品列表:
-http://13.210.101.133:8000/items/by-login-code
+GET /inventories/by-user?user_id={USER_UUID}
+Example:
+  curl "https://api.tp23.me/inventories/by-user?user_id=f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11"
+Response:
+  {
+    "inventory_id": "15a1ce33-350c-4df9-bec5-9bc005d261bd",
+    "inventory_name": "Mykitchen",
+    "owner_user_id": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
+    "share_code": "K7M2Q9XZ",
+    "role": "owner",
+    "joined_at": "2025-09-10T05:30:00.000000+00:00"
+  }
+If user not in any inventory: null
 
-获取用户（通过 login_code）（示例）：
-http://13.210.101.133:8000/users/by-login-code?login_code=ABCD12
+GET /inventories/members/by-login-code?login_code=ABCD12
+Example:
+  curl "https://api.tp23.me/inventories/members/by-login-code?login_code=ABCD12"
+Response:
+  [
+    {
+      "user_id": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
+      "display_name": "Alice",
+      "role": "owner",
+      "joined_at": "2025-09-10T05:30:00.000000+00:00"
+    },
+    {
+      "user_id": "1c0d1c8a-3e1f-4b3d-9c62-9d1f0f6b8f22",
+      "display_name": "Bob",
+      "role": "member",
+      "joined_at": "2025-09-11T02:15:00.000000+00:00"
+    }
+  ]
 
-获取房间（完整版，含 share_code）（示例）：
-http://13.210.101.133:8000/inventories/by-login-code?login_code=ABCD12
+Items (list)
+GET /items?inventory_id={INVENTORY_UUID}&limit=200
+Example:
+  curl "https://api.tp23.me/items?inventory_id=15a1ce33-350c-4df9-bec5-9bc005d261bd&limit=200"
+Response:
+  [
+    {
+      "item_id": "9a6a9f0f-1c6d-4e2e-9d6c-9f2b1f3a1234",
+      "inventory_id": "15a1ce33-350c-4df9-bec5-9bc005d261bd",
+      "grocery_id": 101,
+      "grocery_name": "Apple",
+      "category_id": 1,
+      "category_name": "Fruits",
+      "quantity": 1.0,
+      "purchased_at": "2025-09-11",
+      "actual_expiry": "2025-09-15",
+      "created_by": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
+      "created_at": "2025-09-11T06:01:22.000000+00:00",
+      "updated_at": "2025-09-11T06:01:22.000000+00:00"
+    }
+  ]
 
-获取房间（精简版，不含 share_code）（示例）：
-http://13.210.101.133:8000/inventories/by-login-code/min?login_code=ABCD12
+GET /items/by-login-code?login_code=ABCD12&limit=200
+Example:
+  curl "https://api.tp23.me/items/by-login-code?login_code=ABCD12&limit=200"
+Response:
+  [
+    {
+      "item_id": "9a6a9f0f-1c6d-4e2e-9d6c-9f2b1f3a1234",
+      "inventory_id": "15a1ce33-350c-4df9-bec5-9bc005d261bd",
+      "grocery_id": 101,
+      "grocery_name": "Apple",
+      "category_id": 1,
+      "category_name": "Fruits",
+      "quantity": 1.0,
+      "purchased_at": "2025-09-11",
+      "actual_expiry": "2025-09-15",
+      "created_by": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
+      "created_at": "2025-09-11T06:01:22.000000+00:00",
+      "updated_at": "2025-09-11T06:01:22.000000+00:00"
+    }
+  ]
 
-获取房间成员（通过 login_code）（示例）：
-http://13.210.101.133:8000/inventories/members/by-login-code?login_code=ABCD12
-
-
-按条件搜索食材（示例）:
-http://13.210.101.133:8000/groceries?q=apple&category_id=2
-
-获取某个食材详情（示例，grocery_id=101）:
-http://13.210.101.133:8000/groceries/101
-
-获取某用户的房间（示例，user_id=u123）:
-http://13.210.101.133:8000/inventories/by-user?user_id=u123
-
-获取房间内的食品列表（示例，inventory_id=abcd-1234）:
-http://13.210.101.133:8000/items?inventory_id=abcd-1234
-
-
-
-
-POST（需要写代码发请求，不能直接点网址）
-
-users表
-http://13.210.101.133:8000/users/create
-
+Create / Join
 POST /users/create
 Body:
-{
-  "display_name": "name"
-}
-
-创建房间:
-http://13.210.101.133:8000/inventories/create
+  {"display_name":"Alice"}
+Example:
+  curl -X POST https://api.tp23.me/users/create -H "Content-Type: application/json" -d '{"display_name":"Alice"}'
+Response:
+  {
+    "user_id": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
+    "display_name": "Alice",
+    "login_code": "ABCD12"
+  }
 
 POST /inventories/create
 Body:
-{
-  "inventory_name": "我的冰箱",
-  "owner_user_id": "用户UUID"
-}
-
-加入房间:
-带着sharecode
-http://13.210.101.133:8000/inventories/{inventory_id}/join
+  {"inventory_name":"Mykitchen","owner_user_id":"<USER_UUID>"}
+Example:
+  curl -X POST https://api.tp23.me/inventories/create -H "Content-Type: application/json" -d '{"inventory_name":"Mykitchen","owner_user_id":"f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11"}'
+Response:
+  {
+    "inventory_id": "15a1ce33-350c-4df9-bec5-9bc005d261bd",
+    "inventory_name": "Mykitchen",
+    "owner_user_id": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
+    "share_code": "K7M2Q9XZ"
+  }
 
 POST /inventories/{inventory_id}/join
 Body:
-{
-  "user_id": "用户UUID",
-  "share_code": "ABCDEFGH"
-}
-
-不带sharecode
-http://13.210.101.133:8000/inventories/join/by-login-code
+  {"user_id":"<USER_UUID>","share_code":"<SHARE_CODE>"}
+Example:
+  curl -X POST https://api.tp23.me/inventories/15a1ce33-350c-4df9-bec5-9bc005d261bd/join -H "Content-Type: application/json" -d '{"user_id":"1c0d1c8a-3e1f-4b3d-9c62-9d1f0f6b8f22","share_code":"K7M2Q9XZ"}'
+Response:
+  {"ok": true}
 
 POST /inventories/join/by-login-code
 Body:
-{
-  "login_code": "ABCD12",
-  "inventory_id": "房间UUID"
-}
+  {"login_code":"ABCD12","inventory_id":"<INVENTORY_UUID>"}
+Example:
+  curl -X POST https://api.tp23.me/inventories/join/by-login-code -H "Content-Type: application/json" -d '{"login_code":"ABCD12","inventory_id":"15a1ce33-350c-4df9-bec5-9bc005d261bd"}'
+Response:
+  {"ok": true}
 
-新增食品:（按 inventory_id 写入）:
-http://13.210.101.133:8000/items
-
-POST /items
+Items (create & delete)
+POST /items/by-login-code     (create one row, no accumulation)
 Body:
-{
-  "inventory_id": "房间UUID",
-  "grocery_id": 101,
-  "created_by": "用户UUID",
-  "quantity": 2.5,
-  "purchased_at": "2025-03-01",
-  "actual_expiry": "2025-03-10"
-}
+  {"login_code":"ABCD12","grocery_id":101,"quantity":1.0,"purchased_at":"2025-09-11","actual_expiry":"2025-09-15"}
+Example:
+  curl -X POST https://api.tp23.me/items/by-login-code -H "Content-Type: application/json" -d '{"login_code":"ABCD12","grocery_id":101,"quantity":1.0,"purchased_at":"2025-09-11","actual_expiry":"2025-09-15"}'
+Response (sample):
+  {
+    "inserted": {
+      "item_id": "9a6a9f0f-1c6d-4e2e-9d6c-9f2b1f3a1234",
+      "inventory_id": "15a1ce33-350c-4df9-bec5-9bc005d261bd",
+      "grocery_id": 101,
+      "grocery_name": "Apple",
+      "category_id": 1,
+      "category_name": "Fruits",
+      "quantity": 1.0,
+      "purchased_at": "2025-09-11",
+      "actual_expiry": "2025-09-15",
+      "created_by": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
+      "created_at": "2025-09-11T06:01:22.000000+00:00",
+      "updated_at": "2025-09-11T06:01:22.000000+00:00"
+    },
+    "items": [
+      {
+        "item_id": "9a6a9f0f-1c6d-4e2e-9d6c-9f2b1f3a1234",
+        "inventory_id": "15a1ce33-350c-4df9-bec5-9bc005d261bd",
+        "grocery_id": 101,
+        "grocery_name": "Apple",
+        "category_id": 1,
+        "category_name": "Fruits",
+        "quantity": 1.0,
+        "purchased_at": "2025-09-11",
+        "actual_expiry": "2025-09-15",
+        "created_by": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
+        "created_at": "2025-09-11T06:01:22.000000+00:00",
+        "updated_at": "2025-09-11T06:01:22.000000+00:00"
+      }
+    ]
+  }
 
-新增食品（通过 login_code 写入）:
-http://13.210.101.133:8000/items/by-login-code
+DELETE /items/{item_id}/by-login-code?login_code=ABCD12   (physical delete)
+Example:
+  curl -X DELETE "https://api.tp23.me/items/9a6a9f0f-1c6d-4e2e-9d6c-9f2b1f3a1234/by-login-code?login_code=ABCD12"
+Response:
+  {"ok": true}
+Errors (samples):
+  {"detail":"item not found in your inventory"}   // 404
+  {"detail":"invalid login code"}                 // 404
 
-POST /items/by-login-code
-Body:
-{
-  "login_code": "ABCD12",
-  "grocery_id": 101,
-  "quantity": 1.0,
-  "purchased_at": "2025-03-01",
-  "actual_expiry": "2025-03-10"
-}
-
-
-标记食品为已使用，通过 login_code，路径里带 item_id
-http://13.210.101.133:8000/items/{item_id}/consume
-
-PATCH /items/{item_id}/consume
-Body:
-{
-  "login_code": "ABCD12",
-  "consumed": true
-}
-
-删除食品通过 login_code，路径里带 item_id
-http://13.210.101.133:8000/items/{item_id}/by-login-code
-
-DELETE /items/{item_id}/by-login-code?login_code=ABCD12
-
-
-
-test：
-Your login code is:
-
-ray
-EEN7VT
-Room ID: 15a1ce33-350c-4df9-bec5-9bc005d261bd
-
-ray2
-NYVA48
-7d2a3d2e-5a67-415a-b2b9-e95e57b35473
-
+Notes
+- Create is pure INSERT (no accumulation). purchased_at defaults to today if omitted.
+- Triggers enforce: only inventory members can write; updated_at auto-refreshes on UPDATE.
+- Times are in TIMESTAMPTZ; display timezone can be adjusted in SQL (e.g., AT TIME ZONE).

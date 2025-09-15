@@ -25,6 +25,13 @@
                 <div class="card-label">CO₂ Reduced</div>
               </div>
             </div>
+            <router-link to="/household" class="impact-card" style="text-decoration:none">
+              <div class="card-icon">👥</div>
+              <div class="card-content">
+                <div class="card-value" style="font-size: var(--font-size-base);">Household</div>
+                <div class="card-label">Manage</div>
+              </div>
+            </router-link>
           </div>
         </div>
       </div>
@@ -71,17 +78,43 @@
             <router-link to="/add-item" class="btn btn--primary"> Add Your First Item </router-link>
           </div>
 
-          <!-- Inventory Items -->
+          <!-- Inventory Items (EPIC4 grouping) -->
           <div v-else class="inventory-content">
-            <div class="inventory-grid">
-              <InventoryItem
-                v-for="item in inventoryStore.items"
-                :key="item.id"
-                :item="item"
-                :loading="loadingItemId === item.id"
-                @use="handleUseItem"
-                @delete="handleDeleteItem"
-              />
+            <!-- Shared Section -->
+            <div class="section-block">
+              <div class="section-header">
+                <h2>Shared Items</h2>
+              </div>
+              <div class="inventory-grid">
+                <InventoryItem
+                  v-for="item in sharedItems"
+                  :key="item.id"
+                  :item="item"
+                  :loading="loadingItemId === item.id"
+                  @use="handleUseItem"
+                />
+              </div>
+            </div>
+
+            <!-- Private Sections per Member -->
+            <div
+              v-for="member in members"
+              :key="member.user_id"
+              class="section-block"
+            >
+              <div class="section-header">
+                <h2>Private — {{ member.display_name }}</h2>
+              </div>
+              <div class="inventory-grid">
+                <InventoryItem
+                  v-for="item in privateItemsByMember(member.user_id)"
+                  :key="item.id"
+                  :item="item"
+                  :loading="loadingItemId === item.id"
+                  :read-only="member.user_id !== authStore.user?.id"
+                  @use="handleUseItem"
+                />
+              </div>
             </div>
           </div>
         </section>
@@ -113,6 +146,7 @@ import QuickActions from "@/components/common/QuickActions.vue";
 import InventoryItem from "@/components/inventory/InventoryItem.vue";
 import InventoryFilter from "@/components/inventory/InventoryFilter.vue";
 import { useImpactStore } from "@/stores/impact";
+import inventoryRoomsAPI from '@/api/inventory-rooms'
 
 import LoadingState from "@/components/common/LoadingState.vue";
 import inventoryAPI from "@/api/inventory";
@@ -123,6 +157,7 @@ const inventoryStore = useInventoryStore();
 const authStore = useAuthStore();
 const impactStore = useImpactStore();
 const apiStatus = ref<{ mode: string } | null>(null);
+const members = ref<Array<{ user_id: string; display_name: string; role: string }>>([])
 
 const userDisplayName = computed(() => {
   return authStore.user?.inventoryName || "Your Inventory";
@@ -132,6 +167,15 @@ const formattedTotalImpact = computed(() => impactStore.formattedTotalImpact);
 
 // Local state for tracking loading states
 const loadingItemId = ref<string | null>(null);
+
+// EPIC4: grouping helpers using temporary visibility overrides
+const sharedItems = computed(() => {
+  return inventoryStore.items.filter(i => inventoryStore.getItemVisibility(i.id, i.visibility || 'shared') === 'shared')
+})
+
+const privateItemsByMember = (userId: string) => {
+  return inventoryStore.items.filter(i => i.userId === userId && inventoryStore.getItemVisibility(i.id, i.visibility || 'shared') === 'private')
+}
 
 const retryLoad = async () => {
   inventoryStore.clearError();
@@ -154,6 +198,13 @@ const loadInventory = async () => {
     if (authStore.user.loginCode) {
       console.log('🔄 Loading inventory using login_code:', authStore.user.loginCode);
       await inventoryStore.fetchInventoryByLoginCode(authStore.user.loginCode);
+      // Fetch members for EPIC4 grouping
+      try {
+        members.value = await inventoryRoomsAPI.getInventoryMembersByLoginCode(authStore.user.loginCode)
+      } catch (membersError) {
+        console.warn('Failed to fetch members', membersError)
+        members.value = authStore.user ? [{ user_id: authStore.user.id, display_name: authStore.user.displayName, role: authStore.user.isOwner ? 'owner' : 'member' }] : []
+      }
     } else {
       console.warn('⚠️ No login_code found, falling back to legacy user ID method');
       await inventoryStore.fetchInventory(authStore.user.id);
@@ -577,6 +628,11 @@ onMounted(async () => {
   gap: var(--spacing-xl);
   max-width: none;
 }
+
+/* EPIC4 sections */
+.section-block { margin-bottom: var(--spacing-xl); }
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-sm); }
+.section-header h2 { margin: 0; color: var(--color-text-primary); }
 
 .dev-info {
   margin-top: var(--spacing-xl);

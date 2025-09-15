@@ -105,10 +105,12 @@ import type { InventoryItem } from '@/api/inventory'
 interface Props {
   item: InventoryItem
   isLoading?: boolean
+  readOnly?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  isLoading: false
+  isLoading: false,
+  readOnly: false
 })
 
 // Emits
@@ -165,7 +167,7 @@ const formattedExpiryDate = computed(() => {
 
 // Methods
 function handleMarkAsUsed() {
-  if (props.isLoading) return
+  if (props.isLoading || props.readOnly) return
   emit('use', props.item.id)
 }
 </script>

@@ -174,6 +174,7 @@ const handleFormSubmit = async (formData: {
   quantity: number;
   expiryDate: string;
   notes: string;
+  visibility: 'shared' | 'private';
 }) => {
   if (!selectedGrocery.value) {
     error.value = "No item selected. Please go back and select an item.";
@@ -208,7 +209,8 @@ const handleFormSubmit = async (formData: {
       groceryId,
       quantity: formData.quantity,
       purchasedAt: formatDateForAPI(today),
-      actualExpiry: formatDateForAPI(expiryDate)
+      actualExpiry: formatDateForAPI(expiryDate),
+      visibility: formData.visibility
     });
 
     if (result) {
