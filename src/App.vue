@@ -1,5 +1,6 @@
 <template>
   <div id="app">
+    <BackgroundVideo />
     <NavBar />
     <!-- Router View with Transitions -->
     <RouterView v-slot="{ Component, route }">
@@ -16,6 +17,7 @@ import { RouterView, useRouter } from 'vue-router'
 import { ref, watch, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import NavBar from '@/components/common/NavBar.vue'
+import BackgroundVideo from '@/components/common/BackgroundVideo.vue'
 
 const router = useRouter()
 const transitionName = ref('route')

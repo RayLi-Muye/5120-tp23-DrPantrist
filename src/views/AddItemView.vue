@@ -266,7 +266,7 @@ watch(() => groceriesStore.masterList, (list) => {
 .add-item-view {
   padding: var(--spacing-md);
   min-height: 100vh;
-  background: linear-gradient(135deg, #5fb3d4 0%, #6dd5a0 100%);
+  background: transparent;
 }
 
 .add-item-header {

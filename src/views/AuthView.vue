@@ -295,7 +295,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   padding: calc(var(--spacing-md) + 56px) var(--spacing-md) var(--spacing-md);
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: transparent;
 }
 
 .top-toggle-nav {

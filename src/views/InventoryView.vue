@@ -145,3 +145,8 @@ onMounted(async () => {
   }
 });
 </script>
+
+<style scoped>
+.inventory-view { min-height: 100vh; background: transparent; padding: var(--spacing-md); }
+.inventory-main { max-width: 1100px; margin: 0 auto; }
+</style>

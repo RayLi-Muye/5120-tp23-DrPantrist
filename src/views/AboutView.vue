@@ -87,7 +87,7 @@ const goBack = () => {
 .about-view {
   padding: var(--spacing-md);
   min-height: 100vh;
-  background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+  background: transparent;
 }
 
 .about-header {

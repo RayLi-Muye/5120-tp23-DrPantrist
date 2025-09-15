@@ -1,7 +1,6 @@
 <template>
   <div class="home-page">
-    <!-- Fixed background video with dark overlay -->
-    <HomeBackgroundVideo />
+    <!-- Background is now provided globally -->
 
     <!-- Hero Section -->
     <section class="hero">
@@ -157,7 +156,6 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import HomeBackgroundVideo from '@/components/home/HomeBackgroundVideo.vue'
 import { ref } from 'vue'
 
 const router = useRouter()
@@ -207,7 +205,7 @@ const ghgPercent = ref(8)
   min-height: 100vh;
   color: #fff;
   /* Fallback background if video not available */
-  background: linear-gradient(135deg, #3b82f6 0%, #7c3aed 100%);
+  background: transparent;
 }
 
 
