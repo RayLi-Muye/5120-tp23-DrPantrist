@@ -3,12 +3,21 @@
     <BackgroundVideo />
     <div class="app-content">
       <NavBar />
-      <!-- Router View with Transitions -->
-      <RouterView v-slot="{ Component, route }">
-        <Transition :name="transitionName" mode="out-in">
-          <component :is="Component" :key="route.path" />
-        </Transition>
-      </RouterView>
+      <main class="app-main">
+        <!-- Router View with Transitions -->
+        <RouterView v-slot="{ Component, route }">
+          <Transition :name="transitionName" mode="out-in">
+            <component :is="Component" :key="route.path" />
+          </Transition>
+        </RouterView>
+      </main>
+      <AppFooter />
+      <ImpactCard
+        :visible="impactStore.isImpactVisible"
+        :impact="impactStore.formattedCurrentImpact"
+        :motivational-message="impactStore.motivationalMessage"
+        @dismissed="impactStore.dismissImpact"
+      />
     </div>
   </div>
 </template>
@@ -17,12 +26,16 @@
 import { RouterView, useRouter } from 'vue-router'
 import { ref, watch, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useImpactStore } from '@/stores/impact'
 import NavBar from '@/components/common/NavBar.vue'
 import BackgroundVideo from '@/components/common/BackgroundVideo.vue'
+import AppFooter from '@/components/common/AppFooter.vue'
+import ImpactCard from '@/components/impact/ImpactCard.vue'
 
 const router = useRouter()
 const transitionName = ref('route')
 const authStore = useAuthStore()
+const impactStore = useImpactStore()
 
 // Initialize auth on app mount
 onMounted(async () => {
@@ -64,6 +77,15 @@ watch(
 .app-content {
   position: relative;
   z-index: 2; /* Ensure content is above background video */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Route transitions */

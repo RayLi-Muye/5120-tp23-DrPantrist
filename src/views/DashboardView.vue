@@ -81,11 +81,12 @@
           <!-- Inventory Items (EPIC4 grouping) -->
           <div v-else class="inventory-content">
             <!-- Shared Section -->
-            <div class="section-block">
+            <div v-if="showSharedSection" class="section-block shared-section">
               <div class="section-header">
-                <h2>Shared Items</h2>
+                <h2>Shared Inventory</h2>
+                <p class="section-subtext">Visible to everyone in the household.</p>
               </div>
-              <div class="inventory-grid">
+              <div v-if="sharedItems.length" class="inventory-grid">
                 <InventoryItem
                   v-for="item in sharedItems"
                   :key="item.id"
@@ -94,27 +95,31 @@
                   @use="handleUseItem"
                 />
               </div>
+              <p v-else class="section-empty">No shared items yet.</p>
             </div>
 
             <!-- Private Sections per Member -->
             <div
-              v-for="member in members"
-              :key="member.user_id"
-              class="section-block"
+              v-for="section in privateSections"
+              :key="section.member.user_id"
+              class="section-block private-section"
+              :class="section.colorClass"
             >
               <div class="section-header">
-                <h2>Private — {{ member.display_name }}</h2>
+                <h2>{{ section.heading }}</h2>
+                <p v-if="section.readOnly" class="section-subtext">Read-only view</p>
               </div>
-              <div class="inventory-grid">
+              <div v-if="section.items.length" class="inventory-grid">
                 <InventoryItem
-                  v-for="item in privateItemsByMember(member.user_id)"
+                  v-for="item in section.items"
                   :key="item.id"
                   :item="item"
                   :loading="loadingItemId === item.id"
-                  :read-only="member.user_id !== authStore.user?.id"
+                  :read-only="section.readOnly"
                   @use="handleUseItem"
                 />
               </div>
+              <p v-else class="section-empty">No private items yet.</p>
             </div>
           </div>
         </section>
@@ -147,9 +152,10 @@ import InventoryItem from "@/components/inventory/InventoryItem.vue";
 import InventoryFilter from "@/components/inventory/InventoryFilter.vue";
 import { useImpactStore } from "@/stores/impact";
 import inventoryRoomsAPI from '@/api/inventory-rooms'
+import { useInventoryAccess } from '@/composables/useInventoryAccess'
+import type { InventoryItem as InventoryItemType } from '@/api/inventory'
 
 import LoadingState from "@/components/common/LoadingState.vue";
-import inventoryAPI from "@/api/inventory";
 import { isDevelopment } from "@/config/environment";
 
 const router = useRouter();
@@ -158,6 +164,7 @@ const authStore = useAuthStore();
 const impactStore = useImpactStore();
 const apiStatus = ref<{ mode: string } | null>(null);
 const members = ref<Array<{ user_id: string; display_name: string; role: string }>>([])
+const { markItemAsUsedUnified } = useInventoryAccess()
 
 const userDisplayName = computed(() => {
   return authStore.user?.inventoryName || "Your Inventory";
@@ -169,13 +176,63 @@ const formattedTotalImpact = computed(() => impactStore.formattedTotalImpact);
 const loadingItemId = ref<string | null>(null);
 
 // EPIC4: grouping helpers using temporary visibility overrides
-const sharedItems = computed(() => {
-  return inventoryStore.items.filter(i => inventoryStore.getItemVisibility(i.id, i.visibility || 'shared') === 'shared')
+const householdMembers = computed(() => {
+  if (members.value.length > 0) return members.value
+  if (authStore.user) {
+    return [{
+      user_id: authStore.user.id,
+      display_name: authStore.user.displayName,
+      role: authStore.user.isOwner ? 'owner' : 'member'
+    }]
+  }
+  return []
 })
 
-const privateItemsByMember = (userId: string) => {
-  return inventoryStore.items.filter(i => i.userId === userId && inventoryStore.getItemVisibility(i.id, i.visibility || 'shared') === 'private')
-}
+const visibilityForItem = (item: InventoryItemType) =>
+  inventoryStore.getItemVisibility(item.id, item.visibility || 'shared')
+
+const sharedItems = computed(() =>
+  inventoryStore.items.filter(item => visibilityForItem(item) === 'shared')
+)
+
+const privateItemsMap = computed(() => {
+  const map = new Map<string, InventoryItemType[]>()
+  const includeShared = householdMembers.value.length <= 1
+  const fallbackOwner = authStore.user?.id
+
+  for (const member of householdMembers.value) {
+    map.set(member.user_id, [])
+  }
+
+  for (const item of inventoryStore.items) {
+    const visibility = visibilityForItem(item)
+    const ownerId = item.ownerUserId || item.userId || fallbackOwner
+    if (!ownerId) continue
+
+    if (visibility === 'private' || (visibility === 'shared' && includeShared)) {
+      if (!map.has(ownerId)) map.set(ownerId, [])
+      map.get(ownerId)!.push(item)
+    }
+  }
+
+  return map
+})
+
+const privateSectionPalette = ['private-theme-mint', 'private-theme-plum', 'private-theme-sand']
+
+const privateSections = computed(() => householdMembers.value.map((member, index) => {
+  const itemsForMember = privateItemsMap.value.get(member.user_id) ?? []
+  const isCurrentUser = member.user_id === authStore.user?.id
+  return {
+    member,
+    items: itemsForMember,
+    colorClass: privateSectionPalette[index % privateSectionPalette.length],
+    heading: isCurrentUser ? 'My Private Items' : `${member.display_name}'s Private Items`,
+    readOnly: !isCurrentUser
+  }
+}))
+
+const showSharedSection = computed(() => householdMembers.value.length > 1)
 
 const retryLoad = async () => {
   inventoryStore.clearError();
@@ -227,36 +284,25 @@ const handleUseItem = async (itemId: string) => {
   loadingItemId.value = itemId;
 
   try {
-    let result;
+    const originalItem = inventoryStore.getItemById(itemId)
+    const { impact, consumedResponse } = await markItemAsUsedUnified(itemId)
 
-    // Try login_code-based API first (preferred method)
-    if (authStore.user.loginCode) {
-      console.log('📤 Attempting to mark item as used via login_code API');
-      try {
-        result = await inventoryStore.markItemAsUsedByLoginCode(itemId, authStore.user.loginCode);
-        console.log('✅ Successfully marked item as used via login_code API:', result);
-
-        // For login_code API, we just get basic response, no impact data
-        // Create a simple success feedback
-        if (result) {
-          const mockImpact = {
-            itemId: itemId,
-            itemName: 'Item',
-            moneySaved: 2.50,
-            co2Avoided: 0.5,
-            actionType: 'used' as const,
-            timestamp: new Date().toISOString()
-          };
-          impactStore.showImpact(mockImpact);
+    const resolvedImpact = impact ?? (originalItem
+      ? {
+          itemId: originalItem.id,
+          itemName: originalItem.name,
+          moneySaved: originalItem.estimatedCost ?? 0,
+          co2Avoided: originalItem.estimatedCo2Kg ?? 0,
+          actionType: 'used' as const,
+          timestamp: new Date().toISOString()
         }
-      } catch (loginCodeError) {
-        console.error('❌ Login code API failed:', loginCodeError);
-        throw loginCodeError;
-      }
-    } else {
-      // No login code available, cannot mark item as used
-      console.error('❌ No login code available');
-      throw new Error('Login code is required to mark item as used');
+      : null)
+
+    if (resolvedImpact) {
+      impactStore.showImpact(resolvedImpact)
+      impactStore.updateTotalImpact(resolvedImpact)
+    } else if (consumedResponse) {
+      console.warn('Item consumed but no impact data available', consumedResponse)
     }
   } catch (error) {
     console.error("Failed to mark item as used:", error);
@@ -631,8 +677,53 @@ onMounted(async () => {
 
 /* EPIC4 sections */
 .section-block { margin-bottom: var(--spacing-xl); }
-.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-sm); }
-.section-header h2 { margin: 0; color: var(--color-text-primary); }
+.section-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-bottom: var(--spacing-sm);
+}
+.section-header h2 {
+  margin: 0;
+  color: var(--color-text-primary);
+}
+.section-subtext {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.65);
+}
+.section-empty {
+  margin: 0;
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius-md);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+}
+.shared-section,
+.private-section {
+  padding: var(--spacing-lg);
+  border-radius: var(--border-radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.35);
+  backdrop-filter: blur(8px);
+}
+.shared-section {
+  border-left: 4px solid rgba(129, 140, 248, 0.8);
+}
+.private-theme-mint {
+  border-left: 4px solid rgba(16, 185, 129, 0.9);
+  background: rgba(16, 185, 129, 0.18);
+}
+.private-theme-plum {
+  border-left: 4px solid rgba(192, 132, 252, 0.9);
+  background: rgba(192, 132, 252, 0.18);
+}
+.private-theme-sand {
+  border-left: 4px solid rgba(250, 204, 21, 0.85);
+  background: rgba(250, 204, 21, 0.18);
+}
 
 .dev-info {
   margin-top: var(--spacing-xl);

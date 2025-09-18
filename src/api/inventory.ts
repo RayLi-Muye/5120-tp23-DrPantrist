@@ -12,6 +12,7 @@ export interface InventoryItem {
   itemId: string
   name: string
   category: string
+  categoryId?: number
   quantity: number
   unit: string
   addedDate: string
@@ -23,6 +24,10 @@ export interface InventoryItem {
   // Ownership and visibility (EPIC4 support)
   ownerUserId?: string
   visibility?: 'shared' | 'private'
+  // Sustainability metadata from backend
+  estimatedCost?: number
+  estimatedCo2Kg?: number
+  currency?: string
 }
 
 export interface AddItemRequest {
@@ -50,6 +55,13 @@ export interface AddItemByLoginCodeRequest {
   quantity: number | string
   purchased_at: string | Date
   actual_expiry: string | Date
+  visibility?: 'shared' | 'private'
+  owner_user_id?: string
+}
+
+export interface AddItemByLoginCodeResult {
+  created: InventoryItem
+  items?: InventoryItem[]
 }
 
 // New interface for /items/{item_id}/consume API endpoint
@@ -63,6 +75,15 @@ export interface MarkAsUsedResponse {
   item_id: string
   quantity: number
   updated_at: string
+  inventory_id?: string
+  visibility?: 'shared' | 'private'
+}
+
+export interface ConsumeItemResult {
+  consumed: MarkAsUsedResponse | null
+  items?: InventoryItem[]
+  impact?: ImpactData | null
+  raw?: unknown
 }
 
 export interface ImpactData {
@@ -119,30 +140,107 @@ function toDateYYYYMMDD(input?: string | Date): string | undefined {
   return `${d.getFullYear()}-${m}-${day}`
 }
 
+function toFiniteNumber(value: unknown): number | undefined {
+  if (value == null) return undefined
+  const parsed = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+function pickNumber(source: Record<string, unknown>, keys: string[]): number | undefined {
+  for (const key of keys) {
+    if (key in source) {
+      const value = toFiniteNumber(source[key])
+      if (value !== undefined) return value
+    }
+  }
+  return undefined
+}
+
+function pickString(source: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = source[key]
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value
+    }
+  }
+  return undefined
+}
+
+function mapImpactPayload(payload: any, fallback: {
+  itemId: string
+  itemName: string
+  estimatedCost?: number
+  estimatedCo2Kg?: number
+}): ImpactData | null {
+  if (!payload && !fallback) return null
+
+  const moneySaved = toFiniteNumber(payload?.money_saved) ??
+    toFiniteNumber(payload?.moneySaved) ??
+    toFiniteNumber(payload?.value) ??
+    fallback.estimatedCost ?? 0
+
+  const co2Avoided = toFiniteNumber(payload?.co2_kg) ??
+    toFiniteNumber(payload?.co2Kg) ??
+    toFiniteNumber(payload?.co2e) ??
+    toFiniteNumber(payload?.co2e_kg) ??
+    fallback.estimatedCo2Kg ?? 0
+
+  const actionType = (payload?.action_type || payload?.actionType) === 'discarded' ? 'discarded' : 'used'
+  const itemName = payload?.item_name || payload?.itemName || fallback.itemName || 'Item'
+  const itemId = payload?.item_id || payload?.itemId || fallback.itemId
+  const timestamp = typeof payload?.timestamp === 'string' ? payload.timestamp : new Date().toISOString()
+
+  return {
+    itemId: String(itemId),
+    itemName: String(itemName),
+    moneySaved,
+    co2Avoided,
+    actionType,
+    timestamp
+  }
+}
+
 // Map backend item shape to frontend InventoryItem
 function mapBackendItemToInventoryItem(item: any): InventoryItem {
+  const categoryName = pickString(item, ['category_name', 'category', 'categoryLabel']) || 'Unknown'
+  const unit = pickString(item, ['unit', 'measurement_unit', 'quantity_unit']) || 'pcs'
+  const estimatedCost = pickNumber(item, ['price_total', 'price', 'estimated_price', 'total_price'])
+  const estimatedCo2Kg = pickNumber(item, ['co2_kg', 'co2e', 'co2e_kg', 'estimated_co2_kg'])
+
   return {
     id: item.item_id,
     userId: item.created_by,
-    itemId: String(item.grocery_id),
-    name: item.grocery_name || `Item ${item.grocery_id}`,
-    category: 'Unknown',
-    quantity: item.quantity || 0,
-    unit: 'pcs',
+    itemId: String(item.grocery_id ?? item.product_id ?? item.item_id),
+    name: item.grocery_name || item.name || `Item ${item.grocery_id ?? ''}`,
+    category: categoryName,
+    categoryId: toFiniteNumber(item.category_id),
+    quantity: toFiniteNumber(item.quantity) ?? 0,
+    unit,
     addedDate:
       item.purchased_at ||
       item.created_at?.split('T')[0] ||
       new Date().toISOString().split('T')[0],
     expiryDate:
       item.actual_expiry ||
+      item.expiry_date ||
       new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    status: item.quantity && item.quantity > 0 ? 'active' : 'used',
-    notes: '',
+    status: toFiniteNumber(item.quantity) && toFiniteNumber(item.quantity)! > 0 ? 'active' : 'used',
+    notes: item.notes || '',
     createdAt: item.created_at || new Date().toISOString(),
     updatedAt: item.updated_at || new Date().toISOString(),
-    ownerUserId: item.created_by,
-    visibility: item.visibility === 'private' || item.visibility === 'shared' ? item.visibility : 'shared'
+    ownerUserId: item.owner_user_id || item.created_by,
+    visibility: item.visibility === 'private' || item.visibility === 'shared' ? item.visibility : 'shared',
+    estimatedCost,
+    estimatedCo2Kg,
+    currency: pickString(item, ['currency', 'price_currency'])
   }
+}
+
+function ensureInventoryItem(item: any): InventoryItem {
+  if (item && typeof item === 'object' && 'id' in item && 'name' in item && 'expiryDate' in item) {
+    return item as InventoryItem
+  }
+  return mapBackendItemToInventoryItem(item)
 }
 
 const inventoryAPI = {
@@ -307,7 +405,7 @@ const inventoryAPI = {
    * @param itemData - The item data to add with login_code
    * @returns Promise<InventoryItem> - The created inventory item
    */
-  async addItemByLoginCode(itemData: AddItemByLoginCodeRequest): Promise<InventoryItem> {
+  async addItemByLoginCode(itemData: AddItemByLoginCodeRequest): Promise<AddItemByLoginCodeResult> {
     // Validate required fields
     if (!itemData.login_code || itemData.grocery_id == null) {
       throw new InventoryAPIError(
@@ -327,12 +425,18 @@ const inventoryAPI = {
         throw new InventoryAPIError('Quantity must be a positive number.', 'addItemByLoginCode')
       }
 
+      if (itemData.visibility === 'private' && !itemData.owner_user_id) {
+        throw new InventoryAPIError('Owner user ID is required for private items.', 'addItemByLoginCode')
+      }
+
       const requestPayload = {
         login_code: String(itemData.login_code).trim(),
         grocery_id: groceryIdNum,
         quantity: quantityNum,
         ...(itemData.purchased_at ? { purchased_at: toDateYYYYMMDD(itemData.purchased_at)! } : {}),
-        ...(itemData.actual_expiry ? { actual_expiry: toDateYYYYMMDD(itemData.actual_expiry)! } : {})
+        ...(itemData.actual_expiry ? { actual_expiry: toDateYYYYMMDD(itemData.actual_expiry)! } : {}),
+        ...(itemData.visibility ? { visibility: itemData.visibility } : {}),
+        ...(itemData.owner_user_id ? { owner_user_id: itemData.owner_user_id } : {})
       }
       
       logger.debug('Request: POST /items/by-login-code', {
@@ -345,7 +449,9 @@ const inventoryAPI = {
           grocery_id: typeof requestPayload.grocery_id,
           quantity: typeof requestPayload.quantity,
           purchased_at: typeof requestPayload.purchased_at,
-          actual_expiry: typeof requestPayload.actual_expiry
+          actual_expiry: typeof requestPayload.actual_expiry,
+          visibility: typeof requestPayload.visibility,
+          owner_user_id: typeof requestPayload.owner_user_id
         }
       })
       
@@ -354,7 +460,21 @@ const inventoryAPI = {
       )
       
       logger.debug('Success: POST /items/by-login-code', response.data)
-      return response.data as InventoryItem
+      const data = response.data
+
+      const itemsArray = Array.isArray(data?.items)
+        ? (data.items as any[]).map(ensureInventoryItem)
+        : undefined
+
+      const insertedRaw = data?.inserted ?? data?.item ?? data?.created ?? data
+      const created = ensureInventoryItem(
+        insertedRaw && insertedRaw.item_id ? insertedRaw : (itemsArray ? itemsArray[itemsArray.length - 1] : insertedRaw)
+      )
+
+      return {
+        created,
+        items: itemsArray
+      }
     } catch (error) {
       const apiError = error as APIError
       const detail = (apiError as any)?.response?.data?.detail || (apiError as any)?.details?.detail || ''
@@ -408,12 +528,11 @@ const inventoryAPI = {
   },
 
   /**
-   * Mark an item as used via login_code using /items/{item_id}/consume endpoint
+   * Mark an item as used via login_code by deleting it from the shared inventory endpoint
    * @param itemId - The ID of the item to mark as used
    * @param loginCode - The user's login code
-   * @returns Promise<MarkAsUsedResponse> - Response from the consume endpoint
    */
-  async markAsUsedByLoginCode(itemId: string, loginCode: string): Promise<MarkAsUsedResponse> {
+  async markAsUsedByLoginCode(itemId: string, loginCode: string): Promise<ConsumeItemResult> {
     if (!itemId) {
       throw new InventoryAPIError('Item ID is required', 'markAsUsedByLoginCode')
     }
@@ -422,21 +541,28 @@ const inventoryAPI = {
     }
 
     try {
-      logger.debug('Request: PATCH /items/{item_id}/consume', {
-        url: `/items/${itemId}/consume`,
-        method: 'PATCH',
-        data: { login_code: loginCode, consumed: true }
+      logger.debug('Request: DELETE /items/{item_id}/by-login-code', {
+        url: `/items/${itemId}/by-login-code`,
+        method: 'DELETE',
+        params: { login_code: loginCode }
       })
       
       const response = await retryRequest(() =>
-        apiClient.patch(`/items/${itemId}/consume`, {
-          login_code: loginCode,
-          consumed: true
+        apiClient.delete(`/items/${itemId}/by-login-code`, {
+          params: { login_code: loginCode }
         })
       )
       
-      logger.debug('Success: PATCH /items/{item_id}/consume', response.data)
-      return response.data as MarkAsUsedResponse
+      logger.debug('Success: DELETE /items/{item_id}/by-login-code', response.data)
+      const data = response.data ?? {}
+
+      return {
+        consumed: null,
+        items: undefined,
+        impact: null,
+        // expose raw response for debugging if needed
+        ...(data && typeof data === 'object' ? { raw: data } : {})
+      }
     } catch (error) {
       const apiError = error as APIError
       throw new InventoryAPIError(

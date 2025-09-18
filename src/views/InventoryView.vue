@@ -90,20 +90,25 @@ const handleUseItem = async (itemId: string) => {
   loadingItemId.value = itemId;
 
   try {
+    const originalItem = inventoryStore.getItemById(itemId)
     const { impact, consumedResponse } = await markItemAsUsedUnified(itemId);
-    if (impact) {
-      impactStore.showImpact(impact);
+
+    const resolvedImpact = impact ?? (originalItem
+      ? {
+          itemId: originalItem.id,
+          itemName: originalItem.name,
+          moneySaved: originalItem.estimatedCost ?? 0,
+          co2Avoided: originalItem.estimatedCo2Kg ?? 0,
+          actionType: 'used' as const,
+          timestamp: new Date().toISOString()
+        }
+      : null)
+
+    if (resolvedImpact) {
+      impactStore.showImpact(resolvedImpact)
+      impactStore.updateTotalImpact(resolvedImpact)
     } else if (consumedResponse) {
-      // Show a simple impact toast since consume endpoint does not return impact
-      const mockImpact = {
-        itemId,
-        itemName: 'Item',
-        moneySaved: 2.5,
-        co2Avoided: 0.5,
-        actionType: 'used' as const,
-        timestamp: new Date().toISOString()
-      };
-      impactStore.showImpact(mockImpact);
+      logger.warn('Item consumed without impact data', consumedResponse)
     }
   } catch (error) {
     logger.error("Failed to mark item as used", error);

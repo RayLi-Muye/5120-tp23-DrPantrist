@@ -251,7 +251,7 @@ Response (sample):
     ]
   }
 
-DELETE /items/{item_id}/by-login-code?login_code=ABCD12   (physical delete)
+DELETE /items/{item_id}/by-login-code?login_code=ABCD12
 Example:
   curl -X DELETE "https://api.tp23.me/items/9a6a9f0f-1c6d-4e2e-9d6c-9f2b1f3a1234/by-login-code?login_code=ABCD12"
 Response:
@@ -264,3 +264,29 @@ Notes
 - Create is pure INSERT (no accumulation). purchased_at defaults to today if omitted.
 - Triggers enforce: only inventory members can write; updated_at auto-refreshes on UPDATE.
 - Times are in TIMESTAMPTZ; display timezone can be adjusted in SQL (e.g., AT TIME ZONE).
+
+### 流程
+
+创建用户（POST .../users/create），记录返回的 user\_id 与 login\_code。
+
+创建库存（POST .../inventories/create，用上一步的 owner\_user\_id），记录 inventory\_id 与 share\_code。
+
+让第二个用户加入：
+
+方式A：POST .../inventories/{inventory\_id}/join（带 user\_id+share\_code）
+
+方式B：POST .../inventories/join/by-login-code（带 login\_code+inventory\_id）
+
+成功后，用 GET .../inventories/members/by-login-code?login\_code=... 查看成员=2。
+
+任何成员添加物品：POST .../items/by-login-code（带 login\_code、grocery\_id、quantity…）。
+
+用 GET .../items/by-login-code?login\_code=... 验证新增已出现（按 updated\_at 倒序）。
+
+修改或删除：
+
+PATCH .../items/{item\_id}/by-login-code（变更数量/保质期）
+
+DELETE .../items/{item\_id}/by-login-code?login\_code=...
+
+再次 GET 列表确认结果。

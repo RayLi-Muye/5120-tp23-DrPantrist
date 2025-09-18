@@ -56,7 +56,7 @@ import { useAuthStore } from '@/stores/auth'
 // Adjust the import path if your logo file name changes
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import customLogo from '@/assets/logo/5120-wk1-reference.png'
+import customLogo from '@/assets/logo/logo.png'
 import defaultLogo from '@/assets/logo.svg'
 
 const router = useRouter()

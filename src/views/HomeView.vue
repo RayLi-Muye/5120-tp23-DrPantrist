@@ -1,155 +1,97 @@
 <template>
   <div class="home-page">
-    <!-- Background is now provided globally -->
-
-    <!-- Hero Section -->
     <section class="hero">
       <div class="hero-content">
         <div class="hero-text">
           <h1 class="hero-title">
-            <span class="highlight">Use It Up</span>
-            <br>
-            Stop Food Waste, Start Saving
+            <span class="highlight">Stop Food Waste</span>
+            <br />
+            Use It Up
           </h1>
           <p class="hero-subtitle">
-            Track your groceries, reduce waste, and make a positive impact on the environment.
-            Every item you use instead of throwing away saves money and helps our planet.
+            Track your groceries, saves money and helps our planet.
+            <br />
+            Make a positive impact on where we live.
           </p>
-      <div
-        class="hero-stats"
-        ref="statsRef"
-        @mousemove="onStatsMouseMove"
-        @mouseleave="onStatsLeave"
-      >
-        <!-- Global Waste Card -->
-        <div
-          class="flip-card stat"
-          :class="{ active: activeStat === 'global-waste' }"
-          @click="onStatClick('global-waste')"
-        >
-          <div class="flip-card-inner">
-            <div class="flip-front stat-btn">
-              <span class="stat-number">30%</span>
-              <span class="stat-label">Food wasted globally</span>
-            </div>
-            <div class="flip-back">
-              <button class="close-btn" @click.stop="closeStat">✕</button>
-              <div class="viz-wrap">
-                <svg
-                  class="donut"
-                  viewBox="0 0 42 42"
-                  role="img"
-                  aria-label="Donut showing share wasted"
-                >
-                  <circle
-                    class="donut-ring"
-                    cx="21"
-                    cy="21"
-                    r="15.915"
-                    fill="transparent"
-                    stroke-width="4"
-                  />
-                  <circle
-                    class="donut-segment"
-                    cx="21"
-                    cy="21"
-                    r="15.915"
-                    fill="transparent"
-                    stroke-width="4"
-                    :style="{ strokeDasharray: `${donutValue} ${100 - donutValue}` }"
-                    pathLength="100"
-                  />
-                </svg>
-                <div class="donut-center">{{ donutValue }}%</div>
-                <div class="slider-row">
-                  <label>Adjust share</label>
-                  <input
-                    type="range"
-                    min="10"
-                    max="60"
-                    step="1"
-                    v-model.number="donutValue"
+          <div
+            class="hero-stats"
+            ref="statsRef"
+            @mousemove="onStatsMouseMove"
+            @mouseleave="onStatsLeave"
+          >
+            <div
+              class="flip-card stat"
+              :class="{ active: activeStat === 'global-waste' }"
+              @click="onStatClick('global-waste')"
+            >
+              <div class="flip-card-inner">
+                <div class="flip-front stat-btn">
+                  <span class="stat-number">1/3</span>
+                  <span class="stat-label"><Picture></Picture>roduced food wasted</span>
+                </div>
+                <div class="flip-back">
+                  <button class="close-btn" @click.stop="closeStat">✕</button>
+                  <DataInsightCard
+                    title="Global Food Waste"
+                    description="Nearly one-third of all food produced for human consumption is lost or wasted, amounting to 1.3 billion tonnes per year."
+                    source="United Nations FAO"
+                    :chart-option="globalWasteOption"
                   />
                 </div>
-                <p class="viz-note">Interactive placeholder — replace with real data.</p>
               </div>
             </div>
-          </div>
-        </div>
 
-        <!-- Family Cost Card -->
-        <div
-          class="flip-card stat"
-          :class="{ active: activeStat === 'family-cost' }"
-          @click="onStatClick('family-cost')"
-        >
-          <div class="flip-card-inner">
-            <div class="flip-front stat-btn">
-              <span class="stat-number">$1,500</span>
-              <span class="stat-label">Average family waste/year</span>
-            </div>
-            <div class="flip-back">
-              <button class="close-btn" @click.stop="closeStat">✕</button>
-              <div class="viz-wrap">
-                <div class="big-number">${{ familyCost.toLocaleString() }}</div>
-                <div class="slider-row">
-                  <label>Adjust cost</label>
-                  <input
-                    type="range"
-                    min="200"
-                    max="3000"
-                    step="50"
-                    v-model.number="familyCost"
+            <div
+              class="flip-card stat"
+              :class="{ active: activeStat === 'aussie-impact' }"
+              @click="onStatClick('aussie-impact')"
+            >
+              <div class="flip-card-inner">
+                <div class="flip-front stat-btn">
+                  <span class="stat-number">7,600,000 t</span>
+                  <span class="stat-label">Food wasted in Australia per year</span>
+                </div>
+                <div class="flip-back">
+                  <button class="close-btn" @click.stop="closeStat">✕</button>
+                   <DataInsightCard
+                    title="Australia's Annual Impact"
+                    description="Australia's food waste contributes significantly to economic loss and environmental damage, with households being the largest source."
+                    source="National Food Waste Baseline"
+                    :chart-option="australianImpactOption"
                   />
                 </div>
-                <p class="viz-note">Interactive placeholder — yearly waste per family.</p>
               </div>
             </div>
-          </div>
-        </div>
 
-        <!-- GHG Share Card -->
-        <div
-          class="flip-card stat"
-          :class="{ active: activeStat === 'ghg-share' }"
-          @click="onStatClick('ghg-share')"
-        >
-          <div class="flip-card-inner">
-            <div class="flip-front stat-btn">
-              <span class="stat-number">8%</span>
-              <span class="stat-label">Global greenhouse gases</span>
-            </div>
-            <div class="flip-back">
-              <button class="close-btn" @click.stop="closeStat">✕</button>
-              <div class="viz-wrap">
-                <div class="gauge">
-                  <div class="gauge-fill" :style="{ width: `${ghgPercent}%` }"></div>
+            <div
+              class="flip-card stat"
+              :class="{ active: activeStat === 'ghg-emissions' }"
+              @click="onStatClick('ghg-emissions')"
+            >
+              <div class="flip-card-inner">
+                <div class="flip-front stat-btn">
+                  <span class="stat-number">Top 3</span>
+                  <span class="stat-label">Global greenhouse gas emitter</span>
                 </div>
-                <div class="gauge-label">{{ ghgPercent }}% of global GHG emissions</div>
-                <div class="slider-row">
-                  <label>Adjust share</label>
-                  <input
-                    type="range"
-                    min="2"
-                    max="20"
-                    step="1"
-                    v-model.number="ghgPercent"
+                <div class="flip-back">
+                  <button class="close-btn" @click.stop="closeStat">✕</button>
+                   <DataInsightCard
+                    title="A Staggering Carbon Footprint"
+                    description="If food waste were a country, it would be the third-largest greenhouse gas emitter after the USA and China."
+                    source="UNEP Food Waste Index Report"
+                    :chart-option="ghgEmitterOption"
                   />
                 </div>
-                <p class="viz-note">Interactive placeholder — food loss and waste emissions.</p>
               </div>
             </div>
           </div>
-        </div>
-      </div>
           <button @click="getStarted" class="cta-button">
             Get Started
-            <span class="button-icon">🚀</span>
+            <span class="button-icon">🚪</span>
           </button>
         </div>
       </div>
     </section>
-    <!-- Overlay for active flip card -->
     <div v-if="activeStat" class="stat-overlay" @click="closeStat" />
   </div>
 </template>
@@ -157,13 +99,27 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { ref } from 'vue'
+import DataInsightCard from '@/components/home/DataInsightCard.vue' // Adjust path if needed
 
 const router = useRouter()
 
-type StatId = 'global-waste' | 'family-cost' | 'ghg-share'
-
+// --- State for Flip Cards ---
+type StatId = 'global-waste' | 'aussie-impact' | 'ghg-emissions'
+const activeStat = ref<StatId | null>(null)
 const statsRef = ref<HTMLElement | null>(null)
 
+function onStatClick(id: StatId) {
+  activeStat.value = id
+}
+function closeStat() {
+  activeStat.value = null
+}
+
+const getStarted = () => {
+  router.push('/auth')
+}
+
+// --- Mouse Proximity Effect Logic ---
 function onStatsMouseMove(e: MouseEvent) {
   const el = statsRef.value
   if (!el) return
@@ -173,7 +129,6 @@ function onStatsMouseMove(e: MouseEvent) {
   el.style.setProperty('--mx', `${x}px`)
   el.style.setProperty('--my', `${y}px`)
 }
-
 function onStatsLeave() {
   const el = statsRef.value
   if (!el) return
@@ -181,22 +136,76 @@ function onStatsLeave() {
   el.style.removeProperty('--my')
 }
 
-const getStarted = () => {
-  router.push('/auth')
-}
 
-function onStatClick(id: StatId) {
-  activeStat.value = id
-}
+// --- ECharts Data Configurations ---
 
-function closeStat() {
-  activeStat.value = null
-}
+// Chart 1: Global Waste Donut Chart
+const globalWasteOption = ref({
+  tooltip: { trigger: 'item', formatter: '{b}: {d}%' },
+  series: [{
+    name: 'Food Status',
+    type: 'pie',
+    radius: ['60%', '80%'],
+    avoidLabelOverlap: false,
+    label: { show: false },
+    emphasis: {
+      label: {
+        show: true,
+        fontSize: '16',
+        fontWeight: 'bold',
+        formatter: '{b}\n{d}%',
+      },
+    },
+    data: [
+      { value: 67, name: 'Consumed', itemStyle: { color: '#5cb85c' } },
+      { value: 33, name: 'Wasted', itemStyle: { color: '#d9534f' } },
+    ],
+  }],
+})
 
-const activeStat = ref<StatId | null>(null)
-const donutValue = ref(33)
-const familyCost = ref(1500)
-const ghgPercent = ref(8)
+// Chart 2: Australian Impact Bar Chart
+const australianImpactOption = ref({
+  tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+  grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+  xAxis: { type: 'value' },
+  yAxis: {
+    type: 'category',
+    data: ['Emissions (M Tonnes CO₂e)', 'Cost ($ Billion)', 'Waste (M Tonnes)'],
+    axisLabel: { interval: 0, rotate: 0 }
+  },
+  series: [{
+    name: 'Annual Impact',
+    type: 'bar',
+    data: [
+      { value: 25.3, itemStyle: { color: '#f0ad4e' } },
+      { value: 36.6, itemStyle: { color: '#5cb85c' } },
+      { value: 7.6, itemStyle: { color: '#d9534f' } },
+    ],
+  }],
+})
+
+// Chart 3: GHG Emitter Ranking Bar Chart
+const ghgEmitterOption = ref({
+  tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+  grid: { left: '10%', right: '8%', bottom: 70, top: 24, containLabel: true },
+  xAxis: {
+    type: 'value',
+    name: 'Billion Tonnes CO₂e',
+    nameLocation: 'middle',
+    nameGap: 28,
+  },
+  yAxis: { type: 'category', data: ['India', 'Food Waste', 'USA', 'China'] },
+  series: [{
+    name: 'GHG Emissions',
+    type: 'bar',
+    data: [
+      { value: 3.5, itemStyle: { color: '#6c757d' } },
+      { value: 4.8, itemStyle: { color: '#d9534f' } }, // Highlight
+      { value: 6.1, itemStyle: { color: '#6c757d' } },
+      { value: 12.4, itemStyle: { color: '#6c757d' } },
+    ],
+  }],
+})
 </script>
 
 <style scoped>
@@ -341,8 +350,8 @@ const ghgPercent = ref(8)
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: min(90vw, 560px);
-  height: min(78vh, 520px);
+  width: min(92vw, 620px);
+  height: min(82vh, 560px);
 }
 .flip-card.active .flip-card-inner { transform: rotateY(180deg) scale(1.08); }
 
@@ -715,7 +724,6 @@ const ghgPercent = ref(8)
 </style>
 
 
-<!-- Modal content styles (scoped to this SFC) -->
 <style scoped>
 .viz-wrap { display:grid; place-items:center; gap: 14px; padding: 8px; }
 .donut { width: 200px; height: 200px; transform: rotate(-90deg); }

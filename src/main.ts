@@ -8,7 +8,7 @@ import router from './router'
 // Import logo so Vite resolves the built URL
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import customLogo from '@/assets/logo/5120-wk1-reference.png'
+import customLogo from '@/assets/logo/logo.png'
 
 function applyFavicon(url: string) {
   if (typeof document === 'undefined') return

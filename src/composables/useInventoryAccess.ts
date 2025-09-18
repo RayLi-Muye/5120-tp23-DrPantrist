@@ -3,7 +3,7 @@
 
 import { useAuthStore } from '@/stores/auth'
 import { useInventoryStore } from '@/stores/inventory'
-import type { ImpactData, MarkAsUsedResponse, InventoryItem } from '@/api/inventory'
+import type { ImpactData, ConsumeItemResult, InventoryItem } from '@/api/inventory'
 import inventoryRoomsAPI from '@/api/inventory-rooms'
 import { logger } from '@/utils/logger'
 
@@ -22,13 +22,16 @@ export function useInventoryAccess() {
 
   async function markItemAsUsedUnified(itemId: string): Promise<{
     impact: ImpactData | null
-    consumedResponse: MarkAsUsedResponse | null
+    consumedResponse: ConsumeItemResult['consumed']
   }> {
     if (!authStore.user) return { impact: null, consumedResponse: null }
 
     if (authStore.user.loginCode) {
-      const consumed = await inventoryStore.markItemAsUsedByLoginCode(itemId, authStore.user.loginCode)
-      return { impact: null, consumedResponse: consumed }
+      const result = await inventoryStore.markItemAsUsedByLoginCode(itemId, authStore.user.loginCode)
+      return {
+        impact: result?.impact ?? null,
+        consumedResponse: result?.consumed ?? null
+      }
     } else {
       const impact = await inventoryStore.markItemAsUsed(itemId)
       return { impact, consumedResponse: null }
@@ -56,11 +59,12 @@ export function useInventoryAccess() {
           grocery_id: params.groceryId,
           quantity: params.quantity,
           purchased_at: params.purchasedAt,
-          actual_expiry: params.actualExpiry
+          actual_expiry: params.actualExpiry,
+          visibility: params.visibility,
+          owner_user_id: authStore.user.id
         })
-        if (created && params.visibility) {
-          inventoryStore.setItemVisibility(created.id, params.visibility)
-        }
+        // Visibility overrides retained for compatibility until backend fully supports it
+        if (created && params.visibility) inventoryStore.setItemVisibility(created.id, params.visibility)
         return created
       } catch (err) {
         logger.warn('Login code add failed, will try inventory_id flow', err)

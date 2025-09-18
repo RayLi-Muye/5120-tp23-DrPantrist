@@ -3,7 +3,7 @@
 
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import inventoryAPI, { type InventoryItem, type AddItemRequest, type AddItemToInventoryRequest, type AddItemByLoginCodeRequest, type MarkAsUsedResponse, type ImpactData, InventoryAPIError } from '@/api/inventory'
+import inventoryAPI, { type InventoryItem, type AddItemRequest, type AddItemToInventoryRequest, type AddItemByLoginCodeRequest, type ConsumeItemResult, type ImpactData, InventoryAPIError } from '@/api/inventory'
 import { calculateDaysUntilExpiry } from '@/utils/dateHelpers'
 import { logger } from '@/utils/logger'
 // Removed error handler imports for MVP
@@ -246,10 +246,14 @@ export const useInventoryStore = defineStore('inventory', () => {
   async function addItemByLoginCode(itemData: AddItemByLoginCodeRequest): Promise<InventoryItem | null> {
     try {
       const newItem = await runWithLoadingAndError(async () => {
-        const created = await inventoryAPI.addItemByLoginCode(itemData)
-        items.value.push(created)
+        const result = await inventoryAPI.addItemByLoginCode(itemData)
+        if (result.items) {
+          items.value = result.items
+        } else {
+          items.value.push(result.created)
+        }
         lastFetch.value = Date.now()
-        return created
+        return result.created
       }, ({ loading, error: err }) => {
         isLoading.value = loading
         if (err === null && !loading) error.value = null
@@ -289,7 +293,26 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function markItemAsUsedByLoginCode(itemId: string, loginCode: string): Promise<MarkAsUsedResponse | null> {
+  function buildImpactFromItem(item: InventoryItem | null): ImpactData | null {
+    if (!item) return null
+    const moneySaved = item.estimatedCost
+    const co2Avoided = item.estimatedCo2Kg
+
+    if (moneySaved == null && co2Avoided == null) {
+      return null
+    }
+
+    return {
+      itemId: item.id,
+      itemName: item.name,
+      moneySaved: moneySaved ?? 0,
+      co2Avoided: co2Avoided ?? 0,
+      actionType: 'used',
+      timestamp: new Date().toISOString()
+    }
+  }
+
+  async function markItemAsUsedByLoginCode(itemId: string, loginCode: string): Promise<ConsumeItemResult | null> {
     // Store item reference for potential rollback
     const itemIndex = items.value.findIndex(item => item.id === itemId)
     const itemToRemove = itemIndex !== -1 ? items.value[itemIndex] : null
@@ -297,11 +320,14 @@ export const useInventoryStore = defineStore('inventory', () => {
     try {
       const result = await runWithLoadingAndError(async () => {
         const res = await inventoryAPI.markAsUsedByLoginCode(itemId, loginCode)
-        if (itemIndex !== -1) {
+        if (res.items) {
+          items.value = res.items
+        } else if (itemIndex !== -1) {
           items.value.splice(itemIndex, 1)
         }
         lastFetch.value = Date.now()
-        return res
+        const impact = res.impact ?? buildImpactFromItem(itemToRemove)
+        return { ...res, impact }
       }, ({ loading, error: err }) => {
         isLoading.value = loading
         if (err === null && !loading) error.value = null
