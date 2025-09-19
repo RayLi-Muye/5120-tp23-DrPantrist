@@ -29,6 +29,7 @@ origins = [
     "https://api.tp23.me",
     "https://www.tp23.me",
     "http://localhost:3000",
+    "https://iteration2.d5qwi0lc6ldyd.amplifyapp.com",
 ]
 app.add_middleware(
     CORSMiddleware,
