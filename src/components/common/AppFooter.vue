@@ -3,26 +3,31 @@
     <div class="footer-inner">
       <section class="footer-group" aria-labelledby="footer-team-heading">
         <h2 id="footer-team-heading" class="footer-heading">Team</h2>
-        <p class="footer-placeholder">Replace this text with your team name and member roles.</p>
+        <p class="footer-placeholder">Introducing TP23.</p>
         <ul class="footer-list">
-          <li>Member Name — Role (placeholder)</li>
-          <li>Member Name — Role (placeholder)</li>
-          <li>Member Name — Role (placeholder)</li>
+          <li>Ruifei Li — Information Technology</li>
+          <li>Hao Zhong — Information Technology</li>
+          <li>Gary Yu — Data Science</li>
+          <li>Stuti — Data Science</li>
+          <li>Garvita Zhang — Business Information Systems</li>
         </ul>
       </section>
 
       <section class="footer-group" aria-labelledby="footer-sources-heading">
         <h2 id="footer-sources-heading" class="footer-heading">Data Sources</h2>
-        <p class="footer-placeholder">Update these links with the data references you rely on.</p>
+        <p class="footer-placeholder">Our reference of Data insight.</p>
         <ul class="footer-list">
           <li>
-            <a href="#" class="footer-link">Placeholder Source One</a>
+            <a href="https://www.fao.org/4/mb060e/mb060e00.htm" class="footer-link">Global Food Loss and Waste: Facts and Figures</a>
           </li>
           <li>
-            <a href="#" class="footer-link">Placeholder Source Two</a>
+            <a href="https://www.unep.org/resources/publication/food-waste-index-report-2024" class="footer-link">Food Waste Index Report 2024</a>
           </li>
           <li>
-            <a href="#" class="footer-link">Placeholder Source Three</a>
+            <a href="https://www.dcceew.gov.au/environment/protection/waste/food-waste" class="footer-link">National Food Waste Strategy</a>
+          </li>
+          <li>
+            <a href="https://www.foodbank.org.au/hunger-in-australia/?state=vic" class="footer-link">Hunger in Australia</a>
           </li>
         </ul>
       </section>

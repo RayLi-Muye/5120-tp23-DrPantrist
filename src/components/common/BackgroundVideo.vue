@@ -26,7 +26,7 @@
       @ended="handleIntroEnd"
     />
 
-    
+
   </div>
 </template>
 
@@ -107,6 +107,7 @@ watch(
 
 .bgv__video--intro {
   transition: opacity 600ms ease;
+  filter: brightness(0.5);
 }
 
 .bgv__video--intro.is-fading {

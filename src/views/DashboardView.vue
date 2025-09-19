@@ -87,11 +87,11 @@
                 <p class="section-subtext">Visible to everyone in the household.</p>
               </div>
               <div v-if="sharedItems.length" class="inventory-grid">
-                <InventoryItem
+                <ItemCard
                   v-for="item in sharedItems"
                   :key="item.id"
                   :item="item"
-                  :loading="loadingItemId === item.id"
+                  :is-loading="loadingItemId === item.id"
                   @use="handleUseItem"
                 />
               </div>
@@ -110,11 +110,11 @@
                 <p v-if="section.readOnly" class="section-subtext">Read-only view</p>
               </div>
               <div v-if="section.items.length" class="inventory-grid">
-                <InventoryItem
+                <ItemCard
                   v-for="item in section.items"
                   :key="item.id"
                   :item="item"
-                  :loading="loadingItemId === item.id"
+                  :is-loading="loadingItemId === item.id"
                   :read-only="section.readOnly"
                   @use="handleUseItem"
                 />
@@ -148,7 +148,7 @@ import { useRouter } from "vue-router";
 import { useInventoryStore } from "@/stores/inventory";
 import { useAuthStore } from "@/stores/auth";
 import QuickActions from "@/components/common/QuickActions.vue";
-import InventoryItem from "@/components/inventory/InventoryItem.vue";
+import ItemCard from "@/components/inventory/ItemCard.vue";
 import InventoryFilter from "@/components/inventory/InventoryFilter.vue";
 import { useImpactStore } from "@/stores/impact";
 import inventoryRoomsAPI from '@/api/inventory-rooms'
@@ -670,9 +670,10 @@ onMounted(async () => {
 
 .inventory-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-  gap: var(--spacing-xl);
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--spacing-lg);
   max-width: none;
+  justify-items: center;
 }
 
 /* EPIC4 sections */
