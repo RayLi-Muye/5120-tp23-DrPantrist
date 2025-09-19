@@ -15,7 +15,7 @@ import os
 # postgresql+asyncpg connection string
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql+asyncpg://admin:admin1@localhost:5432/UseItUpDB"  # 本机调试兜底
+    "postgresql+asyncpg://admin:admin1@localhost:5432/UseItUpDB"  
 )
 
 engine = create_async_engine(DATABASE_URL, pool_pre_ping=True, echo=False)
@@ -188,6 +188,18 @@ async def join_inventory(inventory_id: str, body: JoinInventoryIn):
             raise HTTPException(404, "inventory not found")
         if row.share_code != body.share_code:
             raise HTTPException(400, "invalid share code")
+
+        # Detect whether the upper limit has been reached
+        pre = await db.execute(text("""
+            SELECT COUNT(*) AS cnt
+            FROM inventory_members
+            WHERE inventory_id = :iid
+              AND role IS DISTINCT FROM 'owner'
+        """), {"iid": inventory_id})
+        if pre.scalar_one() >= 3:
+            # full
+            raise HTTPException(409, "household is full: max 3 shared members")
+
         try:
             await db.execute(text("""
                 INSERT INTO inventory_members(inventory_id, user_id, role)
@@ -198,6 +210,8 @@ async def join_inventory(inventory_id: str, body: JoinInventoryIn):
             return {"ok": True}
         except Exception as e:
             await db.rollback()
+            if "non-owner members" in str(e):
+                raise HTTPException(409, "household is full: max 3 shared members")
             raise HTTPException(400, f"join failed: {e}")
 
 @app.post("/inventories/join/by-login-code")
@@ -217,6 +231,16 @@ async def join_inventory_by_login_code(body: JoinByLoginCodeIn):
         if not exists.first():
             raise HTTPException(404, "inventory not found")
 
+        # Detect whether the upper limit has been reached
+        pre = await db.execute(text("""
+            SELECT COUNT(*) AS cnt
+            FROM inventory_members
+            WHERE inventory_id = :iid
+              AND role IS DISTINCT FROM 'owner'
+        """), {"iid": body.inventory_id})
+        if pre.scalar_one() >= 3:
+            raise HTTPException(409, "household is full: max 3 shared members")
+
         try:
             await db.execute(text("""
                 INSERT INTO inventory_members(inventory_id, user_id, role)
@@ -227,6 +251,8 @@ async def join_inventory_by_login_code(body: JoinByLoginCodeIn):
             return {"ok": True}
         except Exception as e:
             await db.rollback()
+            if "non-owner members" in str(e):
+                raise HTTPException(409, "household is full: max 3 shared members")
             raise HTTPException(400, f"join by login_code failed: {e}")
 
 @app.get("/inventories/by-user")
@@ -246,13 +272,24 @@ async def get_user_inventory(user_id: str = Query(...)):
         row = res.first()
         if not row:
             return None
+
+        # Remaining spots
+        cnt = (await db.execute(text("""
+            SELECT COUNT(*) AS cnt
+            FROM inventory_members
+            WHERE inventory_id = :iid
+              AND role IS DISTINCT FROM 'owner'
+        """), {"iid": row.inventory_id})).scalar_one()
+
         return {
             "inventory_id": row.inventory_id,
             "inventory_name": row.inventory_name,
             "owner_user_id": row.owner_user_id,
             "share_code": row.share_code,
             "role": row.role,
-            "joined_at": row.joined_at
+            "joined_at": row.joined_at,
+            "member_count_non_owner": cnt,
+            "remaining_slots": max(0, 3 - cnt)
         }
 
 # ---------------------- Items ----------------------
@@ -525,13 +562,23 @@ async def get_inventory_by_login_code(login_code: str = Query(..., min_length=4,
         row = res.first()
         if not row:
             return None
+        # Remaining spots
+        cnt = (await db.execute(text("""
+            SELECT COUNT(*) AS cnt
+            FROM inventory_members
+            WHERE inventory_id = :iid
+              AND role IS DISTINCT FROM 'owner'
+        """), {"iid": row.inventory_id})).scalar_one()
+
         return {
             "inventory_id": row.inventory_id,
             "inventory_name": row.inventory_name,
             "owner_user_id": row.owner_user_id,
             "share_code": row.share_code,
             "role": row.role,
-            "joined_at": row.joined_at
+            "joined_at": row.joined_at,
+            "member_count_non_owner": cnt,
+            "remaining_slots": max(0, 3 - cnt)
         }
 
 @app.get("/inventories/by-login-code/min")
@@ -549,13 +596,70 @@ async def get_inventory_by_login_code_min(login_code: str = Query(..., min_lengt
         row = res.first()
         if not row:
             return None
+
+        # Remaining spots
+        cnt = (await db.execute(text("""
+            SELECT COUNT(*) AS cnt
+            FROM inventory_members
+            WHERE inventory_id = :iid
+              AND role IS DISTINCT FROM 'owner'
+        """), {"iid": row.inventory_id})).scalar_one()
+
         return {
             "inventory_id": row.inventory_id,
             "inventory_name": row.inventory_name,
             "owner_user_id": row.owner_user_id,
             "role": row.role,
-            "joined_at": row.joined_at
+            "joined_at": row.joined_at,
+            "member_count_non_owner": cnt,
+            "remaining_slots": max(0, 3 - cnt)
         }
+
+@app.get("/inventories/members/by-login-code")
+async def list_members_by_login_code(
+    login_code: str = Query(..., min_length=4, max_length=16),
+):
+    async with SessionLocal() as db:
+        # Resolve (user_id, inventory_id); returns 403 if user not in any inventory
+        u_id, inv_id = await _resolve_user_and_inventory_by_login_code(db, login_code)
+
+        # Fetch members
+        rows = (await db.execute(text("""
+            SELECT
+              u.user_id,
+              u.display_name,
+              m.role,
+              m.joined_at,
+              (m.user_id = inv.owner_user_id) AS is_owner
+            FROM inventory_members m
+            JOIN users u        ON u.user_id = m.user_id
+            JOIN inventories inv ON inv.inventory_id = m.inventory_id
+            WHERE m.inventory_id = :iid
+            ORDER BY (m.user_id = inv.owner_user_id) DESC, m.joined_at ASC
+        """), {"iid": inv_id})).fetchall()
+
+        # Current non-owner count and remaining slots (cap = 3)
+        cnt_non_owner = (await db.execute(text("""
+            SELECT COUNT(*) AS cnt
+            FROM inventory_members
+            WHERE inventory_id = :iid
+              AND role IS DISTINCT FROM 'owner'
+        """), {"iid": inv_id})).scalar_one()
+
+        return {
+            "inventory_id": inv_id,
+            "member_count": len(rows),
+            "member_count_non_owner": cnt_non_owner,
+            "remaining_slots": max(0, 3 - cnt_non_owner),
+            "members": [{
+                "user_id": r.user_id,
+                "display_name": r.display_name,
+                "role": r.role,
+                "joined_at": r.joined_at,
+                "is_owner": bool(r.is_owner)
+            } for r in rows]
+        }
+
 
 # ---------------------- Categories & Groceries ----------------------
 
