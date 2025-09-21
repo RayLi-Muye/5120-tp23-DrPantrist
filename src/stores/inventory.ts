@@ -6,6 +6,7 @@ import { defineStore } from 'pinia'
 import inventoryAPI, { type InventoryItem, type AddItemRequest, type AddItemToInventoryRequest, type AddItemByLoginCodeRequest, type ConsumeItemResult, type ImpactData, InventoryAPIError } from '@/api/inventory'
 import { calculateDaysUntilExpiry } from '@/utils/dateHelpers'
 import { logger } from '@/utils/logger'
+import { useGroceriesStore } from '@/stores/groceries'
 // Removed error handler imports for MVP
 import type { FreshnessStatus } from '@/composables/useExpiryStatus'
 import { runWithLoadingAndError } from '@/utils/asyncAction'
@@ -57,6 +58,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   const error = ref<string | null>(null)
   const currentFilter = ref<FilterType>('all')
   const lastFetch = ref<number | null>(null)
+  const groceriesStore = useGroceriesStore()
   // Client-side visibility overrides (temporary until backend adds visibility)
   function loadVisibilityOverrides(): Record<string, 'shared' | 'private'> {
     try {
@@ -67,6 +69,70 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
   const visibilityOverrides = ref<Record<string, 'shared' | 'private'>>(loadVisibilityOverrides())
+
+  type SustainabilityOverride = {
+    pricePerUnit?: number
+    co2PerUnit?: number
+    unit?: string
+    category?: string
+  }
+
+  async function ensureGroceriesData(forceRefresh = false): Promise<void> {
+    try {
+      await groceriesStore.fetchGroceries(forceRefresh)
+    } catch (err) {
+      logger.warn('Failed to refresh groceries list for sustainability estimates', err)
+    }
+  }
+
+  function resolveGroceryId(item: InventoryItem): number | undefined {
+    if (item.groceryId != null && Number.isFinite(item.groceryId)) {
+      return item.groceryId
+    }
+    const parsed = Number(item.itemId)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+
+  function normalizeQuantityForEstimates(q: number | undefined, _unitHint?: string): number {
+    // Quantities are treated as kg/L for mass/volume categories, or item counts otherwise
+    return Number.isFinite(q) ? (q as number) : 1
+  }
+
+  function enrichItemWithEstimates(
+    item: InventoryItem,
+    override?: SustainabilityOverride
+  ): InventoryItem {
+    const groceryId = resolveGroceryId(item)
+    const grocery = groceryId != null ? groceriesStore.getItemByGroceryId(groceryId) : undefined
+
+    const pricePerUnit = override?.pricePerUnit ?? grocery?.avgPrice
+    const co2PerUnit = override?.co2PerUnit ?? grocery?.co2Factor
+    const unit = override?.unit ?? grocery?.unit ?? item.unit
+    const quantity = normalizeQuantityForEstimates(item.quantity, unit)
+    const category = override?.category ?? grocery?.category ?? item.category
+
+    const enriched: InventoryItem = {
+      ...item,
+      unit: unit || item.unit,
+      category: category || item.category
+    }
+
+    if (pricePerUnit != null && Number.isFinite(pricePerUnit)) {
+      const estimatedCost = pricePerUnit * (quantity || 1)
+      if (Number.isFinite(estimatedCost)) {
+        enriched.estimatedCost = Number(estimatedCost.toFixed(2))
+      }
+    }
+
+    if (co2PerUnit != null && Number.isFinite(co2PerUnit)) {
+      const estimatedCo2 = co2PerUnit * (quantity || 1)
+      if (Number.isFinite(estimatedCo2)) {
+        enriched.estimatedCo2Kg = Number(estimatedCo2.toFixed(3))
+      }
+    }
+
+    return enriched
+  }
 
   // Getters
   const activeItems = computed(() =>
@@ -118,8 +184,9 @@ export const useInventoryStore = defineStore('inventory', () => {
 
     try {
       await runWithLoadingAndError(async () => {
+        await ensureGroceriesData()
         const data = await inventoryAPI.getInventory(userId)
-        items.value = data
+        items.value = data.map(item => enrichItemWithEstimates(item))
         lastFetch.value = Date.now()
       }, ({ loading, error: err }) => {
         isLoading.value = loading
@@ -148,9 +215,19 @@ export const useInventoryStore = defineStore('inventory', () => {
     try {
       await runWithLoadingAndError(async () => {
         logger.info('Fetching inventory by login code', { loginCode })
-        const data = await inventoryAPI.getInventoryByLoginCode(loginCode)
-        logger.info('Fetched inventory data', { count: Array.isArray(data) ? data.length : 0 })
-        items.value = data
+        await ensureGroceriesData()
+        // Fetch shared and private lists separately to preserve private classification
+        const [shared, priv] = await Promise.all([
+          inventoryAPI.getItemsByLoginCode(loginCode, { visibility: 'shared' }),
+          inventoryAPI.getItemsByLoginCode(loginCode, { visibility: 'private' })
+        ])
+        const mergedMap = new Map<string, InventoryItem>()
+        for (const it of [...shared, ...priv]) {
+          mergedMap.set(it.id, it)
+        }
+        const merged = Array.from(mergedMap.values()) as InventoryItem[]
+        logger.info('Fetched inventory data (merged)', { count: merged.length })
+        items.value = merged.map(item => enrichItemWithEstimates(item))
         lastFetch.value = Date.now()
       }, ({ loading, error: err }) => {
         isLoading.value = loading
@@ -192,10 +269,12 @@ export const useInventoryStore = defineStore('inventory', () => {
   async function addItem(itemData: AddItemRequest): Promise<InventoryItem | null> {
     try {
       const newItem = await runWithLoadingAndError(async () => {
+        await ensureGroceriesData()
         const created = await inventoryAPI.addItem(itemData)
-        items.value.push(created)
+        const enriched = enrichItemWithEstimates(created)
+        items.value.push(enriched)
         lastFetch.value = Date.now()
-        return created
+        return enriched
       }, ({ loading, error: err }) => {
         isLoading.value = loading
         if (err === null && !loading) error.value = null
@@ -219,10 +298,18 @@ export const useInventoryStore = defineStore('inventory', () => {
   async function addItemToInventory(itemData: AddItemToInventoryRequest): Promise<InventoryItem | null> {
     try {
       const newItem = await runWithLoadingAndError(async () => {
+        await ensureGroceriesData()
+        const fallbackGrocery = groceriesStore.getItemByGroceryId(Number(itemData.grocery_id))
         const created = await inventoryAPI.addItemToInventory(itemData)
-        items.value.push(created)
+        const enriched = enrichItemWithEstimates(created, fallbackGrocery ? {
+          pricePerUnit: fallbackGrocery.avgPrice,
+          co2PerUnit: fallbackGrocery.co2Factor,
+          unit: fallbackGrocery.unit,
+          category: fallbackGrocery.category
+        } : undefined)
+        items.value.push(enriched)
         lastFetch.value = Date.now()
-        return created
+        return enriched
       }, ({ loading, error: err }) => {
         isLoading.value = loading
         if (err === null && !loading) error.value = null
@@ -246,14 +333,32 @@ export const useInventoryStore = defineStore('inventory', () => {
   async function addItemByLoginCode(itemData: AddItemByLoginCodeRequest): Promise<InventoryItem | null> {
     try {
       const newItem = await runWithLoadingAndError(async () => {
+        await ensureGroceriesData()
+        const fallbackGrocery = groceriesStore.getItemByGroceryId(Number(itemData.grocery_id))
         const result = await inventoryAPI.addItemByLoginCode(itemData)
-        if (result.items) {
-          items.value = result.items
+        const created = enrichItemWithEstimates(result.created, fallbackGrocery ? {
+          pricePerUnit: fallbackGrocery.avgPrice,
+          co2PerUnit: fallbackGrocery.co2Factor,
+          unit: fallbackGrocery.unit,
+          category: fallbackGrocery.category
+        } : undefined)
+
+        if (Array.isArray(result.items)) {
+          const enrichedList = result.items.map(item => {
+            if (item.id === created.id) {
+              return created
+            }
+            return enrichItemWithEstimates(item)
+          })
+          if (!enrichedList.some(item => item.id === created.id)) {
+            enrichedList.unshift(created)
+          }
+          items.value = enrichedList
         } else {
-          items.value.push(result.created)
+          items.value.push(created)
         }
         lastFetch.value = Date.now()
-        return result.created
+        return created
       }, ({ loading, error: err }) => {
         isLoading.value = loading
         if (err === null && !loading) error.value = null
@@ -321,7 +426,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       const result = await runWithLoadingAndError(async () => {
         const res = await inventoryAPI.markAsUsedByLoginCode(itemId, loginCode)
         if (res.items) {
-          items.value = res.items
+          items.value = res.items.map(item => enrichItemWithEstimates(item))
         } else if (itemIndex !== -1) {
           items.value.splice(itemIndex, 1)
         }

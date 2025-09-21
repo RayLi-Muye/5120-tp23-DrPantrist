@@ -2,7 +2,7 @@
 // Use-It-Up PWA Frontend
 
 import apiClient, { retryRequest, type APIError } from './axios'
-import { isDevelopment, config } from '../config/environment'
+import { config } from '../config/environment'
 import { logger } from '@/utils/logger'
 
 // Types for API requests/responses
@@ -10,6 +10,7 @@ export interface InventoryItem {
   id: string
   userId: string
   itemId: string
+  groceryId?: number
   name: string
   category: string
   categoryId?: number
@@ -28,6 +29,9 @@ export interface InventoryItem {
   estimatedCost?: number
   estimatedCo2Kg?: number
   currency?: string
+  profileId?: string
+  profileName?: string
+  profilePosition?: number
 }
 
 export interface AddItemRequest {
@@ -57,6 +61,7 @@ export interface AddItemByLoginCodeRequest {
   actual_expiry: string | Date
   visibility?: 'shared' | 'private'
   owner_user_id?: string
+  profile_position?: number | string
 }
 
 export interface AddItemByLoginCodeResult {
@@ -113,21 +118,7 @@ class InventoryAPIError extends Error {
   }
 }
 
-// Health check function
-
-async function checkAPIHealth(): Promise<boolean> {
-  try {
-    const response = await retryRequest(() =>
-      apiClient.get('/health', {
-        timeout: 3000
-      })
-    )
-    return response.status === 200
-  } catch (error) {
-    logger.error('API health check failed', error)
-    return false
-  }
-}
+// (Health check is provided in src/api/index.ts)
 
 // Helpers
 function toDateYYYYMMDD(input?: string | Date): string | undefined {
@@ -166,80 +157,76 @@ function pickString(source: Record<string, unknown>, keys: string[]): string | u
   return undefined
 }
 
-function mapImpactPayload(payload: any, fallback: {
-  itemId: string
-  itemName: string
-  estimatedCost?: number
-  estimatedCo2Kg?: number
-}): ImpactData | null {
-  if (!payload && !fallback) return null
-
-  const moneySaved = toFiniteNumber(payload?.money_saved) ??
-    toFiniteNumber(payload?.moneySaved) ??
-    toFiniteNumber(payload?.value) ??
-    fallback.estimatedCost ?? 0
-
-  const co2Avoided = toFiniteNumber(payload?.co2_kg) ??
-    toFiniteNumber(payload?.co2Kg) ??
-    toFiniteNumber(payload?.co2e) ??
-    toFiniteNumber(payload?.co2e_kg) ??
-    fallback.estimatedCo2Kg ?? 0
-
-  const actionType = (payload?.action_type || payload?.actionType) === 'discarded' ? 'discarded' : 'used'
-  const itemName = payload?.item_name || payload?.itemName || fallback.itemName || 'Item'
-  const itemId = payload?.item_id || payload?.itemId || fallback.itemId
-  const timestamp = typeof payload?.timestamp === 'string' ? payload.timestamp : new Date().toISOString()
-
-  return {
-    itemId: String(itemId),
-    itemName: String(itemName),
-    moneySaved,
-    co2Avoided,
-    actionType,
-    timestamp
-  }
-}
+// Removed unused mapImpactPayload helper (store computes impact when needed)
 
 // Map backend item shape to frontend InventoryItem
-function mapBackendItemToInventoryItem(item: any): InventoryItem {
-  const categoryName = pickString(item, ['category_name', 'category', 'categoryLabel']) || 'Unknown'
-  const unit = pickString(item, ['unit', 'measurement_unit', 'quantity_unit']) || 'pcs'
-  const estimatedCost = pickNumber(item, ['price_total', 'price', 'estimated_price', 'total_price'])
-  const estimatedCo2Kg = pickNumber(item, ['co2_kg', 'co2e', 'co2e_kg', 'estimated_co2_kg'])
+function mapBackendItemToInventoryItem(item: unknown): InventoryItem {
+  const obj = item as Record<string, unknown>
+  const categoryName = pickString(obj, ['category_name', 'category', 'categoryLabel']) || 'Unknown'
+  const unit = pickString(obj, ['unit', 'measurement_unit', 'quantity_unit']) || 'pcs'
+  const estimatedCost = pickNumber(obj, ['price_total', 'price', 'estimated_price', 'total_price'])
+  const estimatedCo2Kg = pickNumber(obj, ['co2_kg', 'co2e', 'co2e_kg', 'estimated_co2_kg'])
+  const profilePosition = pickNumber(obj, ['profile_position'])
+  const profileId = pickString(obj, ['profile_id'])
+  const profileName = pickString(obj, ['profile_name'])
+
+  const id = pickString(obj, ['item_id']) || String(pickNumber(obj, ['item_id']) ?? '')
+  const userId = pickString(obj, ['created_by']) || ''
+  const groceryId = pickNumber(obj, ['grocery_id'])
+  const groceryOrProductId = pickNumber(obj, ['grocery_id']) ?? pickNumber(obj, ['product_id'])
+  const itemId = pickString(obj, ['grocery_id', 'product_id', 'item_id']) || String(groceryOrProductId ?? id)
+  const name = pickString(obj, ['grocery_name', 'name']) || `Item ${groceryId ?? ''}`
+
+  const createdAtRaw = pickString(obj, ['created_at'])
+  const purchasedAt = pickString(obj, ['purchased_at'])
+  const addedDate = purchasedAt || (createdAtRaw ? createdAtRaw.split('T')[0] : new Date().toISOString().split('T')[0])
+
+  const expiryDate = pickString(obj, ['actual_expiry', 'expiry_date']) ||
+    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+  const quantity = toFiniteNumber(obj['quantity' as keyof typeof obj] as unknown) ?? 0
+  const status: InventoryItem['status'] = quantity > 0 ? 'active' : 'used'
+
+  const createdAt = createdAtRaw || new Date().toISOString()
+  const updatedAt = pickString(obj, ['updated_at']) || new Date().toISOString()
+  const ownerUserId = pickString(obj, ['owner_user_id', 'created_by']) || ''
+
+  const rawVis = pickString(obj, ['visibility'])
+  const visibility: 'shared' | 'private' = rawVis === 'private' || rawVis === 'shared' ? rawVis : 'shared'
 
   return {
-    id: item.item_id,
-    userId: item.created_by,
-    itemId: String(item.grocery_id ?? item.product_id ?? item.item_id),
-    name: item.grocery_name || item.name || `Item ${item.grocery_id ?? ''}`,
+    id,
+    userId,
+    itemId,
+    groceryId,
+    name,
     category: categoryName,
-    categoryId: toFiniteNumber(item.category_id),
-    quantity: toFiniteNumber(item.quantity) ?? 0,
+    categoryId: toFiniteNumber(obj['category_id' as keyof typeof obj] as unknown),
+    quantity,
     unit,
-    addedDate:
-      item.purchased_at ||
-      item.created_at?.split('T')[0] ||
-      new Date().toISOString().split('T')[0],
-    expiryDate:
-      item.actual_expiry ||
-      item.expiry_date ||
-      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    status: toFiniteNumber(item.quantity) && toFiniteNumber(item.quantity)! > 0 ? 'active' : 'used',
-    notes: item.notes || '',
-    createdAt: item.created_at || new Date().toISOString(),
-    updatedAt: item.updated_at || new Date().toISOString(),
-    ownerUserId: item.owner_user_id || item.created_by,
-    visibility: item.visibility === 'private' || item.visibility === 'shared' ? item.visibility : 'shared',
+    addedDate,
+    expiryDate,
+    status,
+    notes: pickString(obj, ['notes']) || '',
+    createdAt,
+    updatedAt,
+    ownerUserId,
+    visibility,
     estimatedCost,
     estimatedCo2Kg,
-    currency: pickString(item, ['currency', 'price_currency'])
+    currency: pickString(obj, ['currency', 'price_currency']),
+    profileId,
+    profileName,
+    profilePosition
   }
 }
 
-function ensureInventoryItem(item: any): InventoryItem {
-  if (item && typeof item === 'object' && 'id' in item && 'name' in item && 'expiryDate' in item) {
-    return item as InventoryItem
-  }
+function isInventoryItem(value: unknown): value is InventoryItem {
+  return !!value && typeof value === 'object' && 'id' in (value as any) && 'name' in (value as any) && 'expiryDate' in (value as any)
+}
+
+function ensureInventoryItem(item: unknown): InventoryItem {
+  if (isInventoryItem(item)) return item
   return mapBackendItemToInventoryItem(item)
 }
 
@@ -309,12 +296,60 @@ const inventoryAPI = {
       
       logger.debug('Success: /items/by-login-code', response.data)
       const data = response.data
-      return (data as any[]).map(mapBackendItemToInventoryItem)
+      const list: unknown[] = Array.isArray(data) ? data : []
+      return list.map(mapBackendItemToInventoryItem)
     } catch (error) {
       const apiError = error as APIError
       throw new InventoryAPIError(
         apiError.message || 'Failed to fetch inventory items by login code. Please try again.',
         'getInventoryByLoginCode',
+        apiError
+      )
+    }
+  },
+
+  /**
+   * Get items by login code with optional filters (visibility, profile_position)
+   */
+  async getItemsByLoginCode(loginCode: string, opts?: { visibility?: 'shared' | 'private', profile_position?: number }): Promise<InventoryItem[]> {
+    if (!loginCode) {
+      throw new InventoryAPIError('Login code is required', 'getItemsByLoginCode')
+    }
+
+    try {
+      const code = String(loginCode).trim().toUpperCase()
+      const params = new URLSearchParams({ login_code: code })
+      if (opts?.visibility) params.append('visibility', opts.visibility)
+      if (opts?.profile_position != null) params.append('profile_position', String(opts.profile_position))
+      const url = `/items/by-login-code?${params.toString()}`
+
+      const response = await retryRequest(async () => apiClient.get(url))
+      const list: unknown[] = Array.isArray(response.data) ? response.data : []
+      const mapped = list.map(mapBackendItemToInventoryItem)
+
+      // If server omitted profile_position on private filtered lists, stamp from filter
+      if (opts?.visibility === 'private' && opts?.profile_position != null) {
+        for (const it of mapped) {
+          if (typeof it.profilePosition !== 'number') {
+            it.profilePosition = opts.profile_position
+          }
+        }
+      }
+
+      // Ensure visibility stays consistent with the applied filter when server omits it
+      if (opts?.visibility) {
+        for (const it of mapped) {
+          // Override to match the filter because this list was fetched using it
+          it.visibility = opts.visibility
+        }
+      }
+
+      return mapped
+    } catch (error) {
+      const apiError = error as APIError
+      throw new InventoryAPIError(
+        apiError.message || 'Failed to fetch items by login code',
+        'getItemsByLoginCode',
         apiError
       )
     }
@@ -425,8 +460,16 @@ const inventoryAPI = {
         throw new InventoryAPIError('Quantity must be a positive number.', 'addItemByLoginCode')
       }
 
-      if (itemData.visibility === 'private' && !itemData.owner_user_id) {
-        throw new InventoryAPIError('Owner user ID is required for private items.', 'addItemByLoginCode')
+      let profilePositionNum: number | undefined
+      if (itemData.profile_position != null) {
+        const parsed = Number(itemData.profile_position)
+        if (Number.isFinite(parsed) && parsed >= 1 && parsed <= 3) {
+          profilePositionNum = parsed
+        }
+      }
+
+      if (itemData.visibility === 'private' && profilePositionNum == null) {
+        throw new InventoryAPIError('Profile position is required for private items.', 'addItemByLoginCode')
       }
 
       const requestPayload = {
@@ -436,6 +479,7 @@ const inventoryAPI = {
         ...(itemData.purchased_at ? { purchased_at: toDateYYYYMMDD(itemData.purchased_at)! } : {}),
         ...(itemData.actual_expiry ? { actual_expiry: toDateYYYYMMDD(itemData.actual_expiry)! } : {}),
         ...(itemData.visibility ? { visibility: itemData.visibility } : {}),
+        ...(profilePositionNum != null ? { profile_position: profilePositionNum } : {}),
         ...(itemData.owner_user_id ? { owner_user_id: itemData.owner_user_id } : {})
       }
       
@@ -463,7 +507,7 @@ const inventoryAPI = {
       const data = response.data
 
       const itemsArray = Array.isArray(data?.items)
-        ? (data.items as any[]).map(ensureInventoryItem)
+        ? (data.items as unknown[]).map(ensureInventoryItem)
         : undefined
 
       const insertedRaw = data?.inserted ?? data?.item ?? data?.created ?? data
@@ -471,13 +515,21 @@ const inventoryAPI = {
         insertedRaw && insertedRaw.item_id ? insertedRaw : (itemsArray ? itemsArray[itemsArray.length - 1] : insertedRaw)
       )
 
+      // Ensure client reflects intended privacy immediately when backend omits fields
+      if (requestPayload.visibility === 'private') {
+        const createdMut = created as InventoryItem & { profilePosition?: number }
+        createdMut.visibility = 'private'
+        const pp = (requestPayload as { profile_position?: number }).profile_position
+        if (typeof pp === 'number') createdMut.profilePosition = pp
+      }
+
       return {
         created,
         items: itemsArray
       }
     } catch (error) {
-      const apiError = error as APIError
-      const detail = (apiError as any)?.response?.data?.detail || (apiError as any)?.details?.detail || ''
+      const apiError = error as APIError & { response?: { data?: { detail?: string } } } & { details?: { detail?: string } }
+      const detail = apiError.response?.data?.detail || apiError.details?.detail || ''
 
       // Friendly messages for common server-side validations
       const duplicateConstraint = 'duplicate key value violates unique constraint'

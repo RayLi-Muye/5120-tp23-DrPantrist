@@ -124,7 +124,7 @@ router.beforeEach((to, from, next) => {
   next();
 });
 
-router.afterEach((to, from) => {
+router.afterEach(() => {
   // Remove loading state after navigation completes
   if (typeof window !== "undefined") {
     // Small delay to ensure smooth transition

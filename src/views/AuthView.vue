@@ -48,9 +48,6 @@
           </form>
 
           <div class="auth-options">
-            <button @click="authMode = 'join'" class="option-button">
-              Join Existing Room
-            </button>
             <button @click="authMode = 'login'" class="option-button">
               Use Login Code
             </button>
@@ -125,7 +122,7 @@
       <div v-else-if="authMode === 'login'" class="auth-form">
         <h2>Enter Login Code</h2>
         <p class="form-description">
-          Enter your 6-digit login code to access your inventory
+          Enter your 4-digit login code to access your inventory
         </p>
 
         <form @submit.prevent="handleLogin">
@@ -135,8 +132,8 @@
               id="loginCode"
               v-model="loginCode"
               type="text"
-              placeholder="1ab2c3"
-              maxlength="6"
+              placeholder="AB12"
+              maxlength="4"
               required
               :disabled="isLoading"
             />
@@ -145,7 +142,7 @@
           <button
             type="submit"
             class="btn btn--primary btn--full"
-            :disabled="isLoading || loginCode.length !== 6"
+            :disabled="isLoading || loginCode.trim().length !== 4"
           >
             <span v-if="isLoading">Logging in...</span>
             <span v-else>Access Inventory</span>
@@ -155,9 +152,6 @@
         <div class="auth-options">
           <button @click="authMode = 'create'" class="option-button">
             Create New Room
-          </button>
-          <button @click="authMode = 'join'" class="option-button">
-            Join Existing Room
           </button>
         </div>
       </div>
@@ -244,13 +238,14 @@ const handleJoinRoom = async () => {
 }
 
 const handleLogin = async () => {
-  if (loginCode.value.length !== 6) return
+  const code = loginCode.value.trim().toUpperCase()
+  if (code.length !== 4) return
 
   isLoading.value = true
   authStore.clearError()
 
   try {
-    await authStore.loginWithCode(loginCode.value)
+    await authStore.loginWithCode(code)
     // If we get here, login was successful
     router.push('/dashboard')
   } catch (error) {

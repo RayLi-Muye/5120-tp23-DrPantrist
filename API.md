@@ -1,292 +1,226 @@
-UseItUp Minimal API — Endpoints & Examples
-Generated: 2025-09-12T07:31:22.210240Z
 
-Base URL
-  https://api.tp23.me/
+### 1. 创建用户（可选）
 
-Health
-GET /health
-Example:
-  curl https://api.tp23.me/health
-Response:
-  {"status":"ok"}
+用于单独生成用户的唯一 ID 和登录码（login_code）。通常前端直接使用 **创建库存** 一步到位（会同时创建用户与房间），只有在需要预创建用户时才使用本接口。
 
-Categories & Groceries
-GET /categories
-Example:
-  curl https://api.tp23.me/categories
-Response:
-  [{"category_id":1,"category_name":"Fruits"},{"category_id":2,"category_name":"Vegetables"}]
-Groceries:
-curl  https://api.tp23.me/groceries
-GET /groceries?q=apple&category_id=1&limit=2&offset=0
-Example:
-  curl "https://api.tp23.me/groceries?q=apple&category_id=1&limit=2&offset=0"
-Response (sample):
-  [
-    {
-      "grocery_id": 101,
-      "product_id": 5001,
-      "name": "Apple",
-      "category_id": 1,
-      "dop_pantry_max": 7,
-      "dop_pantry_metric": "days",
-      "dop_refrigerate_max": 30,
-      "dop_refrigerate_metric": "days",
-      "dop_freeze_max": null,
-      "dop_freeze_metric": null,
-      "created_at": "2025-09-01T03:12:45.123456+00:00"
-    }
+接口：POST https://api.tp23.me/users/create
+
+Body 示例：
+```json
+{
+  "display_name": "张三"
+}
+```
+
+返回：user\_id, login\_code （后续操作都要用到 login\_code 来确认身份）
+
+GET 通过 login\_code 获取用户信息
+
+https://api.tp23.me/users/by-login-code?login\_code=ABCD12
+---
+
+### 2. 创建库存（房间，一步到位）
+
+由用户输入“你的名字 + 房间名”发起创建。后端会：
+- 生成用户（带唯一 login_code）；
+- 创建房间（inventory_type 默认 shared）；
+- 把该用户设为 owner 并加入成员表；
+- 自动创建默认 Profile：position=1，名称为用户的 display_name。
+
+接口：POST https://api.tp23.me/inventories/create
+
+Body 示例：
+```json
+{
+  "display_name": "张三",
+  "inventory_name": "我的冰箱"
+}
+```
+
+返回：
+```json
+{
+  "user": {
+    "user_id": "UUID",
+    "display_name": "张三",
+    "login_code": "AB12"
+  },
+  "inventory": {
+    "inventory_id": "UUID",
+    "inventory_name": "我的冰箱",
+    "owner_user_id": "UUID",
+    "inventory_type": "shared"
+  }
+}
+```
+
+GET 通过 login_code 查询房间信息（含 profiles）  
+https://api.tp23.me/inventories/by-login-code?login_code=AB12
+
+
+---
+
+### 3. 邀请其他用户加入库存（不限人数）
+
+通过 login_code 加入（推荐）
+
+接口：POST https://api.tp23.me/inventories/join/by-login-code
+
+Body 示例：
+```json
+{
+  "login_code": "CD34",
+  "inventory_id": "房间UUID"
+}
+```
+
+返回：
+```json
+{ "ok": true }
+```
+
+GET 通过 login_code 获取房间成员  
+https://api.tp23.me/inventories/members/by-login-code?login_code=AB12
+
+
+---
+
+### 4. Profiles（三个档案/库名）
+
+每个房间最多 3 个 Profile（position=1..3）。position=1 为创建者默认档案；owner 可给 position=2、3 添加或改名。
+
+GET 列出当前房间的 profiles（按 position 排序）  
+https://api.tp23.me/inventories/profiles/by-login-code?login_code=AB12
+
+返回示例：
+```json
+{
+  "inventory_id": "UUID",
+  "profiles": [
+    { "profile_id": "UUID", "profile_name": "张三", "position": 1, "created_at": "..." },
+    { "profile_id": "UUID", "profile_name": "Ray",  "position": 2, "created_at": "..." }
   ]
+}
+```
 
-GET /groceries/{grocery_id}
-Example:
-  curl https://api.tp23.me/groceries/101
-Response (sample):
+接口：POST https://api.tp23.me/inventories/profiles/add-or-rename?inventory_id=房间UUID
+
+Body 示例（owner-only）：
+```json
+{
+  "login_code": "AB12",
+  "profile_name": "Gary",
+  "position": 3   // 不传则自动占用最小空位（2或3）
+}
+```
+
+
+---
+
+### 5. 添加物品到库存（Shared / Private）
+
+库存成员可以添加 **共享** 或 **私有** 物品。Shared 为公共；Private 归属某个 profile。
+
+接口：POST https://api.tp23.me/items/by-login-code
+
+Body 示例（Shared）：
+```json
+{
+  "login_code": "ABCD12",
+  "grocery_id": 101,
+  "quantity": 2,
+  "purchased_at": "2025-03-01",
+  "actual_expiry": "2025-03-10"
+}
+```
+
+Body 示例（Private，归 profile position=2）：
+```json
+{
+  "login_code": "AB12",
+  "grocery_id": 101,
+  "quantity": 2,
+  "visibility": "private",
+  "profile_position": 2
+}
+```
+
+GET 通过 login_code 查看房间内物品（可筛选）  
+https://api.tp23.me/items/by-login-code?login_code=AB12  
+可选筛选：
+- visibility=shared | private  
+- 若为 private，可再带：profile_position=1|2|3 或 profile_id=UUID
+
+
+---
+
+### 6. 修改或删除物品
+
+修改物品信息（数量/日期等）  
+接口：PATCH https://api.tp23.me/items/{item_id}/by-login-code
+
+Body 示例：
+```json
+{
+  "login_code": "AB12",
+  "quantity": 3,
+  "actual_expiry": "2025-03-12"
+}
+```
+
+删除物品  
+接口：DELETE https://api.tp23.me/items/{item_id}/by-login-code?login_code=AB12
+
+
+---
+
+### 7. 浏览食材和分类
+
+GET 获取所有分类（详细字段版）  
+https://api.tp23.me/categories
+
+返回示例：
+```json
+[
   {
-    "grocery_id": 101,
-    "product_id": 5001,
-    "name": "Apple",
     "category_id": 1,
-    "dop_pantry_max": 7,
-    "dop_pantry_metric": "days",
-    "dop_refrigerate_max": 30,
-    "dop_refrigerate_metric": "days",
-    "dop_freeze_max": null,
-    "dop_freeze_metric": null,
-    "created_at": "2025-09-01T03:12:45.123456+00:00"
+    "category_name": "蔬菜",
+    "avg_pantry_days": 3,
+    "pantry_product_count": 120,
+    "avg_refrigerate_days": 7,
+    "refrigerate_product_count": 340,
+    "avg_freeze_days": 60,
+    "freeze_product_count": 90,
+    "co2_factor_kg": 0.45,
+    "co2_method": "LCA",
+    "co2_confidence": "medium",
+    "price": 3.99,
+    "product_size": 500,
+    "unit": "g"
   }
+]
+```
 
-Users & Inventories
-GET /users/by-login-code?login_code=ABCD12
-Example:
-  curl "https://api.tp23.me/users/by-login-code?login_code=ABCD12"
-Response:
-  {
-    "user_id": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
-    "display_name": "Alice",
-    "login_code": "ABCD12"
-  }
+GET 获取所有食材  
+https://api.tp23.me/groceries
 
-GET /inventories/by-login-code?login_code=ABCD12      (includes share_code)
-Example:
-  curl "https://api.tp23.me/inventories/by-login-code?login_code=ABCD12"
-Response:
-  {
-    "inventory_id": "15a1ce33-350c-4df9-bec5-9bc005d261bd",
-    "inventory_name": "Mykitchen",
-    "owner_user_id": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
-    "share_code": "K7M2Q9XZ",
-    "role": "owner",
-    "joined_at": "2025-09-10T05:30:00.000000+00:00"
-  }
+GET 条件搜索食材  
+https://api.tp23.me/groceries?q=apple&category_id=2
 
-GET /inventories/by-login-code/min?login_code=ABCD12  (without share_code)
-Example:
-  curl "https://api.tp23.me/inventories/by-login-code/min?login_code=ABCD12"
-Response:
-  {
-    "inventory_id": "15a1ce33-350c-4df9-bec5-9bc005d261bd",
-    "inventory_name": "Mykitchen",
-    "owner_user_id": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
-    "role": "owner",
-    "joined_at": "2025-09-10T05:30:00.000000+00:00"
-  }
+GET 获取某个食材详情  
+https://api.tp23.me/groceries/101
 
-GET /inventories/by-user?user_id={USER_UUID}
-Example:
-  curl "https://api.tp23.me/inventories/by-user?user_id=f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11"
-Response:
-  {
-    "inventory_id": "15a1ce33-350c-4df9-bec5-9bc005d261bd",
-    "inventory_name": "Mykitchen",
-    "owner_user_id": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
-    "share_code": "K7M2Q9XZ",
-    "role": "owner",
-    "joined_at": "2025-09-10T05:30:00.000000+00:00"
-  }
-If user not in any inventory: null
 
-GET /inventories/members/by-login-code?login_code=ABCD12
-Example:
-  curl "https://api.tp23.me/inventories/members/by-login-code?login_code=ABCD12"
-Response:
-  [
-    {
-      "user_id": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
-      "display_name": "Alice",
-      "role": "owner",
-      "joined_at": "2025-09-10T05:30:00.000000+00:00"
-    },
-    {
-      "user_id": "1c0d1c8a-3e1f-4b3d-9c62-9d1f0f6b8f22",
-      "display_name": "Bob",
-      "role": "member",
-      "joined_at": "2025-09-11T02:15:00.000000+00:00"
-    }
-  ]
+---
 
-Items (list)
-GET /items?inventory_id={INVENTORY_UUID}&limit=200
-Example:
-  curl "https://api.tp23.me/items?inventory_id=15a1ce33-350c-4df9-bec5-9bc005d261bd&limit=200"
-Response:
-  [
-    {
-      "item_id": "9a6a9f0f-1c6d-4e2e-9d6c-9f2b1f3a1234",
-      "inventory_id": "15a1ce33-350c-4df9-bec5-9bc005d261bd",
-      "grocery_id": 101,
-      "grocery_name": "Apple",
-      "category_id": 1,
-      "category_name": "Fruits",
-      "quantity": 1.0,
-      "purchased_at": "2025-09-11",
-      "actual_expiry": "2025-09-15",
-      "created_by": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
-      "created_at": "2025-09-11T06:01:22.000000+00:00",
-      "updated_at": "2025-09-11T06:01:22.000000+00:00"
-    }
-  ]
+### 流程（推荐）
 
-GET /items/by-login-code?login_code=ABCD12&limit=200
-Example:
-  curl "https://api.tp23.me/items/by-login-code?login_code=ABCD12&limit=200"
-Response:
-  [
-    {
-      "item_id": "9a6a9f0f-1c6d-4e2e-9d6c-9f2b1f3a1234",
-      "inventory_id": "15a1ce33-350c-4df9-bec5-9bc005d261bd",
-      "grocery_id": 101,
-      "grocery_name": "Apple",
-      "category_id": 1,
-      "category_name": "Fruits",
-      "quantity": 1.0,
-      "purchased_at": "2025-09-11",
-      "actual_expiry": "2025-09-15",
-      "created_by": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
-      "created_at": "2025-09-11T06:01:22.000000+00:00",
-      "updated_at": "2025-09-11T06:01:22.000000+00:00"
-    }
-  ]
-
-Create / Join
-POST /users/create
-Body:
-  {"display_name":"Alice"}
-Example:
-  curl -X POST https://api.tp23.me/users/create -H "Content-Type: application/json" -d '{"display_name":"Alice"}'
-Response:
-  {
-    "user_id": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
-    "display_name": "Alice",
-    "login_code": "ABCD12"
-  }
-
-POST /inventories/create
-Body:
-  {"inventory_name":"Mykitchen","owner_user_id":"<USER_UUID>"}
-Example:
-  curl -X POST https://api.tp23.me/inventories/create -H "Content-Type: application/json" -d '{"inventory_name":"Mykitchen","owner_user_id":"f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11"}'
-Response:
-  {
-    "inventory_id": "15a1ce33-350c-4df9-bec5-9bc005d261bd",
-    "inventory_name": "Mykitchen",
-    "owner_user_id": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
-    "share_code": "K7M2Q9XZ"
-  }
-
-POST /inventories/{inventory_id}/join
-Body:
-  {"user_id":"<USER_UUID>","share_code":"<SHARE_CODE>"}
-Example:
-  curl -X POST https://api.tp23.me/inventories/15a1ce33-350c-4df9-bec5-9bc005d261bd/join -H "Content-Type: application/json" -d '{"user_id":"1c0d1c8a-3e1f-4b3d-9c62-9d1f0f6b8f22","share_code":"K7M2Q9XZ"}'
-Response:
-  {"ok": true}
-
-POST /inventories/join/by-login-code
-Body:
-  {"login_code":"ABCD12","inventory_id":"<INVENTORY_UUID>"}
-Example:
-  curl -X POST https://api.tp23.me/inventories/join/by-login-code -H "Content-Type: application/json" -d '{"login_code":"ABCD12","inventory_id":"15a1ce33-350c-4df9-bec5-9bc005d261bd"}'
-Response:
-  {"ok": true}
-
-Items (create & delete)
-POST /items/by-login-code     (create one row, no accumulation)
-Body:
-  {"login_code":"ABCD12","grocery_id":101,"quantity":1.0,"purchased_at":"2025-09-11","actual_expiry":"2025-09-15"}
-Example:
-  curl -X POST https://api.tp23.me/items/by-login-code -H "Content-Type: application/json" -d '{"login_code":"ABCD12","grocery_id":101,"quantity":1.0,"purchased_at":"2025-09-11","actual_expiry":"2025-09-15"}'
-Response (sample):
-  {
-    "inserted": {
-      "item_id": "9a6a9f0f-1c6d-4e2e-9d6c-9f2b1f3a1234",
-      "inventory_id": "15a1ce33-350c-4df9-bec5-9bc005d261bd",
-      "grocery_id": 101,
-      "grocery_name": "Apple",
-      "category_id": 1,
-      "category_name": "Fruits",
-      "quantity": 1.0,
-      "purchased_at": "2025-09-11",
-      "actual_expiry": "2025-09-15",
-      "created_by": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
-      "created_at": "2025-09-11T06:01:22.000000+00:00",
-      "updated_at": "2025-09-11T06:01:22.000000+00:00"
-    },
-    "items": [
-      {
-        "item_id": "9a6a9f0f-1c6d-4e2e-9d6c-9f2b1f3a1234",
-        "inventory_id": "15a1ce33-350c-4df9-bec5-9bc005d261bd",
-        "grocery_id": 101,
-        "grocery_name": "Apple",
-        "category_id": 1,
-        "category_name": "Fruits",
-        "quantity": 1.0,
-        "purchased_at": "2025-09-11",
-        "actual_expiry": "2025-09-15",
-        "created_by": "f2d0d73c-9e48-4f6a-8d0e-0e9e6d1a7a11",
-        "created_at": "2025-09-11T06:01:22.000000+00:00",
-        "updated_at": "2025-09-11T06:01:22.000000+00:00"
-      }
-    ]
-  }
-
-DELETE /items/{item_id}/by-login-code?login_code=ABCD12
-Example:
-  curl -X DELETE "https://api.tp23.me/items/9a6a9f0f-1c6d-4e2e-9d6c-9f2b1f3a1234/by-login-code?login_code=ABCD12"
-Response:
-  {"ok": true}
-Errors (samples):
-  {"detail":"item not found in your inventory"}   // 404
-  {"detail":"invalid login code"}                 // 404
-
-Notes
-- Create is pure INSERT (no accumulation). purchased_at defaults to today if omitted.
-- Triggers enforce: only inventory members can write; updated_at auto-refreshes on UPDATE.
-- Times are in TIMESTAMPTZ; display timezone can be adjusted in SQL (e.g., AT TIME ZONE).
-
-### 流程
-
-创建用户（POST .../users/create），记录返回的 user\_id 与 login\_code。
-
-创建库存（POST .../inventories/create，用上一步的 owner\_user\_id），记录 inventory\_id 与 share\_code。
-
-让第二个用户加入：
-
-方式A：POST .../inventories/{inventory\_id}/join（带 user\_id+share\_code）
-
-方式B：POST .../inventories/join/by-login-code（带 login\_code+inventory\_id）
-
-成功后，用 GET .../inventories/members/by-login-code?login\_code=... 查看成员=2。
-
-任何成员添加物品：POST .../items/by-login-code（带 login\_code、grocery\_id、quantity…）。
-
-用 GET .../items/by-login-code?login\_code=... 验证新增已出现（按 updated\_at 倒序）。
-
-修改或删除：
-
-PATCH .../items/{item\_id}/by-login-code（变更数量/保质期）
-
-DELETE .../items/{item\_id}/by-login-code?login\_code=...
-
-再次 GET 列表确认结果。
+1) 创建库存（一步到位）：POST .../inventories/create（传 display_name + inventory_name）  
+   - 记录返回的 `user.login_code` 与 `inventory.inventory_id`。  
+2) 其他用户加入：POST .../inventories/join/by-login-code（带 login_code + inventory_id）。  
+3) owner 可添加/改名 Profile：POST .../inventories/profiles/add-or-rename。  
+4) 添加物品：
+   - Shared：POST .../items/by-login-code（不带 visibility）。
+   - Private：POST .../items/by-login-code（带 visibility=private + profile_position）。  
+5) 查看物品：GET .../items/by-login-code（可按 visibility 和 profile 过滤）。  
+6) 修改/删除：PATCH / DELETE 对应接口后，再 GET 验证结果。

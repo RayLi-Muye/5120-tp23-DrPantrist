@@ -28,12 +28,12 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useInventoryStore, type FilterType } from '@/stores/inventory'
 
 const inventoryStore = useInventoryStore()
-
-// Current filter from store
-const currentFilter = computed(() => inventoryStore.currentFilter)
+// Get a proper ref to the primitive filter value
+const { currentFilter } = storeToRefs(inventoryStore)
 
 // Filter options with counts
 const filters = computed(() => {

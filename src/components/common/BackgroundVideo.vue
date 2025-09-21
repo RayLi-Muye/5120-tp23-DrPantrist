@@ -33,9 +33,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-// @ts-ignore
 import INTRO_VIDEO from '@/assets/homepage/homepage_background.mp4'
-// @ts-ignore
 import LOOP_VIDEO from '@/assets/pageBackground/7898649-hd_1920_1080_15fps.mp4'
 
 const route = useRoute()

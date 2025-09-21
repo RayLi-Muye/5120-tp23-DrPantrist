@@ -48,7 +48,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useInventoryStore } from '@/stores/inventory'
-import { useAuthStore } from '@/stores/auth'
 import { formatCurrency, formatCO2 } from '@/utils/formatters'
 
 interface ActivityItem {
@@ -64,7 +63,6 @@ interface ActivityItem {
 }
 
 const inventoryStore = useInventoryStore()
-const authStore = useAuthStore()
 const isLoading = ref(false)
 
 // Mock recent activities - in real app this would come from API

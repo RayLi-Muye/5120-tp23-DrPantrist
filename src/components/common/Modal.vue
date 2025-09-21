@@ -30,6 +30,7 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'UiModal' })
 import { onMounted, onBeforeUnmount, watch, ref } from 'vue'
 
 interface Props {
@@ -108,4 +109,3 @@ onBeforeUnmount(() => {
 .modal-action { padding: 8px 12px; border-radius: 8px; border: 1px solid #ddd; background: #f8f8f8; cursor: pointer; }
 .modal-action:hover { background: #f0f0f0; }
 </style>
-

@@ -95,7 +95,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, toRef } from 'vue'
+import { computed, toRef } from 'vue'
 import { useSwipeGesture } from '@/composables/useSwipeGesture'
 import { useExpiryStatus } from '@/composables/useExpiryStatus'
 import { formatQuantity } from '@/utils/formatters'
@@ -133,7 +133,6 @@ const {
   handleTouchEnd,
   handleTouchCancel,
   isSwiping,
-  swipeProgress,
   swipeProgressPercent,
   isSwipeActive
 } = useSwipeGesture(

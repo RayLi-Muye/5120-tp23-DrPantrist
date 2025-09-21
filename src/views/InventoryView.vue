@@ -30,7 +30,7 @@
         </div>
 
         <!-- Empty State -->
-        <div v-else-if="inventoryStore.items.length === 0" class="empty-state">
+        <div v-else-if="inventoryStore.itemsByFilter.length === 0" class="empty-state">
           <div class="empty-icon">📦</div>
           <h2>No items in your inventory</h2>
           <p>Start by adding some groceries to track</p>
@@ -41,7 +41,7 @@
         <div v-else class="inventory-content">
           <div class="inventory-grid">
             <InventoryItem
-              v-for="item in inventoryStore.items"
+              v-for="item in inventoryStore.itemsByFilter"
               :key="item.id"
               :item="item"
               :loading="loadingItemId === item.id"

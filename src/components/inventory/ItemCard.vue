@@ -125,7 +125,13 @@ const emoji = computed(() => {
   return firstChar
 })
 
-const quantityLabel = computed(() => `${props.item.quantity} ${props.item.unit || 'pcs'}`)
+const quantityLabel = computed(() => {
+  const unit = (props.item.unit || 'pcs').toLowerCase()
+  const qty = Number(props.item.quantity)
+  if (unit === 'kg') return `${qty} kg`
+  if (unit === 'l') return `${Math.round(qty * 1000)} ml`
+  return `${qty} ${props.item.unit || 'pcs'}`
+})
 const formattedCost = computed(() => props.item.estimatedCost != null ? formatCurrency(props.item.estimatedCost) : '—')
 const formattedCo2 = computed(() => props.item.estimatedCo2Kg != null ? formatCO2(props.item.estimatedCo2Kg) : '—')
 const formattedExpiry = computed(() => {

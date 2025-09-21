@@ -111,8 +111,8 @@ async function onCreateHousehold() {
     // Refresh inventory info (to get PIN)
     await loadInventoryInfo()
     householdName.value = ''
-  } catch (e: any) {
-    createError.value = e?.message || 'Failed to create household'
+  } catch (e: unknown) {
+    createError.value = e instanceof Error ? e.message : 'Failed to create household'
   } finally {
     isBusy.value = false
   }
@@ -134,8 +134,8 @@ async function onJoin() {
     await inventoryRoomsAPI.joinRoom(joinInventoryId.value.trim(), userId, joinPin.value.trim())
     // After joining, go back to dashboard
     await router.replace('/dashboard')
-  } catch (e: any) {
-    joinError.value = e?.message || 'Failed to join household. Check PIN and Household ID.'
+  } catch (e: unknown) {
+    joinError.value = e instanceof Error ? e.message : 'Failed to join household. Check PIN and Household ID.'
   } finally {
     isBusy.value = false
   }
@@ -169,14 +169,14 @@ async function loadInventoryInfo() {
       inventory_id: inv.inventory_id,
       inventory_name: inv.inventory_name,
       owner_user_id: inv.owner_user_id,
-      share_code: (inv as any).share_code,
-      role: (inv as any).role,
-      joined_at: (inv as any).joined_at
+      share_code: (inv as { share_code?: string }).share_code || '',
+      role: (inv as { role?: string }).role,
+      joined_at: (inv as { joined_at?: string }).joined_at
     }
     // Fetch members
     members.value = await inventoryRoomsAPI.getInventoryMembersByLoginCode(loginCode)
-  } catch (e: any) {
-    globalError.value = e?.message || 'Failed to load household details'
+  } catch (e: unknown) {
+    globalError.value = e instanceof Error ? e.message : 'Failed to load household details'
   }
 }
 
@@ -248,4 +248,3 @@ input { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #
 .global { margin-top: 12px; }
 @media (max-width: 480px) { .household-view { padding: 12px; } }
 </style>
-

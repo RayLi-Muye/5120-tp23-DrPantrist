@@ -48,6 +48,7 @@ export function useInventoryAccess() {
     purchasedAt: string
     actualExpiry: string
     visibility?: 'shared' | 'private'
+    profilePosition?: number | null
   }): Promise<InventoryItem | null> {
     if (!authStore.user) return null
 
@@ -61,7 +62,7 @@ export function useInventoryAccess() {
           purchased_at: params.purchasedAt,
           actual_expiry: params.actualExpiry,
           visibility: params.visibility,
-          owner_user_id: authStore.user.id
+          ...(params.profilePosition != null ? { profile_position: params.profilePosition } : {})
         })
         // Visibility overrides retained for compatibility until backend fully supports it
         if (created && params.visibility) inventoryStore.setItemVisibility(created.id, params.visibility)

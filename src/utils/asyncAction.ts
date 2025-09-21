@@ -10,8 +10,8 @@ export async function runWithLoadingAndError<T>(
     const result = await action()
     setState({ loading: false, error: null })
     return result
-  } catch (e: any) {
-    const message = typeof e?.message === 'string' ? e.message : 'Operation failed'
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Operation failed'
     setState({ loading: false, error: message })
     throw e
   }

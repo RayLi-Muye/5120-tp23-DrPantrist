@@ -178,7 +178,6 @@ export const useImpactStore = defineStore('impact', () => {
 
     const data = impactCard.value.data
     const totalSaved = totalImpact.value.totalMoneySaved + data.moneySaved
-    const totalCO2 = totalImpact.value.totalCo2Avoided + data.co2Avoided
 
     if (totalSaved < 10) {
       return "Great start! Every item counts."

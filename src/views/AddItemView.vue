@@ -24,44 +24,53 @@
         </div>
       </div>
 
-      <!-- Step 1: Category Selection -->
-      <section v-if="currentStep === 1" class="category-selection">
-        <h2>Choose a category</h2>
-        <CategoryGrid :categories="categoryList" @category-selected="handleCategorySelected" />
-      </section>
+      <Transition name="step-slide" mode="out-in">
+        <!-- Step 1: Category Selection -->
+        <section v-if="currentStep === 1" key="step-1" class="category-selection">
+          <h2>Choose a category</h2>
+          <CategoryGrid
+            :categories="categoryList"
+            @category-selected="handleCategorySelected"
+          />
+        </section>
 
-      <!-- Step 2: Grocery Selection -->
-      <section v-if="currentStep === 2" class="grocery-selection">
-        <div class="section-header">
-          <button @click="goBackToCategories" class="back-to-categories" aria-label="Back to categories">
-            ← {{ selectedCategory?.name }}
-          </button>
-          <h2>Choose an item</h2>
-        </div>
-        <GroceryGrid
-          v-if="selectedCategory"
-          :groceries="groceriesStore.getItemsByCategory(selectedCategory.name)"
-          @item-selected="handleItemSelected"
-        />
-      </section>
+        <!-- Step 2: Grocery Selection -->
+        <section v-else-if="currentStep === 2" key="step-2" class="grocery-selection">
+          <div class="section-header">
+            <button
+              @click="goBackToCategories"
+              class="back-to-categories"
+              aria-label="Back to categories"
+            >
+              ← {{ selectedCategory?.name }}
+            </button>
+            <h2>Choose an item</h2>
+          </div>
+          <GroceryGrid
+            v-if="selectedCategory"
+            :groceries="groceriesStore.getItemsByCategory(selectedCategory.name)"
+            @item-selected="handleItemSelected"
+          />
+        </section>
 
-      <!-- Step 3: Item Details -->
-      <section v-if="currentStep === 3" class="item-details">
-        <div class="section-header">
-          <button @click="goBackToItems" class="back-to-items" aria-label="Back to items">
-            ← {{ selectedGrocery?.name }}
-          </button>
-          <h2>Item Details</h2>
-        </div>
-        <AddItemForm
-          v-if="selectedGrocery"
-          :selected-grocery="selectedGrocery"
-          :is-submitting="isSubmitting"
-          :key="selectedGrocery.id + '-' + selectedGrocery.defaultShelfLife"
-          @submit="handleFormSubmit"
-          @cancel="handleFormCancel"
-        />
-      </section>
+        <!-- Step 3: Item Details -->
+        <section v-else key="step-3" class="item-details">
+          <div class="section-header">
+            <button @click="goBackToItems" class="back-to-items" aria-label="Back to items">
+              ← {{ selectedGrocery?.name }}
+            </button>
+            <h2>Item Details</h2>
+          </div>
+          <AddItemForm
+            v-if="selectedGrocery"
+            :selected-grocery="selectedGrocery"
+            :is-submitting="isSubmitting"
+            :key="selectedGrocery.id + '-' + selectedGrocery.defaultShelfLife"
+            @submit="handleFormSubmit"
+            @cancel="handleFormCancel"
+          />
+        </section>
+      </Transition>
 
       <!-- Error Display -->
       <div v-if="error" class="error-banner">
@@ -78,8 +87,8 @@ import { useRouter } from "vue-router";
 import { useGroceriesStore } from "@/stores/groceries";
 import { useInventoryStore } from "@/stores/inventory";
 import inventoryRoomsAPI from "@/api/inventory-rooms";
-import inventoryAPI from "@/api/inventory";
 import { useAuthStore } from "@/stores/auth";
+import { useDashboardStore } from "@/stores/dashboard";
 import CategoryGrid, { type CategoryInfo } from "@/components/inventory/CategoryGrid.vue";
 import GroceryGrid from "@/components/inventory/GroceryGrid.vue";
 import AddItemForm from "@/components/inventory/AddItemForm.vue";
@@ -93,6 +102,7 @@ const groceriesStore = useGroceriesStore();
 const inventoryStore = useInventoryStore();
 const authStore = useAuthStore();
 const { addInventoryItemUnified } = useInventoryAccess();
+const dashboardStore = useDashboardStore();
 
 // Component state
 const currentStep = ref(1);
@@ -100,6 +110,8 @@ const selectedCategory = ref<CategoryInfo | null>(null);
 const selectedGrocery = ref<GroceryItem | null>(null);
 const isSubmitting = ref(false);
 const error = ref<string | null>(null);
+
+const activeDashboardProfile = computed(() => dashboardStore.activeProfile);
 
 // Category icons mapping
 const getCategoryIcon = (categoryName: string): string => {
@@ -205,17 +217,27 @@ const handleFormSubmit = async (formData: {
     const groceryIdMatch = selectedGrocery.value.id.match(/grocery-(\d+)/);
     const groceryId = groceryIdMatch ? parseInt(groceryIdMatch[1], 10) : parseInt(selectedGrocery.value.id, 10);
 
+    const profilePosition = formData.visibility === 'shared'
+      ? null
+      : activeDashboardProfile.value?.position ?? null
+
+    if (formData.visibility === 'private' && profilePosition == null) {
+      error.value = 'Please select or create a profile before adding a private item.'
+      return
+    }
+
     const result = await addInventoryItemUnified({
       groceryId,
       quantity: formData.quantity,
       purchasedAt: formatDateForAPI(today),
       actualExpiry: formatDateForAPI(expiryDate),
-      visibility: formData.visibility
+      visibility: formData.visibility,
+      profilePosition: profilePosition ?? undefined
     });
 
     if (result) {
-      // Success - navigate to dashboard
-      router.push("/dashboard");
+      // Success - reset to category selection for adding next item
+      goBackToCategories();
     } else {
       // Handle case where addItem returns null (error already set in store)
       error.value = inventoryStore.error || "Failed to add item. Please try again.";
@@ -244,6 +266,9 @@ onMounted(async () => {
   try {
     // Force refresh to ensure latest shelf life (Refrigerate) is used
     await groceriesStore.fetchGroceries(true);
+    if (dashboardStore.profiles.length === 0 && authStore.user?.loginCode && authStore.user?.inventoryId) {
+      await dashboardStore.loadProfiles(authStore.user.loginCode, authStore.user.inventoryId)
+    }
   } catch (err) {
     logger.error('Failed to load groceries', err);
     // Error is handled in the store
@@ -307,6 +332,21 @@ watch(() => groceriesStore.masterList, (list) => {
 .add-item-main {
   max-width: 600px;
   margin: 0 auto;
+}
+
+/* Step transitions */
+.step-slide-enter-active,
+.step-slide-leave-active {
+  transition: opacity var(--duration-fast) ease,
+              transform var(--duration-fast) ease;
+}
+.step-slide-enter-from {
+  opacity: 0;
+  transform: translateY(12px);
+}
+.step-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 
 .step-indicator {

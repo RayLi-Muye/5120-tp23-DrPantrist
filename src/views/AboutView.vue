@@ -47,23 +47,7 @@
           <li>Households with shareable PIN</li>
           <li>Shared and per‑member Private sections</li>
           <li>Code‑based sign‑in (no passwords)</li>
-          <li>Mobile‑first and fast</li>
         </ul>
-      </section>
-
-      <section class="about-section">
-        <h2>🔐 Privacy</h2>
-        <p>
-          Sign in with a short code. Keep your login code and household PIN private. You can log out
-          anytime to clear local data.
-        </p>
-      </section>
-
-      <section class="about-section">
-        <div class="cta-row">
-          <router-link class="cta-btn primary" to="/auth">Get Started</router-link>
-          <router-link class="cta-btn" to="/household">Manage Household</router-link>
-        </div>
       </section>
     </main>
   </div>

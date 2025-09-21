@@ -57,6 +57,8 @@ export interface LoginCodeInventoryResponse {
   owner_user_id: string
   share_code: string
   created_at: string
+  // Optional: backend may include household profiles in this response
+  profiles?: InventoryProfileResponse[]
 }
 
 export interface LoginCodeInventoryMinResponse {
@@ -75,6 +77,32 @@ export interface JoinByLoginCodeRequest {
   inventory_id: string
 }
 
+export interface InventoryProfileResponse {
+  profile_id: string
+  profile_name: string
+  position: number
+  created_at: string
+}
+
+export interface ProfilesResponse {
+  inventory_id: string
+  profiles: InventoryProfileResponse[]
+}
+
+export interface CreateInventoryOneStepResponse {
+  user: {
+    user_id: string
+    display_name: string
+    login_code: string
+  }
+  inventory: {
+    inventory_id: string
+    inventory_name: string
+    owner_user_id: string
+    inventory_type?: string
+  }
+}
+
 // API Service Class
 class InventoryRoomsAPI {
   private baseUrl = config.apiBaseUrl
@@ -90,17 +118,20 @@ class InventoryRoomsAPI {
         fetch(`${this.baseUrl}/users/create`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            display_name: displayName
+            display_name: displayName.trim()
           })
         })
       )
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+        const errorPayload = await response
+          .json()
+          .catch(async () => ({ detail: await response.text().catch(() => '') }))
+        const message = errorPayload?.detail || errorPayload?.message || `HTTP error! status: ${response.status}`
+        throw new Error(message)
       }
 
       const data: CreateUserResponse = await response.json()
@@ -111,6 +142,54 @@ class InventoryRoomsAPI {
       return data
     } catch (error) {
       console.error('Failed to create user:', error)
+      throw error
+    }
+  }
+
+  async createInventoryOneStep(displayName: string, inventoryName: string): Promise<CreateInventoryOneStepResponse> {
+    try {
+      const response = await retryRequest(() =>
+        fetch(`${this.baseUrl}/inventories/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            display_name: displayName.trim(),
+            inventory_name: inventoryName.trim()
+          })
+        })
+      )
+
+      if (!response.ok) {
+        const errorPayload = await response
+          .json()
+          .catch(async () => ({ detail: await response.text().catch(() => '') }))
+        const message = errorPayload?.detail || errorPayload?.message || `HTTP error! status: ${response.status}`
+        throw new Error(message)
+      }
+
+      const data = await response.json() as CreateInventoryOneStepResponse
+
+      if (data.user?.user_id) {
+        localStorage.setItem('user_id', data.user.user_id)
+      }
+      if (data.user?.login_code) {
+        localStorage.setItem('login_code', data.user.login_code)
+      }
+      if (data.inventory) {
+        localStorage.setItem('current_room', JSON.stringify({
+          inventoryId: data.inventory.inventory_id,
+          inventoryName: data.inventory.inventory_name,
+          ownerUserId: data.inventory.owner_user_id,
+          isOwner: true,
+          inventoryType: data.inventory.inventory_type ?? 'shared'
+        }))
+      }
+
+      return data
+    } catch (error) {
+      console.error('Failed to create inventory in one step:', error)
       throw error
     }
   }
@@ -127,18 +206,21 @@ class InventoryRoomsAPI {
         fetch(`${this.baseUrl}/inventories/create`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            inventory_name: inventoryName,
+            inventory_name: inventoryName.trim(),
             owner_user_id: ownerUserId
           })
         })
       )
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+        const errorPayload = await response
+          .json()
+          .catch(async () => ({ detail: await response.text().catch(() => '') }))
+        const message = errorPayload?.detail || errorPayload?.message || `HTTP error! status: ${response.status}`
+        throw new Error(message)
       }
 
       const data: CreateRoomResponse = await response.json()
@@ -243,7 +325,9 @@ class InventoryRoomsAPI {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      const data = await response.json().catch(() => null as any)
+      const data: GetUserRoomsResponse[] | GetUserRoomsResponse | null = await response
+        .json()
+        .catch(() => null)
       if (!data) return []
       if (Array.isArray(data)) return data as GetUserRoomsResponse[]
       return [data as GetUserRoomsResponse]
@@ -367,8 +451,9 @@ class InventoryRoomsAPI {
    */
   async getUserByLoginCode(loginCode: string): Promise<LoginCodeUserResponse> {
     try {
+      const code = String(loginCode || '').trim().toUpperCase()
       const response = await retryRequest(() =>
-        fetch(`${this.baseUrl}/users/by-login-code?login_code=${loginCode}`)
+        fetch(`${this.baseUrl}/users/by-login-code?login_code=${code}`)
       )
 
       if (!response.ok) {
@@ -395,8 +480,9 @@ class InventoryRoomsAPI {
    */
   async getInventoryByLoginCode(loginCode: string): Promise<LoginCodeInventoryResponse> {
     try {
+      const code = String(loginCode || '').trim().toUpperCase()
       const response = await retryRequest(() =>
-        fetch(`${this.baseUrl}/inventories/by-login-code?login_code=${loginCode}`)
+        fetch(`${this.baseUrl}/inventories/by-login-code?login_code=${code}`)
       )
 
       if (!response.ok) {
@@ -438,6 +524,47 @@ class InventoryRoomsAPI {
       return await response.json()
     } catch (error) {
       console.error('Failed to get inventory min by login code:', error)
+      throw error
+    }
+  }
+
+  async getProfilesByLoginCode(loginCode: string): Promise<ProfilesResponse> {
+    try {
+      const response = await retryRequest(() =>
+        fetch(`${this.baseUrl}/inventories/profiles/by-login-code?login_code=${loginCode}`)
+      )
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data as ProfilesResponse
+    } catch (error) {
+      console.error('Failed to get profiles by login code:', error)
+      throw error
+    }
+  }
+
+  async addOrRenameProfile(params: { inventoryId: string; body: { login_code: string; profile_name: string; position?: number } }): Promise<void> {
+    const { inventoryId, body } = params
+    try {
+      const response = await retryRequest(() =>
+        fetch(`${this.baseUrl}/inventories/profiles/add-or-rename?inventory_id=${inventoryId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body)
+        })
+      )
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.detail || errorData.message || `HTTP error! status: ${response.status}`)
+      }
+    } catch (error) {
+      console.error('Failed to add or rename profile:', error)
       throw error
     }
   }
@@ -525,33 +652,6 @@ class InventoryRoomsAPI {
       return { user, inventory }
     } catch (error) {
       console.error('Failed to login with code:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Enhanced createUserAndRoom that returns login_code from backend
-   * @param displayName - Display name for the user
-   * @param inventoryName - Name of the inventory/room
-   * @returns Promise<{user: CreateUserResponse, room: CreateRoomResponse, loginCode: string}>
-   */
-  async createUserAndRoomWithLoginCode(displayName: string, inventoryName: string): Promise<{user: CreateUserResponse, room: CreateRoomResponse, loginCode: string}> {
-    try {
-      // Step 1: Create user (backend returns login_code)
-      const user = await this.createUser(displayName)
-      
-      // Step 2: Create room with the user ID
-      const room = await this.createRoom(inventoryName, user.user_id)
-      
-      // Use login_code from backend response
-      const loginCode = user.login_code
-      
-      // Store login code
-      localStorage.setItem('login_code', loginCode)
-      
-      return { user, room, loginCode }
-    } catch (error) {
-      console.error('Failed to create user and room with login code:', error)
       throw error
     }
   }

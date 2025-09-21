@@ -40,7 +40,7 @@ export const useGroceriesStore = defineStore('groceries', () => {
     error.value = null
 
     try {
-      const groceries = await groceriesAPI.fetchGroceries()
+      const groceries = await groceriesAPI.fetchGroceries(forceRefresh)
       masterList.value = groceries
       lastFetched.value = new Date()
 
@@ -100,6 +100,10 @@ export const useGroceriesStore = defineStore('groceries', () => {
     return masterList.value.find(item => item.id === id)
   }
 
+  const getItemByGroceryId = (groceryId: number): GroceryItem | undefined => {
+    return masterList.value.find(item => item.id === `grocery-${groceryId}`)
+  }
+
   const getItemsByCategory = (category: string): GroceryItem[] => {
     return masterList.value.filter(item => item.category === category)
   }
@@ -121,6 +125,7 @@ export const useGroceriesStore = defineStore('groceries', () => {
 
     // Getters (backward compatibility)
     getItemById,
+    getItemByGroceryId,
     getItemsByCategory
   }
 })

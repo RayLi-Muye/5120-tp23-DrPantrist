@@ -4,6 +4,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import inventoryRoomsAPI from '@/api/inventory-rooms'
+import { useDashboardStore } from '@/stores/dashboard'
 
 export interface User {
   id: string
@@ -54,25 +55,32 @@ export const useAuthStore = defineStore('auth', () => {
       // Use inventory name as display name if not provided
       const userDisplayName = displayName?.trim() || inventoryName.trim()
       
-      // Create user and room using the new login_code process
-      const { user: userResponse, room: roomResponse, loginCode } = await inventoryRoomsAPI.createUserAndRoomWithLoginCode(
+      const response = await inventoryRoomsAPI.createInventoryOneStep(
         userDisplayName,
         inventoryName.trim()
       )
 
+      const createdUser = response.user
+      const createdInventory = response.inventory
+
       const newUser: User = {
-        id: userResponse.user_id,
-        displayName: userResponse.display_name,
-        inventoryName: inventoryName.trim(),
-        loginCode: loginCode,  // Use the loginCode from backend response
-        createdAt: userResponse.created_at || new Date().toISOString(),
-        inventoryId: roomResponse.inventory_id,
+        id: createdUser.user_id,
+        displayName: createdUser.display_name,
+        inventoryName: createdInventory.inventory_name,
+        loginCode: createdUser.login_code,
+        createdAt: new Date().toISOString(),
+        inventoryId: createdInventory.inventory_id,
         isOwner: true
       }
 
       // Save to localStorage
       localStorage.setItem('useItUp_user', JSON.stringify(newUser))
       user.value = newUser
+
+      const dashboardStore = useDashboardStore()
+      if (createdUser.login_code && createdInventory.inventory_id) {
+        await dashboardStore.loadProfiles(createdUser.login_code, createdInventory.inventory_id)
+      }
 
       return newUser
     } catch (err) {
