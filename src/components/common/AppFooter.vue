@@ -9,7 +9,7 @@
           <li>Hao Zhong — Information Technology</li>
           <li>Gary Yu — Data Science</li>
           <li>Stuti — Data Science</li>
-          <li>Garvita Zhang — Business Information Systems</li>
+          <li>Garvita — Business Information Systems</li>
         </ul>
       </section>
 
