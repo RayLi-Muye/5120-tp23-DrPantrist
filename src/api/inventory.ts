@@ -108,6 +108,25 @@ export interface TotalImpactData {
   itemsUsed: number
 }
 
+// Normalized impact stats from GET /stats/by-login-code
+export interface ImpactStatsBucket {
+  moneySaved: number
+  co2SavedKg: number
+}
+
+export interface ProfileImpactStats extends ImpactStatsBucket {
+  position: number
+  profileId: string
+  profileName: string
+}
+
+export interface ImpactStats {
+  inventoryId: string
+  overall: ImpactStatsBucket
+  shared: ImpactStatsBucket
+  profiles: ProfileImpactStats[]
+}
+
 // API Error wrapper for better error handling
 class InventoryAPIError extends Error {
   constructor(
@@ -608,14 +627,28 @@ const inventoryAPI = {
       )
       
       logger.debug('Success: DELETE /items/{item_id}/by-login-code', response.data)
-      const data = response.data ?? {}
+      const data = (response.data ?? {}) as Record<string, unknown>
+
+      const moneySaved = typeof data['money_saved'] === 'number' ? (data['money_saved'] as number) : Number(data['money_saved'] as any)
+      const co2Saved = typeof data['co2_saved_kg'] === 'number' ? (data['co2_saved_kg'] as number) : Number(data['co2_saved_kg'] as any)
+      const consumedAt = typeof data['consumed_at'] === 'string' ? (data['consumed_at'] as string) : new Date().toISOString()
+
+      const impact: ImpactData | null = Number.isFinite(moneySaved) || Number.isFinite(co2Saved)
+        ? {
+            itemId,
+            itemName: '',
+            moneySaved: Number.isFinite(moneySaved) ? (moneySaved as number) : 0,
+            co2Avoided: Number.isFinite(co2Saved) ? (co2Saved as number) : 0,
+            actionType: 'used',
+            timestamp: consumedAt
+          }
+        : null
 
       return {
         consumed: null,
         items: undefined,
-        impact: null,
-        // expose raw response for debugging if needed
-        ...(data && typeof data === 'object' ? { raw: data } : {})
+        impact,
+        raw: data
       }
     } catch (error) {
       const apiError = error as APIError
@@ -674,6 +707,50 @@ const inventoryAPI = {
       throw new InventoryAPIError(
         apiError.message || 'Failed to fetch impact data. Please try again.',
         'getTotalImpact',
+        apiError
+      )
+    }
+  },
+
+  /**
+   * Get room-wide impact stats via login code
+   * Backed by GET /stats/by-login-code?login_code=XXXXXX
+   */
+  async getImpactStatsByLoginCode(loginCode: string): Promise<ImpactStats> {
+    if (!loginCode) {
+      throw new InventoryAPIError('Login code is required', 'getImpactStatsByLoginCode')
+    }
+    try {
+      const response = await retryRequest(() =>
+        apiClient.get('/stats/by-login-code', { params: { login_code: String(loginCode).trim() } })
+      )
+
+      const data = (response.data ?? {}) as any
+      const toBucket = (src: any): ImpactStatsBucket => ({
+        moneySaved: Number(src?.money_saved ?? 0) || 0,
+        co2SavedKg: Number(src?.co2_saved_kg ?? 0) || 0
+      })
+      const profiles: ProfileImpactStats[] = Array.isArray(data?.profiles)
+        ? data.profiles.map((p: any) => ({
+            position: Number(p?.position ?? 0) || 0,
+            profileId: String(p?.profile_id ?? ''),
+            profileName: String(p?.profile_name ?? ''),
+            moneySaved: Number(p?.money_saved ?? 0) || 0,
+            co2SavedKg: Number(p?.co2_saved_kg ?? 0) || 0
+          }))
+        : []
+
+      return {
+        inventoryId: String(data?.inventory_id ?? ''),
+        overall: toBucket(data?.overall),
+        shared: toBucket(data?.shared),
+        profiles
+      }
+    } catch (error) {
+      const apiError = error as APIError
+      throw new InventoryAPIError(
+        apiError.message || 'Failed to fetch impact stats by login code.',
+        'getImpactStatsByLoginCode',
         apiError
       )
     }

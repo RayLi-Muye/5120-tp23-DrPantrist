@@ -37,7 +37,7 @@
                   type="number"
                   :min="minQuantity"
                   :max="maxQuantity"
-                  :step="stepQuantity"
+                  :step="inputStep"
                   class="quantity-field"
                   :class="{ 'error': errors.quantity }"
                 />
@@ -174,37 +174,47 @@ const expiryPresets = computed(() => {
 
 // Form validation
 const isFormValid = computed(() => {
-  return formData.value.quantity > 0 &&
-         formData.value.expiryDate &&
-         isValidDate(formData.value.expiryDate) &&
-         (visibilityChoice.value === 'shared' || visibilityChoice.value === 'private') &&
-         !errors.value.quantity &&
-         !errors.value.expiryDate &&
-         !errors.value.visibility
+  const q = Number(formData.value.quantity)
+  const quantityOk = Number.isFinite(q) && q >= minQuantity.value && q <= maxQuantity.value
+  const expiryOk = !!formData.value.expiryDate && isValidDate(formData.value.expiryDate)
+  const visibilityOk = visibilityChoice.value === 'shared' || visibilityChoice.value === 'private'
+  return quantityOk && expiryOk && visibilityOk &&
+         !errors.value.quantity && !errors.value.expiryDate && !errors.value.visibility
 })
 
-const baseUnit = computed(() => props.selectedGrocery.unit?.toLowerCase())
+const rawUnit = computed(() => props.selectedGrocery.unit?.trim().toLowerCase())
+const unitKind = computed<'mass' | 'volume' | 'either' | 'count'>(() => {
+  const u = rawUnit.value
+  if (!u) return 'count'
+  if (u === 'g' || u === 'kg') return 'mass'
+  if (u === 'ml' || u === 'l') return 'volume'
+  if (u === 'g/ml' || u === 'kg/l') return 'either'
+  return 'count'
+})
 const displayUnit = computed(() => {
-  const u = baseUnit.value
-  if (u === 'g') return 'kg'
-  if (u === 'ml') return 'l'
-  return props.selectedGrocery.unit
+  const u = rawUnit.value
+  if (!u) return 'pcs'
+  if (u === 'g' || u === 'kg') return 'kg'
+  if (u === 'ml' || u === 'l') return 'l'
+  if (u === 'g/ml' || u === 'kg/l') return 'kg/l'
+  return props.selectedGrocery.unit || 'pcs'
 })
 
-const isMassOrVolume = computed(() => baseUnit.value === 'kg' || baseUnit.value === 'l')
+const isMassOrVolume = computed(() => unitKind.value === 'mass' || unitKind.value === 'volume' || unitKind.value === 'either')
 
-const minQuantity = computed(() => baseUnit.value === 'l' ? 100 : (baseUnit.value === 'kg' ? 0.1 : 1))
-const maxQuantity = computed(() => baseUnit.value === 'l' ? 50000 : (baseUnit.value === 'kg' ? 100 : 99))
-const stepQuantity = computed(() => baseUnit.value === 'l' ? 100 : (baseUnit.value === 'kg' ? 0.25 : 1))
+const minQuantity = computed(() => isMassOrVolume.value ? 0.1 : 1)
+const maxQuantity = computed(() => isMassOrVolume.value ? 100 : 99)
+const stepQuantity = computed(() => isMassOrVolume.value ? 0.25 : 1)
 const suggestedQuantities = computed<number[]>(() => {
-  if (baseUnit.value === 'l') return [250, 500, 750, 1000, 1500, 2000]
-  if (baseUnit.value === 'kg') return [0.25, 0.5, 0.75, 1, 1.5, 2]
+  if (isMassOrVolume.value) return [0.25, 0.5, 0.75, 1, 1.5, 2]
   return [1, 2, 3]
 })
 
+// Use a permissive input step for free-form decimal entry
+const inputStep = computed(() => (isMassOrVolume.value ? 'any' : 1))
+
 function normalizeForEstimate(q: number): number {
-  // For liquids, form displays ml; convert to L for pricing/CO₂ factors
-  if (baseUnit.value === 'l') return q / 1000
+  // Quantities already in kg/L when applicable
   return q
 }
 
@@ -252,12 +262,13 @@ const decrementQuantity = () => {
 const resetToDefault = () => {
   const defaultDate = defaultExpiryDate.value
   formData.value.expiryDate = defaultDate.toISOString().split('T')[0]
-  // Default: 1 kg or 1000 ml for mass/volume; otherwise 1
-  if (baseUnit.value === 'kg') formData.value.quantity = 1
-  else if (baseUnit.value === 'l') formData.value.quantity = 1000
-  else formData.value.quantity = 1
+  // Default: 1 for mass/volume (kg/L) and others
+  formData.value.quantity = 1
   formData.value.notes = ''
   visibilityChoice.value = 'private'
+  // Prime validation state
+  validateQuantity()
+  validateExpiryDate()
 }
 
 // Clear validation errors
@@ -267,9 +278,14 @@ const clearErrors = () => {
 
 // Validate quantity
 const validateQuantity = () => {
-  if (!formData.value.quantity || formData.value.quantity < minQuantity.value) {
-    errors.value.quantity = 'Quantity must be at least 1'
-  } else if (formData.value.quantity > maxQuantity.value) {
+  const q = Number(formData.value.quantity)
+  if (!Number.isFinite(q)) {
+    errors.value.quantity = 'Please enter a valid number'
+    return
+  }
+  if (q < minQuantity.value) {
+    errors.value.quantity = `Quantity must be at least ${minQuantity.value}`
+  } else if (q > maxQuantity.value) {
     errors.value.quantity = `Quantity cannot exceed ${maxQuantity.value}`
   } else {
     errors.value.quantity = ''

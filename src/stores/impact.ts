@@ -3,7 +3,7 @@
 
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import inventoryAPI, { type ImpactData, type TotalImpactData, InventoryAPIError } from '@/api/inventory'
+import inventoryAPI, { type ImpactData, type TotalImpactData, type ImpactStats, InventoryAPIError } from '@/api/inventory'
 import { formatCurrency, formatCO2, getCO2Comparison } from '@/utils/formatters'
 // Removed error handler imports for MVP
 
@@ -47,6 +47,7 @@ export const useImpactStore = defineStore('impact', () => {
   })
 
   const isLoadingTotal = ref(false)
+  const isLoadingStats = ref(false)
   const error = ref<string | null>(null)
 
   // Computed properties for formatted display values
@@ -75,6 +76,27 @@ export const useImpactStore = defineStore('impact', () => {
       itemsUsedText: data.itemsUsed === 1 ? '1 item used' : `${data.itemsUsed} items used`
     }
   })
+
+  // Persistent impact stats fetched from backend (by login code)
+  const stats = ref<ImpactStats | null>(null)
+
+  const sharedImpactFormatted = computed(() => {
+    const bucket = stats.value?.shared || { moneySaved: 0, co2SavedKg: 0 }
+    return {
+      money: formatCurrency(bucket.moneySaved),
+      co2: formatCO2(bucket.co2SavedKg)
+    }
+  })
+
+  function profileImpactFormatted(position: number) {
+    const entry = stats.value?.profiles.find(p => p.position === position)
+    const money = entry?.moneySaved ?? 0
+    const co2 = entry?.co2SavedKg ?? 0
+    return {
+      money: formatCurrency(money),
+      co2: formatCO2(co2)
+    }
+  }
 
   // Helper to clear auto-hide timer
   function clearAutoHideTimer(): void {
@@ -148,6 +170,30 @@ export const useImpactStore = defineStore('impact', () => {
     }
   }
 
+  async function fetchImpactStatsByLoginCode(loginCode: string): Promise<void> {
+    if (!loginCode) {
+      error.value = 'Login code is required'
+      return
+    }
+    isLoadingStats.value = true
+    try {
+      const data = await inventoryAPI.getImpactStatsByLoginCode(loginCode)
+      stats.value = data
+      error.value = null
+    } catch (err) {
+      if (err instanceof InventoryAPIError) {
+        error.value = err.message
+      } else if (err instanceof Error && err.message.toLowerCase().includes('network')) {
+        error.value = 'Network error - using cached impact stats if available'
+      } else {
+        error.value = 'Failed to fetch impact stats. Please try again.'
+      }
+      console.error('Failed to fetch impact stats:', err)
+    } finally {
+      isLoadingStats.value = false
+    }
+  }
+
   function updateTotalImpact(impactData: ImpactData): void {
     // Update total impact when an item is used
     if (impactData.actionType === 'used') {
@@ -200,6 +246,7 @@ export const useImpactStore = defineStore('impact', () => {
     impactCard: computed(() => impactCard.value),
     totalImpact: computed(() => totalImpact.value),
     isLoadingTotal,
+    isLoadingStats,
     error,
 
     // Computed
@@ -213,9 +260,14 @@ export const useImpactStore = defineStore('impact', () => {
     hideImpact,
     dismissImpact,
     fetchTotalImpact,
+    fetchImpactStatsByLoginCode,
     updateTotalImpact,
     clearError,
     resetTotalImpact,
-    cleanup
+    cleanup,
+    // Stats
+    stats: computed(() => stats.value),
+    sharedImpactFormatted,
+    profileImpactFormatted
   }
 })

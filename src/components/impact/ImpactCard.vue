@@ -35,7 +35,7 @@
             <div class="impact-metrics__item">
               <div class="impact-metrics__icon">💰</div>
               <div class="impact-metrics__content">
-                <div class="impact-metrics__label">Money Saved</div>
+                <div class="impact-metrics__label">Money Well Spent</div>
                 <div class="impact-metrics__value">{{ formattedImpact.moneySaved }}</div>
               </div>
             </div>

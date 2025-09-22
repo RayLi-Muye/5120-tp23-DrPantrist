@@ -29,7 +29,12 @@ export function formatCO2(kg: number): string {
  * Format quantity with unit
  */
 export function formatQuantity(quantity: number, unit: string): string {
-  if (quantity === 1 && (unit === 'item' || unit === 'piece')) {
+  const u = (unit || '').toLowerCase()
+  // Do not pluralize SI units
+  if (u === 'kg' || u === 'g' || u === 'l' || u === 'ml') {
+    return `${quantity} ${u}`
+  }
+  if (quantity === 1 && (u === 'item' || u === 'piece' || u === 'pcs')) {
     return '1 item'
   }
   return `${quantity} ${unit}${quantity !== 1 ? 's' : ''}`

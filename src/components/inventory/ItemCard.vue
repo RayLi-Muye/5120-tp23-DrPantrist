@@ -194,9 +194,17 @@ const iconAltText = computed(() => `${props.item.name} icon`)
 const quantityLabel = computed(() => {
   const unit = (props.item.unit || 'pcs').toLowerCase()
   const qty = Number(props.item.quantity)
-  if (unit === 'kg') return `${qty} kg`
-  if (unit === 'l') return `${Math.round(qty * 1000)} ml`
-  return `${qty} ${props.item.unit || 'pcs'}`
+
+  const fmt = (n: number): string => {
+    if (!Number.isFinite(n)) return '0'
+    const fixed = n.toFixed(2)
+    return fixed.replace(/\.00$/, '').replace(/(\.\d)0$/, '$1')
+  }
+
+  if (unit === 'kg') return `${fmt(qty)} kg`
+  if (unit === 'l') return `${fmt(qty)} l`
+  if (unit === 'g/ml' || unit === 'kg/l') return `${fmt(qty)} kg/l`
+  return `${fmt(qty)} ${props.item.unit || 'pcs'}`
 })
 const formattedCost = computed(() => props.item.estimatedCost != null ? formatCurrency(props.item.estimatedCost) : '—')
 const formattedCo2 = computed(() => props.item.estimatedCo2Kg != null ? formatCO2(props.item.estimatedCo2Kg) : '—')

@@ -57,7 +57,7 @@
           <div class="section-header">
             <div class="section-title">
               <h2>{{ activeProfile ? `${activeProfile.profileName}'s Inventory` : 'Private Inventory' }}</h2>
-              <p class="section-subtext">Private items stay visible only to the selected member.</p>
+              <p class="section-subtext">Private items only for selected member.</p>
             </div>
             <div class="section-controls">
               <!-- Private local filter -->
@@ -73,11 +73,11 @@
               </div>
               <div class="impact-summary">
                 <div class="impact-summary__item">
-                  <span class="impact-label">Saved</span>
+                  <span class="impact-label">Well Spent</span>
                   <span class="impact-value">{{ privateImpact.money }}</span>
                 </div>
                 <div class="impact-summary__item">
-                  <span class="impact-label">CO₂</span>
+                  <span class="impact-label">CO₂ Avoided</span>
                   <span class="impact-value">{{ privateImpact.co2 }}</span>
                 </div>
               </div>
@@ -122,11 +122,11 @@
               </div>
               <div class="impact-summary">
                 <div class="impact-summary__item">
-                  <span class="impact-label">Saved</span>
+                  <span class="impact-label">Well Spent</span>
                   <span class="impact-value">{{ sharedImpact.money }}</span>
                 </div>
                 <div class="impact-summary__item">
-                  <span class="impact-label">CO₂</span>
+                  <span class="impact-label">CO₂ Avoided</span>
                   <span class="impact-value">{{ sharedImpact.co2 }}</span>
                 </div>
               </div>
@@ -305,14 +305,10 @@ function bumpPrivateImpact(position: number, money: number, co2: number) {
 const privateImpact = computed(() => {
   const pos = activeProfile.value?.position
   if (!pos) return { money: formatCurrency(0), co2: formatCO2(0) }
-  const bucket = sessionPrivateImpact.value[pos] || { money: 0, co2: 0 }
-  return { money: formatCurrency(bucket.money), co2: formatCO2(bucket.co2) }
+  return impactStore.profileImpactFormatted(pos)
 })
 
-const sharedImpact = computed(() => ({
-  money: formatCurrency(sessionSharedImpact.value.money),
-  co2: formatCO2(sessionSharedImpact.value.co2)
-}))
+const sharedImpact = computed(() => impactStore.sharedImpactFormatted)
 
 const retryLoad = async () => {
   inventoryStore.clearError()
@@ -335,6 +331,8 @@ const loadInventory = async () => {
 
     if (authStore.user.loginCode) {
       await inventoryStore.fetchInventoryByLoginCode(authStore.user.loginCode, true)
+      // Fetch persisted impact stats for dashboard counters
+      await impactStore.fetchImpactStatsByLoginCode(authStore.user.loginCode)
     } else {
       await inventoryStore.fetchInventory(authStore.user.id)
     }
@@ -367,16 +365,9 @@ const handleUseItem = async (itemId: string) => {
       impactStore.showImpact(resolvedImpact)
       impactStore.updateTotalImpact(resolvedImpact)
 
-      // Update session section impact
-      if (originalItem) {
-        const pos = getItemPosition(originalItem)
-        if (isItemPrivate(originalItem) && typeof pos === 'number') {
-          bumpPrivateImpact(pos, resolvedImpact.moneySaved, resolvedImpact.co2Avoided)
-        } else {
-          sessionSharedImpact.value.money += resolvedImpact.moneySaved
-          sessionSharedImpact.value.co2 += resolvedImpact.co2Avoided
-          sessionSharedImpact.value.items += 1
-        }
+      // Refresh persisted stats from backend to reflect latest totals
+      if (loginCode.value) {
+        impactStore.fetchImpactStatsByLoginCode(loginCode.value)
       }
     } else if (consumedResponse) {
       console.warn('Item consumed but no impact data available', consumedResponse)

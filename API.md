@@ -128,7 +128,7 @@ Body 示例（Shared）：
 {
   "login_code": "ABCD12",
   "grocery_id": 101,
-  "quantity": 2,
+  "quantity": 2.5,
   "purchased_at": "2025-03-01",
   "actual_expiry": "2025-03-10"
 }
@@ -164,7 +164,7 @@ Body 示例:
 ```json
 {
   "login_code": "AB12",
-  "quantity": 3,
+  "quantity": 3.5,
   "actual_expiry": "2025-03-12"
 }
 返回示例:
