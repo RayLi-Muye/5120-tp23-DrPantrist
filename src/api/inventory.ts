@@ -13,6 +13,8 @@ export interface InventoryItem {
   groceryId?: number
   name: string
   category: string
+  icon?: string
+  imageUrl?: string
   categoryId?: number
   quantity: number
   unit: string

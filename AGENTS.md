@@ -1,44 +1,41 @@
-# Repository Guidelines
+﻿# Repository Guidelines
 
 ## Project Structure & Module Organization
-- Root docs: `5120-tp23-UseItUp/{API_SPECIFICATION.md,BACKEND_REQUIREMENTS.md}`.
-- Frontend (Vue 3 + TypeScript): `frontend/`.
-- Source: `src/` (components, views, stores, composables, api, utils, assets/styles).
-- Tests: `src/**/__tests__/`.
-- Build output: `dist/`.
+- Vue source lives in `src/` with feature folders (`components`, `views`, `stores`, `api`, `composables`, `utils`).
+- Styles sit in `src/assets/styles/`; other media stay under `src/assets/**`; Vite serves static files from `public/`.
+- Tests colocate beside code in `src/**/__tests__/` and reuse the filename with `.spec.ts`.
+- Reference docs: `API_SPECIFICATION.md`, `BACKEND_REQUIREMENTS.md`; historical context in `archive/`.
+- Builds output to `dist/`; `.env.*` templates live at the root while secrets remain in `.env.local`.
 
 ## Build, Test, and Development Commands
-Run in `frontend` with Node 20.19+ (or 22.12+).
-- `npm install`: Install dependencies.
-- `npm run dev`: Start Vite at `http://localhost:5173`.
-- `npm run build`: Type-check and build to `dist/`.
-- `npm run preview`: Serve the production build.
-- `npm run test:unit`: Run Vitest unit tests.
-- `npm run lint`: Lint and auto-fix via ESLint.
-- `npm run type-check`: Strict TS checks with `vue-tsc`.
+- Use Node 20.19+ and run commands from the repo root.
+- `npm install` — install dependencies locked in `package-lock.json`.
+- `npm run dev` — launch Vite on `http://localhost:5173` with hot reload.
+- `npm run build` — type-check and emit production bundles to `dist/`.
+- `npm run preview` — serve the build locally for smoke tests.
+- `npm run lint` — apply ESLint rules; append `--fix` for autofixes.
+- `npm run type-check` — run strict `vue-tsc` validation.
+- `npm run test:unit` — execute Vitest; add `--watch` when iterating.
 
 ## Coding Style & Naming Conventions
-- Indentation 2 spaces, LF EOL, max line length 100.
-- Use Composition API in `.vue` SFCs; TypeScript everywhere.
-- Components: `PascalCase.vue` (e.g., `InventoryList.vue`).
-- Composables: `useThing.ts`; stores: `useThingStore.ts` in `src/stores`.
-- Non-component files/folders: kebab-case. Constants: `UPPER_SNAKE_CASE`.
-- Linting: `eslint.config.ts`; fix all warnings/errors before commit.
+- Obey `.editorconfig`: 2-space indent, LF endings, 100-character lines.
+- Author Vue SFCs with `<script setup>` and the Composition API in TypeScript.
+- Name components `PascalCase.vue`, composables `useThing.ts`, stores `useThingStore.ts`.
+- Prefer kebab-case elsewhere and reserve `UPPER_SNAKE_CASE` for constants; fix lint warnings instead of disabling rules.
 
 ## Testing Guidelines
-- Framework: Vitest (jsdom) + Vue Test Utils.
-- Tests live under `src/**/__tests__/` and end with `.spec.ts`.
-- Focus on critical logic and store actions; mock API calls.
-- Run `npm run test:unit` locally and in CI before PRs.
+- Primary stack: Vitest with Vue Test Utils in jsdom.
+- Keep specs in `src/**/__tests__/` using the `*.spec.ts` suffix.
+- Mock `src/api/**` calls for deterministic runs and cover store actions, routing guards, and error handling.
+- Run `npm run test:unit` before commits and pushes to protect inventory, auth, and dashboard flows.
 
 ## Commit & Pull Request Guidelines
-- Conventional Commits (e.g., `feat: add inventory filter`).
-- Keep changes scoped; include tests and lint fixes.
-- PRs: clear summary, linked issues, and UI screenshots/GIFs when applicable.
-- Ensure: build passes, tests updated, no secrets, env notes included.
+- Use Conventional Commits (e.g., `feat: add inventory filter`) and keep each change focused.
+- Rebase feature branches prior to opening a PR to avoid merge noise.
+- Provide PR summaries, linked issues, validation notes, and UI captures when visuals shift.
+- Confirm build, lint, type-check, and tests pass; document environment or migration steps if needed.
 
 ## Security & Configuration Tips
-- Never commit secrets. Use `.env.local`; see examples in `.env.*`.
-- Configure API base via `VITE_API_BASE_URL` (see frontend README).
-- Review `API_SPECIFICATION.md` before integrating or changing endpoints.
-
+- Configure API hosts through `VITE_API_BASE_URL`; avoid hardcoded URLs.
+- Store secrets solely in `.env.local` and rotate credentials immediately if exposed.
+- Review `API_SPECIFICATION.md` and `docs/epic4-backend-api-proposal.md` before modifying backend integrations.

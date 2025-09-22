@@ -27,7 +27,7 @@
               <div class="flip-card-inner">
                 <div class="flip-front stat-btn">
                   <span class="stat-number">1/3</span>
-                  <span class="stat-label"><Picture></Picture>roduced food wasted</span>
+                  <span class="stat-label"><Picture></Picture>Reduced food wasted</span>
                 </div>
                 <div class="flip-back">
                   <button class="close-btn" @click.stop="closeStat">✕</button>

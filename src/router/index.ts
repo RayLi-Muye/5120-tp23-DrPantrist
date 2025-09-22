@@ -33,20 +33,6 @@ const router = createRouter({
       },
     },
     {
-      path: "/household",
-      name: "household",
-      component: () => import("../views/HouseholdView.vue"),
-      meta: {
-        title: "Household Management - Use It Up",
-        requiresAuth: true,
-      },
-    },
-    // Inventory is now integrated into dashboard
-    {
-      path: "/inventory",
-      redirect: "/dashboard",
-    },
-    {
       path: "/add-item",
       name: "add-item",
       // Lazy-loaded add item view

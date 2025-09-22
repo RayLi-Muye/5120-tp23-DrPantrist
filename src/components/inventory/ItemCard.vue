@@ -14,7 +14,21 @@
       :aria-label="`Mark ${item.name} as used`"
       @click="handleUse"
     >
-      <span class="item-emoji" aria-hidden="true">{{ emoji }}</span>
+      <span
+        v-if="primaryIcon.type === 'emoji'"
+        class="item-emoji"
+        aria-hidden="true"
+      >
+        {{ primaryIcon.value }}
+      </span>
+      <img
+        v-else
+        class="item-image"
+        :src="primaryIcon.value"
+        :alt="iconAltText"
+        loading="lazy"
+        decoding="async"
+      />
       <span class="item-name">{{ item.name }}</span>
       <span v-if="isLoading" class="loader" aria-hidden="true"></span>
     </button>
@@ -30,7 +44,21 @@
       >
         <header class="tooltip-header">
           <div class="tooltip-title">
-            <span class="tooltip-emoji" aria-hidden="true">{{ emoji }}</span>
+            <span
+              v-if="primaryIcon.type === 'emoji'"
+              class="tooltip-emoji"
+              aria-hidden="true"
+            >
+              {{ iconSymbol }}
+            </span>
+            <img
+              v-else
+              class="tooltip-image"
+              :src="primaryIcon.value"
+              :alt="iconAltText"
+              loading="lazy"
+              decoding="async"
+            />
             <div>
               <h3>{{ item.name }}</h3>
               <p class="tooltip-category">{{ item.category }}</p>
@@ -117,13 +145,51 @@ const emojiMap: Record<string, string> = {
   snacks: '🍪',
 }
 
-const emoji = computed(() => {
+const fallbackIcon = computed(() => {
   const key = props.item.category.toLowerCase()
   if (emojiMap[key]) return emojiMap[key]
   const firstChar = props.item.name.trim().charAt(0) || '🛒'
   if (/^[a-z]/i.test(firstChar)) return firstChar.toUpperCase()
   return firstChar
 })
+
+const isLikelyImageSource = (value: string): boolean => {
+  const normalized = value.trim().toLowerCase()
+  return normalized.startsWith('http') ||
+    normalized.startsWith('/') ||
+    normalized.endsWith('.svg') ||
+    normalized.endsWith('.png') ||
+    normalized.endsWith('.jpg') ||
+    normalized.endsWith('.jpeg') ||
+    normalized.endsWith('.webp') ||
+    normalized.endsWith('.gif')
+}
+
+type IconDescriptor = { type: 'emoji' | 'image'; value: string }
+
+const iconSymbol = computed(() => {
+  const icon = props.item.icon?.trim()
+  if (icon && !isLikelyImageSource(icon)) {
+    return icon
+  }
+  return fallbackIcon.value
+})
+
+const primaryIcon = computed<IconDescriptor>(() => {
+  const imageUrl = props.item.imageUrl?.trim()
+  if (imageUrl) {
+    return { type: 'image', value: imageUrl }
+  }
+
+  const icon = props.item.icon?.trim()
+  if (icon && isLikelyImageSource(icon)) {
+    return { type: 'image', value: icon }
+  }
+
+  return { type: 'emoji', value: iconSymbol.value }
+})
+
+const iconAltText = computed(() => `${props.item.name} icon`)
 
 const quantityLabel = computed(() => {
   const unit = (props.item.unit || 'pcs').toLowerCase()
@@ -218,6 +284,15 @@ function handleUse() {
   font-size: 1.9rem;
 }
 
+.item-image {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  flex-shrink: 0;
+}
+
 .item-name {
   font-size: 0.85rem;
   text-transform: capitalize;
@@ -291,6 +366,15 @@ function handleUse() {
 
 .tooltip-emoji {
   font-size: 1.5rem;
+}
+
+.tooltip-image {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  object-fit: cover;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
 }
 
 .tooltip-action {

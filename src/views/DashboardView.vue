@@ -18,7 +18,7 @@
             @click="handleUserSlotClick(slot)"
             @contextmenu.prevent="handleSlotContextMenu(slot)"
             :aria-pressed="!!(slot.profile && activeProfile && activeProfile.position === slot.profile.position)"
-            :title="slot.profile ? (isOwner ? `Switch to ${slot.profile.profileName}\n(右键重命名)` : `Switch to ${slot.profile.profileName}`) : (isOwner ? 'Add household member' : 'Members managed by owner')"
+            :title="slot.profile ? (isOwner ? `Switch to ${slot.profile.profileName}\n(right click to rename)` : `Switch to ${slot.profile.profileName}`) : (isOwner ? 'Add household member' : 'Members managed by owner')"
           >
             <span v-if="!slot.profile">+</span>
             <span v-else>{{ getInitials(slot.profile.profileName) }}</span>

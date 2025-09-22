@@ -7,6 +7,7 @@ import inventoryAPI, { type InventoryItem, type AddItemRequest, type AddItemToIn
 import { calculateDaysUntilExpiry } from '@/utils/dateHelpers'
 import { logger } from '@/utils/logger'
 import { useGroceriesStore } from '@/stores/groceries'
+import { getFoodIcon } from '@/utils/foodIcons'
 // Removed error handler imports for MVP
 import type { FreshnessStatus } from '@/composables/useExpiryStatus'
 import { runWithLoadingAndError } from '@/utils/asyncAction'
@@ -75,6 +76,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     co2PerUnit?: number
     unit?: string
     category?: string
+    categoryId?: number
+    icon?: string
   }
 
   async function ensureGroceriesData(forceRefresh = false): Promise<void> {
@@ -110,11 +113,22 @@ export const useInventoryStore = defineStore('inventory', () => {
     const unit = override?.unit ?? grocery?.unit ?? item.unit
     const quantity = normalizeQuantityForEstimates(item.quantity, unit)
     const category = override?.category ?? grocery?.category ?? item.category
+    const categoryId = override?.categoryId ?? grocery?.categoryId ?? item.categoryId
+    const icon = override?.icon ?? grocery?.icon ?? getFoodIcon({
+      name: item.name,
+      categoryId,
+      category
+    })
 
     const enriched: InventoryItem = {
       ...item,
       unit: unit || item.unit,
-      category: category || item.category
+      category: category || item.category,
+      categoryId: categoryId ?? item.categoryId
+    }
+
+    if (icon) {
+      enriched.icon = icon
     }
 
     if (pricePerUnit != null && Number.isFinite(pricePerUnit)) {
@@ -235,7 +249,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       })
     } catch (err) {
       const errorMessage = 'fetch your inventory by login code'
-      
+
       logger.error('Failed to fetch inventory by login code', {
         loginCode,
         error: err,
@@ -305,7 +319,9 @@ export const useInventoryStore = defineStore('inventory', () => {
           pricePerUnit: fallbackGrocery.avgPrice,
           co2PerUnit: fallbackGrocery.co2Factor,
           unit: fallbackGrocery.unit,
-          category: fallbackGrocery.category
+          category: fallbackGrocery.category,
+          categoryId: fallbackGrocery.categoryId,
+          icon: fallbackGrocery.icon
         } : undefined)
         items.value.push(enriched)
         lastFetch.value = Date.now()
@@ -340,7 +356,9 @@ export const useInventoryStore = defineStore('inventory', () => {
           pricePerUnit: fallbackGrocery.avgPrice,
           co2PerUnit: fallbackGrocery.co2Factor,
           unit: fallbackGrocery.unit,
-          category: fallbackGrocery.category
+          category: fallbackGrocery.category,
+          categoryId: fallbackGrocery.categoryId,
+          icon: fallbackGrocery.icon
         } : undefined)
 
         if (Array.isArray(result.items)) {

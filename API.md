@@ -154,22 +154,42 @@ https://api.tp23.me/items/by-login-code?login_code=AB12
 
 ---
 
-### 6. 修改或删除物品
 
-修改物品信息（数量/日期等）  
-接口：PATCH https://api.tp23.me/items/{item_id}/by-login-code
+### 6. 修改或消耗物品
 
-Body 示例：
+修改物品信息（数量 / 日期等）  
+接口: `PATCH https://api.tp23.me/items/{item_id}/by-login-code`
+
+Body 示例:  
 ```json
 {
   "login_code": "AB12",
   "quantity": 3,
   "actual_expiry": "2025-03-12"
 }
-```
+返回示例:
 
-删除物品  
-接口：DELETE https://api.tp23.me/items/{item_id}/by-login-code?login_code=AB12
+json
+复制代码
+{
+  "ok": true
+}
+说明: 仅修改库存记录，不会计入节省金额或 CO₂。
+
+消耗物品（点击对钩 = 使用完）
+接口: DELETE https://api.tp23.me/items/{item_id}/by-login-code?login_code=AB12
+
+返回示例:
+
+json
+复制代码
+{
+  "ok": true,
+  "money_saved": 7.98,
+  "co2_saved_kg": 1.24,
+  "consumed_at": "2025-09-21T11:30:00Z"
+}
+说明: 会写入消费流水（consumption_ledger），并从库存中删除该物品。
 
 
 ---
@@ -199,6 +219,47 @@ https://api.tp23.me/categories
     "unit": "g"
   }
 ]
+
+------
+
+### 8. 节省统计（累计）
+
+通过 `login_code` 获取房间的累计节省金额与 CO₂，按整库 / shared / 各私库返回。
+
+接口: `GET https://api.tp23.me/stats/by-login-code?login_code=AB12`
+
+Query 参数:
+- `login_code` (必填): 用户四位登录码，如 `AB12`
+
+返回示例:
+```json
+{
+  "inventory_id": "7b2a0d5e-6f6b-4b9b-9d3f-6c8a9f2a1234",
+  "overall": {
+    "money_saved": 32.5,
+    "co2_saved_kg": 4.2
+  },
+  "shared": {
+    "money_saved": 20.1,
+    "co2_saved_kg": 2.8
+  },
+  "profiles": [
+    {
+      "position": 1,
+      "profile_id": "8e1b4b7d-2c8c-4f54-9a8e-11c2a1b2c333",
+      "profile_name": "张三",
+      "money_saved": 5.2,
+      "co2_saved_kg": 0.6
+    },
+    {
+      "position": 2,
+      "profile_id": "1fb6f0d1-2ab3-4fb6-8d2b-1a2b3c4d5e66",
+      "profile_name": "Ray",
+      "money_saved": 7.2,
+      "co2_saved_kg": 0.8
+    }
+  ]
+}
 ```
 
 GET 获取所有食材  
@@ -224,3 +285,4 @@ https://api.tp23.me/groceries/101
    - Private：POST .../items/by-login-code（带 visibility=private + profile_position）。  
 5) 查看物品：GET .../items/by-login-code（可按 visibility 和 profile 过滤）。  
 6) 修改/删除：PATCH / DELETE 对应接口后，再 GET 验证结果。
+

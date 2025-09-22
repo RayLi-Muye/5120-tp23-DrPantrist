@@ -4,6 +4,7 @@
 import { retryRequest } from './axios'
 import { config } from '@/config/environment'
 
+import { getFoodIcon } from '@/utils/foodIcons'
 // API Response Types
 export interface APIGroceryItem {
   grocery_id: number
@@ -108,49 +109,6 @@ const CATEGORY_MAPPING: Record<number, string> = {
   23: 'Pantry'
 }
 
-// Icon mapping based on food names and categories
-const getIconForFood = (name: string, categoryId: number): string => {
-  const lowerName = name.toLowerCase()
-
-  // Specific food icons
-  if (lowerName.includes('milk')) return '🥛'
-  if (lowerName.includes('bread')) return '🍞'
-  if (lowerName.includes('egg')) return '🥚'
-  if (lowerName.includes('banana')) return '🍌'
-  if (lowerName.includes('apple')) return '🍎'
-  if (lowerName.includes('chicken')) return '🐔'
-  if (lowerName.includes('yogurt')) return '🥛'
-  if (lowerName.includes('lettuce')) return '🥬'
-  if (lowerName.includes('tomato')) return '🍅'
-  if (lowerName.includes('cheese')) return '🧀'
-  if (lowerName.includes('pasta')) return '🍝'
-  if (lowerName.includes('rice')) return '🍚'
-  if (lowerName.includes('carrot')) return '🥕'
-  if (lowerName.includes('potato')) return '🥔'
-  if (lowerName.includes('salmon') || lowerName.includes('fish')) return '🐟'
-
-  // Category-based icons
-  switch (categoryId) {
-    case 1:
-    case 7: return '🥛' // Dairy
-    case 2: return '🍞' // Baked Goods
-    case 5: return '🥤' // Beverages
-    case 6: return '🍯' // Condiments
-    case 8: return '🧊' // Frozen
-    case 9: return '🌾' // Grains
-    case 10:
-    case 12: return '🥩' // Meat
-    case 14:
-    case 15: return '🐔' // Poultry
-    case 18: return '🍎' // Fruits
-    case 19: return '🥬' // Vegetables
-    case 20:
-    case 22: return '🐟' // Seafood
-    case 23: return '🥫' // Shelf Stables
-    default: return '🍽️'
-  }
-}
-
 // Estimate price and CO2 factor based on category and name
 const estimatePriceAndCO2 = (
   name: string,
@@ -240,7 +198,7 @@ const getUnit = (name: string, categoryId: number, categoryDetail?: CategoryDeta
 const transformGroceryItem = (apiItem: APIGroceryItem, detail?: CategoryDetail): GroceryItem => {
   const mappedCategory = CATEGORY_MAPPING[apiItem.category_id]
   const categoryName = mappedCategory || detail?.name || 'Other'
-  const icon = getIconForFood(apiItem.name, apiItem.category_id)
+  const icon = getFoodIcon({ name: apiItem.name, categoryId: apiItem.category_id, category: categoryName })
   const { price: fallbackPrice, co2: fallbackCo2 } = estimatePriceAndCO2(apiItem.name, apiItem.category_id, detail)
 
   const priceFromApi = toOptionalNumber(apiItem.price)
@@ -402,3 +360,4 @@ class GroceriesAPI {
 // Export singleton instance
 const groceriesAPI = new GroceriesAPI()
 export default groceriesAPI
+
