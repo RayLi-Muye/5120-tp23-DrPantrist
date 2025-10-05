@@ -1,44 +1,39 @@
 import axios from 'axios'
+import inventoryAPI from '@/api/inventory'
 
-export interface GroqItemSummary {
-  name: string
-  quantity?: number
-  unit?: string
-  expiresInDays?: number | null
-  category?: string
-  status: 'active' | 'consumed'
-  consumedAt?: string
-}
-
-export interface GroqAssistantPayload {
-  activeItems: GroqItemSummary[]
-  consumedItems: GroqItemSummary[]
+export interface GroqAssistantRequest {
+  loginCode: string
   householdName?: string
 }
 
-const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions'
-const DEFAULT_MODEL = 'llama3-8b-8192'
+interface GroqChatMessage {
+  role: 'system' | 'user'
+  content: string
+}
 
-export async function fetchGroqAssistantSuggestions(payload: GroqAssistantPayload): Promise<string> {
-  const apiKey = import.meta.env.VITE_GROQ_API_KEY
+const DEFAULT_LAMBDA_URL = 'https://lzfj5zwzzj.execute-api.ap-southeast-2.amazonaws.com/groq'
+const ASSISTANT_URL = import.meta.env.VITE_GROQ_ASSISTANT_URL || DEFAULT_LAMBDA_URL
 
-  if (!apiKey) {
-    throw new Error('Missing Groq API key. Please set VITE_GROQ_API_KEY in your environment.')
+export async function fetchGroqAssistantSuggestions(
+  request: GroqAssistantRequest
+): Promise<string> {
+  const loginCode = request.loginCode?.trim()
+  if (!loginCode) {
+    throw new Error('Missing login code. Please sign in again to use the assistant.')
   }
 
-  const messages = buildMessages(payload)
+  const items = await inventoryAPI.getInventoryByLoginCode(loginCode)
+  const groceryNames = dedupeNames(items.map(item => item.name).filter(Boolean))
+
+  const messages = buildMessages(groceryNames, request.householdName)
 
   const response = await axios.post(
-    GROQ_CHAT_URL,
+    ASSISTANT_URL,
     {
-      model: DEFAULT_MODEL,
-      messages,
-      temperature: 0.3,
-      max_tokens: 512
+      messages
     },
     {
       headers: {
-        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
       }
     }
@@ -46,94 +41,58 @@ export async function fetchGroqAssistantSuggestions(payload: GroqAssistantPayloa
 
   const content = response.data?.choices?.[0]?.message?.content
 
-  if (!content) {
-    throw new Error('Groq response did not include any advice. Please try again later.')
+  if (!content || typeof content !== 'string') {
+    throw new Error('The assistant did not return any suggestions. Please try again later.')
   }
 
   return content.trim()
 }
 
-interface GroqMessage {
-  role: 'system' | 'user'
-  content: string
-}
+function buildMessages(names: string[], householdName?: string): GroqChatMessage[] {
+  const safeHouseholdName = householdName?.trim() || 'UseItUp household'
+  const inventoryList = names.length > 0
+    ? names.map((name, index) => `${index + 1}. ${name}`).join('\n')
+    : 'No items currently in stock.'
 
-function buildMessages(payload: GroqAssistantPayload): GroqMessage[] {
-  const { activeItems, consumedItems, householdName } = payload
-
-  const inventoryLines = formatItems(activeItems)
-  const consumedLines = formatItems(consumedItems)
-
-  const userPromptParts: string[] = []
-
-  userPromptParts.push(
-    householdName
-      ? `Household name: ${householdName}`
-      : 'Household name is not specified.'
-  )
-
-  userPromptParts.push(
-    inventoryLines.length > 0
-      ? `Current inventory (max 12 items):\n${inventoryLines.join('\n')}`
-      : 'Current inventory list is empty.'
-  )
-
-  userPromptParts.push(
-    consumedLines.length > 0
-      ? `Items consumed in the past 3 days (max 10 items):\n${consumedLines.join('\n')}`
-      : 'No items have been consumed in the past 3 days.'
-  )
-
-  userPromptParts.push(
-    'Provide concise nutritional and low-carbon shopping or consumption suggestions tailored to the available ingredients above. '
-    + 'Highlight quick wins to reduce waste and improve nutritional balance, and include a short carbon footprint tip at the end.'
-  )
+  const userPrompt = [
+    `Household: ${safeHouseholdName}`,
+    'Here is the current grocery inventory list:',
+    inventoryList,
+    '',
+    'Please recommend up to three new grocery items to purchase soon.',
+    'Balance nutritional variety and a lower carbon footprint.',
+    'Consider the listed items so you avoid duplicates and reduce waste.',
+    'Keep the reply concise (under 80 words) with clear bullet points and finish with a single sustainability tip.'
+  ].join('\n')
 
   return [
     {
       role: 'system',
       content:
-        'You are UseItUp\'s sustainability assistant. Analyse household food inventory and very recent consumption to recommend balanced meal ideas, '
-        + 'smart shopping reminders, and actions that lower carbon footprint. Respond with actionable bullet points (max 4) and conclude with a single carbon tip.'
+        'You are UseItUp\'s sustainability assistant. You help households plan their next grocery purchases while minimising food waste, '
+        + 'supporting balanced nutrition, and lowering carbon footprint. Keep answers practical, friendly, and brief.'
     },
     {
       role: 'user',
-      content: userPromptParts.join('\n\n')
+      content: userPrompt
     }
   ]
 }
 
-function formatItems(items: GroqItemSummary[]): string[] {
-  return items.map((item, index) => {
-    const baseLabel = `${index + 1}. ${item.name}`
-    const detailParts: string[] = []
+function dedupeNames(names: string[]): string[] {
+  const seen = new Set<string>()
+  const unique: string[] = []
 
-    if (item.quantity != null && Number.isFinite(item.quantity)) {
-      detailParts.push(`${item.quantity}${item.unit ? ` ${item.unit}` : ''}`.trim())
-    }
+  for (const name of names) {
+    const trimmed = name.trim()
+    if (!trimmed) continue
 
-    if (item.expiresInDays != null) {
-      if (item.expiresInDays < 0) {
-        detailParts.push('expired')
-      } else if (item.expiresInDays === 0) {
-        detailParts.push('expires today')
-      } else if (item.expiresInDays === 1) {
-        detailParts.push('expires in 1 day')
-      } else {
-        detailParts.push(`expires in ${item.expiresInDays} days`)
-      }
-    }
+    const key = trimmed.toLowerCase()
+    if (seen.has(key)) continue
 
-    if (item.status === 'consumed' && item.consumedAt) {
-      detailParts.push(`consumed at ${item.consumedAt}`)
-    }
+    seen.add(key)
+    unique.push(trimmed)
+  }
 
-    if (item.category) {
-      detailParts.push(item.category)
-    }
-
-    const details = detailParts.length > 0 ? ` (${detailParts.join(', ')})` : ''
-
-    return `${baseLabel}${details}`
-  })
+  return unique
 }

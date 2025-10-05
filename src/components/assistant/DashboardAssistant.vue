@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="dashboard-assistant">
     <button
       class="assistant-toggle"
@@ -49,17 +49,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useInventoryStore } from '@/stores/inventory'
+import { computed, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { differenceInCalendarDays, format, isValid, parseISO } from 'date-fns'
-import { fetchGroqAssistantSuggestions, type GroqItemSummary } from '@/api/groq'
+import { fetchGroqAssistantSuggestions } from '@/api/groq'
 
-const inventoryStore = useInventoryStore()
 const authStore = useAuthStore()
-
-const { items, activeItems } = storeToRefs(inventoryStore)
 
 const isOpen = ref(false)
 const isLoading = ref(false)
@@ -81,47 +75,6 @@ const householdName = computed(() => {
   return 'UseItUp Household'
 })
 
-const consumedWithinThreeDays = computed(() => {
-  const now = new Date()
-
-  return items.value
-    .filter(item => item.status === 'used')
-    .filter(item => {
-      const consumedDate = item.updatedAt || item.createdAt
-      if (!consumedDate) return false
-      const parsed = parseISO(consumedDate)
-      if (!isValid(parsed)) return false
-      const diff = differenceInCalendarDays(now, parsed)
-      return diff <= 3
-    })
-})
-
-const assistantPayload = computed(() => {
-  const activeSummaries = activeItems.value.slice(0, 12).map<GroqItemSummary>(item => ({
-    name: item.name,
-    quantity: toNumberOrUndefined(item.quantity),
-    unit: item.unit,
-    expiresInDays: getDaysUntil(item.expiryDate),
-    category: item.category,
-    status: 'active'
-  }))
-
-  const consumedSummaries = consumedWithinThreeDays.value.slice(0, 10).map<GroqItemSummary>(item => ({
-    name: item.name,
-    quantity: toNumberOrUndefined(item.quantity),
-    unit: item.unit,
-    category: item.category,
-    status: 'consumed',
-    consumedAt: formatDate(item.updatedAt || item.createdAt)
-  }))
-
-  return {
-    activeItems: activeSummaries,
-    consumedItems: consumedSummaries,
-    householdName: householdName.value
-  }
-})
-
 const responseLines = computed(() => {
   if (!suggestions.value) return []
   return suggestions.value
@@ -130,24 +83,12 @@ const responseLines = computed(() => {
     .filter(Boolean)
 })
 
-watch(isOpen, value => {
-  if (value && !suggestions.value) {
-    refresh()
-  }
-})
-
-watch(
-  () => assistantPayload.value,
-  () => {
-    if (isOpen.value && !isLoading.value) {
-      refresh()
-    }
-  },
-  { deep: true }
-)
-
 function toggleAssistant() {
   isOpen.value = !isOpen.value
+
+  if (isOpen.value && !suggestions.value && !isLoading.value) {
+    void refresh()
+  }
 }
 
 function closeAssistant() {
@@ -157,40 +98,32 @@ function closeAssistant() {
 async function refresh() {
   if (isLoading.value) return
 
+  const loginCode = authStore.user?.loginCode?.trim()
+  if (!loginCode) {
+    error.value = 'Missing login code. Please log in again to use the assistant.'
+    suggestions.value = ''
+    return
+  }
+
   try {
     isLoading.value = true
     error.value = null
-    const content = await fetchGroqAssistantSuggestions(assistantPayload.value)
+
+    const content = await fetchGroqAssistantSuggestions({
+      loginCode,
+      householdName: householdName.value
+    })
+
     suggestions.value = content
   } catch (err) {
     if (err instanceof Error) {
       error.value = err.message
     } else {
-      error.value = '无法获取 Groq 建议，请稍后重试。'
+      error.value = 'Unable to fetch Groq suggestions right now. Please try again later.'
     }
   } finally {
     isLoading.value = false
   }
-}
-
-function toNumberOrUndefined(value: unknown): number | undefined {
-  const numeric = Number(value)
-  return Number.isFinite(numeric) ? numeric : undefined
-}
-
-function getDaysUntil(dateString?: string): number | null {
-  if (!dateString) return null
-  const parsed = parseISO(dateString)
-  if (!isValid(parsed)) return null
-  const now = new Date()
-  return differenceInCalendarDays(parsed, now)
-}
-
-function formatDate(dateString?: string): string | undefined {
-  if (!dateString) return undefined
-  const parsed = parseISO(dateString)
-  if (!isValid(parsed)) return undefined
-  return format(parsed, 'MM-dd HH:mm')
 }
 </script>
 
@@ -201,7 +134,7 @@ function formatDate(dateString?: string): string | undefined {
   bottom: 1.5rem;
   z-index: 50;
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse;
   align-items: flex-end;
   gap: 0.75rem;
 }
