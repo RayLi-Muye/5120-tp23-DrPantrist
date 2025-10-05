@@ -82,7 +82,7 @@ export interface GroceryItem {
   name: string
   category: string
   categoryId: number
-  icon: string
+  icon?: string | null
   defaultShelfLife: number
   avgPrice: number
   co2Factor: number
@@ -219,17 +219,22 @@ const transformGroceryItem = (apiItem: APIGroceryItem, detail?: CategoryDetail):
   // Strict requirement: prefer Refrigerate, then Pantry, never default to Freeze
   const defaultShelfLife = refrigerate ?? pantry ?? 7
 
-  return {
+  const result: GroceryItem = {
     id: `grocery-${apiItem.grocery_id}`,
     name: apiItem.name,
     category: categoryName,
     categoryId: apiItem.category_id,
-    icon,
     defaultShelfLife,
     avgPrice,
     co2Factor,
     unit
   }
+
+  if (icon) {
+    result.icon = icon
+  }
+
+  return result
 }
 
 // API Service Class

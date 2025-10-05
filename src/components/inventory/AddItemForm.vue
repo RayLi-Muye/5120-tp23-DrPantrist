@@ -4,7 +4,13 @@
       <!-- Header summary -->
       <section class="header-card">
         <div class="header-row">
-          <div class="item-icon">{{ selectedGrocery.icon }}</div>
+          <div
+            v-if="selectedGrocery.icon"
+            class="item-icon"
+            aria-hidden="true"
+          >
+            {{ selectedGrocery.icon }}
+          </div>
           <div class="title-and-stats">
             <div class="title-line">
               <h3 class="item-name">{{ selectedGrocery.name }}</h3>

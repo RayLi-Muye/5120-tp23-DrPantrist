@@ -112,7 +112,7 @@ const CATEGORY_NAME_ICON_MAP: Record<string, string> = {
 /**
  * Resolve the best matching icon for a food item based on name/category.
  */
-export function getFoodIcon({ name, categoryId, category }: FoodIconInput): string {
+export function getFoodIcon({ name }: FoodIconInput): string | null {
   const normalizedName = name?.trim().toLowerCase() ?? ''
 
   if (normalizedName) {
@@ -124,20 +124,7 @@ export function getFoodIcon({ name, categoryId, category }: FoodIconInput): stri
     }
   }
 
-  const iconById = categoryId != null ? CATEGORY_ICON_MAP[categoryId] : undefined
-  if (iconById) {
-    return iconById
-  }
-
-  if (category) {
-    const normalizedCategory = category.trim().toLowerCase()
-    const byName = CATEGORY_NAME_ICON_MAP[normalizedCategory]
-    if (byName) {
-      return byName
-    }
-  }
-
-  return '🛒'
+  return null
 }
 
 /**

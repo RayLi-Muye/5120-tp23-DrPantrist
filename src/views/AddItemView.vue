@@ -65,6 +65,7 @@
             v-if="selectedGrocery"
             :selected-grocery="selectedGrocery"
             :is-submitting="isSubmitting"
+            :initial-visibility="formInitialVisibility"
             :key="selectedGrocery.id + '-' + selectedGrocery.defaultShelfLife"
             @submit="handleFormSubmit"
             @cancel="handleFormCancel"
@@ -83,7 +84,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from "vue";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 import { useGroceriesStore } from "@/stores/groceries";
 import { useInventoryStore } from "@/stores/inventory";
 import inventoryRoomsAPI from "@/api/inventory-rooms";
@@ -97,7 +98,10 @@ import { formatDateForAPI } from "@/utils/dateHelpers";
 import { useInventoryAccess } from "@/composables/useInventoryAccess";
 import { logger } from "@/utils/logger";
 
+type Visibility = "shared" | "private";
+
 const router = useRouter();
+const route = useRoute();
 const groceriesStore = useGroceriesStore();
 const inventoryStore = useInventoryStore();
 const authStore = useAuthStore();
@@ -110,8 +114,30 @@ const selectedCategory = ref<CategoryInfo | null>(null);
 const selectedGrocery = ref<GroceryItem | null>(null);
 const isSubmitting = ref(false);
 const error = ref<string | null>(null);
+const formInitialVisibility = ref<Visibility>("private");
 
 const activeDashboardProfile = computed(() => dashboardStore.activeProfile);
+
+const deriveVisibilityFromRoute = (): Visibility => {
+  const visibilityParam = route.query.visibility;
+  if (Array.isArray(visibilityParam)) {
+    return visibilityParam.includes("shared") ? "shared" : "private";
+  }
+  return visibilityParam === "shared" ? "shared" : "private";
+};
+
+const syncInitialVisibility = () => {
+  formInitialVisibility.value = deriveVisibilityFromRoute();
+};
+
+syncInitialVisibility();
+
+watch(
+  () => route.query.visibility,
+  () => {
+    syncInitialVisibility();
+  }
+);
 
 // Category icons mapping
 const getCategoryIcon = (categoryName: string): string => {
@@ -165,6 +191,7 @@ const goBackToCategories = () => {
   currentStep.value = 1;
   selectedCategory.value = null;
   selectedGrocery.value = null;
+  syncInitialVisibility();
 };
 
 const goBackToItems = () => {
@@ -178,6 +205,7 @@ const handleCategorySelected = (category: CategoryInfo) => {
 };
 
 const handleItemSelected = (item: GroceryItem) => {
+  syncInitialVisibility();
   selectedGrocery.value = item;
   currentStep.value = 3;
 };
@@ -186,7 +214,7 @@ const handleFormSubmit = async (formData: {
   quantity: number;
   expiryDate: string;
   notes: string;
-  visibility: 'shared' | 'private';
+  visibility: Visibility;
 }) => {
   if (!selectedGrocery.value) {
     error.value = "No item selected. Please go back and select an item.";
@@ -254,6 +282,7 @@ const handleFormCancel = () => {
   currentStep.value = 2;
   selectedGrocery.value = null;
   clearError();
+  syncInitialVisibility();
 };
 
 const clearError = () => {

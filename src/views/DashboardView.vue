@@ -6,23 +6,26 @@
           <h1>{{ userDisplayName }}</h1>
           <p class="subtitle">Manage shared and private household items</p>
         </div>
-        <div class="user-switch" role="group" aria-label="Select household member">
-          <button
-            v-for="slot in slots"
-            :key="slot.profile ? slot.profile.profileId : `placeholder-${slot.position}`"
-            :class="[
-              'user-switch__button',
-              { 'user-switch__button--active': activeProfile && slot.profile && activeProfile.position === slot.profile.position },
-              { 'user-switch__button--placeholder': !slot.profile }
-            ]"
-            @click="handleUserSlotClick(slot)"
-            @contextmenu.prevent="handleSlotContextMenu(slot)"
-            :aria-pressed="!!(slot.profile && activeProfile && activeProfile.position === slot.profile.position)"
-            :title="slot.profile ? (isOwner ? `Switch to ${slot.profile.profileName}\n(right click to rename)` : `Switch to ${slot.profile.profileName}`) : (isOwner ? 'Add household member' : 'Members managed by owner')"
-          >
-            <span v-if="!slot.profile">+</span>
-            <span v-else>{{ getInitials(slot.profile.profileName) }}</span>
-          </button>
+        <div class="user-switch-stack">
+          <div class="user-switch" data-tour-id="profile-manager" role="group" aria-label="Select household member">
+            <button
+              v-for="slot in slots"
+              :key="slot.profile ? slot.profile.profileId : `placeholder-${slot.position}`"
+              :class="[
+                'user-switch__button',
+                { 'user-switch__button--active': activeProfile && slot.profile && activeProfile.position === slot.profile.position },
+                { 'user-switch__button--placeholder': !slot.profile }
+              ]"
+              @click="handleUserSlotClick(slot)"
+              @contextmenu.prevent="handleSlotContextMenu(slot)"
+              :aria-pressed="!!(slot.profile && activeProfile && activeProfile.position === slot.profile.position)"
+              :title="slot.profile ? (isOwner ? `Switch to ${slot.profile.profileName}\n(right click to rename)` : `Switch to ${slot.profile.profileName}`) : (isOwner ? 'Add household member' : 'Members managed by owner')"
+            >
+              <span v-if="!slot.profile">+</span>
+              <span v-else>{{ getInitials(slot.profile.profileName) }}</span>
+            </button>
+          </div>
+          <DashboardTour />
         </div>
       </div>
       <div class="header-info">
@@ -71,13 +74,33 @@
                   {{ opt.label }}<span v-if="opt.count > 0" class="chip-badge">{{ opt.count }}</span>
                 </button>
               </div>
-              <div class="impact-summary">
+              <div class="inventory-actions">
+                <router-link
+                  :to="{ path: '/add-item', query: { visibility: 'private' } }"
+                  class="inventory-add-button" data-tour-id="add-item"
+                  aria-label="Add inventory item"
+                >
+                  +
+                </router-link>
+                <div
+                  class="inventory-info-fab"
+                  role="button"
+                  tabindex="0"
+                  aria-label="物品数据来源信息"
+                >
+                  i
+                  <span class="inventory-info-fab__tooltip">
+                    可用物品的价格和碳排放的数据来源是: CO2来自SuEatableLife Food Footprint Database, 价格来自Nutrition Research Australia - Australian Food Price Dataset
+                  </span>
+                </div>
+              </div>
+              <div class="impact-summary" data-tour-id="impact-summary">
                 <div class="impact-summary__item">
                   <span class="impact-label">Well Spent</span>
                   <span class="impact-value">{{ privateImpact.money }}</span>
                 </div>
                 <div class="impact-summary__item">
-                  <span class="impact-label">CO₂ Avoided</span>
+                  <span class="impact-label">CO2 Avoided</span>
                   <span class="impact-value">{{ privateImpact.co2 }}</span>
                 </div>
               </div>
@@ -86,16 +109,17 @@
 
           <div class="inventory-content">
             <div v-if="privateItems.length === 0" class="empty-section">
-              <div class="empty-icon">🛍️</div>
+              <div class="empty-icon" aria-hidden="true">&#128717;</div>
               <p>No private items for {{ activeProfile?.profileName || 'this member' }} yet.</p>
-              <router-link to="/add-item" class="btn btn--primary">Add Private Item</router-link>
+              <router-link :to="{ path: '/add-item', query: { visibility: 'private' } }" class="btn btn--primary">Add Private Item</router-link>
             </div>
             <div v-else class="inventory-grid">
               <ItemCard
-                v-for="item in privateFilteredItems"
+                v-for="(item, index) in privateFilteredItems"
                 :key="item.id"
                 :item="item"
                 :is-loading="loadingItemId === item.id"
+                :data-tour-id="index === 0 ? 'use-item' : null"
                 @use="handleUseItem"
               />
             </div>
@@ -120,13 +144,33 @@
                   {{ opt.label }}<span v-if="opt.count > 0" class="chip-badge">{{ opt.count }}</span>
                 </button>
               </div>
-              <div class="impact-summary">
+              <div class="inventory-actions">
+                <router-link
+                  :to="{ path: '/add-item', query: { visibility: 'shared' } }"
+                  class="inventory-add-button" data-tour-id="add-item"
+                  aria-label="Add inventory item"
+                >
+                  +
+                </router-link>
+                <div
+                  class="inventory-info-fab"
+                  role="button"
+                  tabindex="0"
+                  aria-label="物品数据来源信息"
+                >
+                  i
+                  <span class="inventory-info-fab__tooltip">
+                    可用物品的价格和碳排放的数据来源是: CO2来自SuEatableLife Food Footprint Database, 价格来自Nutrition Research Australia - Australian Food Price Dataset
+                  </span>
+                </div>
+              </div>
+              <div class="impact-summary" data-tour-id="impact-summary">
                 <div class="impact-summary__item">
                   <span class="impact-label">Well Spent</span>
                   <span class="impact-value">{{ sharedImpact.money }}</span>
                 </div>
                 <div class="impact-summary__item">
-                  <span class="impact-label">CO₂ Avoided</span>
+                  <span class="impact-label">CO2 Avoided</span>
                   <span class="impact-value">{{ sharedImpact.co2 }}</span>
                 </div>
               </div>
@@ -137,14 +181,15 @@
             <div v-if="sharedItems.length === 0" class="empty-section">
               <div class="empty-icon">🤝</div>
               <p>No shared items yet. Add something for everyone to see.</p>
-              <router-link to="/add-item" class="btn btn--secondary">Add Shared Item</router-link>
+              <router-link :to="{ path: '/add-item', query: { visibility: 'shared' } }" class="btn btn--secondary">Add Shared Item</router-link>
             </div>
             <div v-else class="inventory-grid">
               <ItemCard
-                v-for="item in sharedFilteredItems"
+                v-for="(item, sharedIndex) in sharedFilteredItems"
                 :key="item.id"
                 :item="item"
                 :is-loading="loadingItemId === item.id"
+                :data-tour-id="sharedIndex === 0 && privateFilteredItems.length === 0 ? 'use-item' : null"
                 @use="handleUseItem"
               />
             </div>
@@ -158,7 +203,7 @@
       </div>
     </main>
 
-    <QuickActions />
+    <DashboardAssistant />
   </div>
 </template>
 
@@ -167,12 +212,13 @@ import { onMounted, ref, computed, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useInventoryStore } from '@/stores/inventory'
 import { useAuthStore } from '@/stores/auth'
-import QuickActions from '@/components/common/QuickActions.vue'
 import ItemCard from '@/components/inventory/ItemCard.vue'
 import { useImpactStore } from '@/stores/impact'
 import { useInventoryAccess } from '@/composables/useInventoryAccess'
 import type { InventoryItem as InventoryItemType } from '@/api/inventory'
 import LoadingState from '@/components/common/LoadingState.vue'
+import DashboardAssistant from '@/components/assistant/DashboardAssistant.vue'
+import DashboardTour from '@/components/dashboard/DashboardTour.vue'
 import { isDevelopment } from '@/config/environment'
 import { useDashboardStore, type HouseholdProfile } from '@/stores/dashboard'
 import { storeToRefs } from 'pinia'
@@ -503,6 +549,13 @@ onMounted(async () => {
   margin: 0;
 }
 
+.user-switch-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--spacing-sm);
+}
+
 .user-switch {
   display: flex;
   gap: var(--spacing-sm);
@@ -590,6 +643,34 @@ onMounted(async () => {
   align-items: center;
   gap: var(--spacing-lg);
 }
+
+.inventory-add-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.9);
+  background: transparent;
+  text-decoration: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  transition: transform 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.inventory-add-button:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.7);
+  color: #ffffff;
+}
+
+.inventory-add-button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+
 
 .impact-summary {
   display: flex;
@@ -726,9 +807,74 @@ onMounted(async () => {
   background: rgba(255, 255, 255, 0.2);
 }
 
+.inventory-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.inventory-info-fab {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+
+.inventory-info-fab:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.85);
+  outline-offset: 3px;
+}
+
+.inventory-info-fab:hover,
+.inventory-info-fab:focus-visible {
+  border-color: rgba(255, 255, 255, 0.85);
+  color: #ffffff;
+}
+
+.inventory-info-fab__tooltip {
+  position: absolute;
+  top: calc(100% + var(--spacing-sm));
+  right: 0;
+  max-width: 280px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: rgba(17, 24, 39, 0.92);
+  color: rgba(255, 255, 255, 0.92);
+  border-radius: var(--border-radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity var(--duration-fast) ease, transform var(--duration-fast) ease;
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.35);
+  text-align: left;
+  white-space: normal;
+}
+
+.inventory-info-fab:hover .inventory-info-fab__tooltip,
+.inventory-info-fab:focus-visible .inventory-info-fab__tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
 @media (max-width: 768px) {
   .dashboard-view {
     padding: var(--spacing-sm);
+  }
+
+  .user-switch-stack {
+    align-items: flex-start;
   }
 
   .header-main {
@@ -754,6 +900,10 @@ onMounted(async () => {
 
   .inventory-grid {
     grid-template-columns: 1fr;
+  }
+
+  .inventory-actions {
+    align-self: flex-start;
   }
 }
 </style>

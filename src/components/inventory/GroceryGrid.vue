@@ -8,7 +8,13 @@
         class="grocery-item"
         :aria-label="`Select ${item.name}`"
       >
-        <div class="item-icon">{{ item.icon }}</div>
+        <div
+          v-if="item.icon"
+          class="item-icon"
+          aria-hidden="true"
+        >
+          {{ item.icon }}
+        </div>
         <div class="item-name">{{ item.name }}</div>
         <div class="item-category">{{ item.category }}</div>
       </button>
@@ -52,6 +58,8 @@ const selectItem = (item: GroceryItem) => {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
   padding: var(--spacing-md);
   background: var(--color-bg-primary);
   border: 2px solid var(--color-bg-secondary);

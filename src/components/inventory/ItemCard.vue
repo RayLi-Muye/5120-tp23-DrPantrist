@@ -15,14 +15,14 @@
       @click="handleUse"
     >
       <span
-        v-if="primaryIcon.type === 'emoji'"
+        v-if="primaryIcon && primaryIcon.type === 'emoji'"
         class="item-emoji"
         aria-hidden="true"
       >
         {{ primaryIcon.value }}
       </span>
       <img
-        v-else
+        v-else-if="primaryIcon"
         class="item-image"
         :src="primaryIcon.value"
         :alt="iconAltText"
@@ -45,14 +45,14 @@
         <header class="tooltip-header">
           <div class="tooltip-title">
             <span
-              v-if="primaryIcon.type === 'emoji'"
+              v-if="primaryIcon && primaryIcon.type === 'emoji'"
               class="tooltip-emoji"
               aria-hidden="true"
             >
               {{ iconSymbol }}
             </span>
             <img
-              v-else
+              v-else-if="primaryIcon"
               class="tooltip-image"
               :src="primaryIcon.value"
               :alt="iconAltText"
@@ -127,32 +127,6 @@ const hoverPosition = ref({ x: 0.5, y: 0 })
 
 const { status, statusText } = useExpiryStatus(computed(() => props.item.expiryDate))
 
-const emojiMap: Record<string, string> = {
-  dairy: '🥛',
-  bakery: '🥖',
-  beverages: '🥤',
-  condiments: '🧂',
-  frozen: '🧊',
-  grains: '🌾',
-  meat: '🥩',
-  poultry: '🍗',
-  fruit: '🍎',
-  fruits: '🍎',
-  vegetable: '🥦',
-  vegetables: '🥦',
-  seafood: '🐟',
-  pantry: '🥫',
-  snacks: '🍪',
-}
-
-const fallbackIcon = computed(() => {
-  const key = props.item.category.toLowerCase()
-  if (emojiMap[key]) return emojiMap[key]
-  const firstChar = props.item.name.trim().charAt(0) || '🛒'
-  if (/^[a-z]/i.test(firstChar)) return firstChar.toUpperCase()
-  return firstChar
-})
-
 const isLikelyImageSource = (value: string): boolean => {
   const normalized = value.trim().toLowerCase()
   return normalized.startsWith('http') ||
@@ -172,10 +146,10 @@ const iconSymbol = computed(() => {
   if (icon && !isLikelyImageSource(icon)) {
     return icon
   }
-  return fallbackIcon.value
+  return null
 })
 
-const primaryIcon = computed<IconDescriptor>(() => {
+const primaryIcon = computed<IconDescriptor | null>(() => {
   const imageUrl = props.item.imageUrl?.trim()
   if (imageUrl) {
     return { type: 'image', value: imageUrl }
@@ -186,7 +160,12 @@ const primaryIcon = computed<IconDescriptor>(() => {
     return { type: 'image', value: icon }
   }
 
-  return { type: 'emoji', value: iconSymbol.value }
+  const emoji = iconSymbol.value
+  if (emoji) {
+    return { type: 'emoji', value: emoji }
+  }
+
+  return null
 })
 
 const iconAltText = computed(() => `${props.item.name} icon`)

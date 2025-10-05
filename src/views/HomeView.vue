@@ -84,6 +84,50 @@
                 </div>
               </div>
             </div>
+
+            <div
+              class="flip-card stat"
+              :class="{ active: activeStat === 'household-savings' }"
+              @click="onStatClick('household-savings')"
+            >
+              <div class="flip-card-inner">
+                <div class="flip-front stat-btn">
+                  <span class="stat-number">--</span>
+                  <span class="stat-label">Household savings insight</span>
+                </div>
+                <div class="flip-back">
+                  <button class="close-btn" @click.stop="closeStat">&times;</button>
+                  <DataInsightCard
+                    title="Household Savings Insight"
+                    description="Placeholder for upcoming data that highlights how much your household can save by reducing waste."
+                    source="Data source TBD"
+                    :chart-option="householdSavingsOption"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div
+              class="flip-card stat"
+              :class="{ active: activeStat === 'community-impact' }"
+              @click="onStatClick('community-impact')"
+            >
+              <div class="flip-card-inner">
+                <div class="flip-front stat-btn">
+                  <span class="stat-number">--</span>
+                  <span class="stat-label">Community impact insight</span>
+                </div>
+                <div class="flip-back">
+                  <button class="close-btn" @click.stop="closeStat">&times;</button>
+                  <DataInsightCard
+                    title="Community Impact Insight"
+                    description="Placeholder showing how shared efforts will translate into community-wide benefits."
+                    source="Data source TBD"
+                    :chart-option="communityImpactOption"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
           <button @click="getStarted" class="cta-button">
             Get Started
@@ -104,7 +148,7 @@ import DataInsightCard from '@/components/home/DataInsightCard.vue' // Adjust pa
 const router = useRouter()
 
 // --- State for Flip Cards ---
-type StatId = 'global-waste' | 'aussie-impact' | 'ghg-emissions'
+type StatId = 'global-waste' | 'aussie-impact' | 'ghg-emissions' | 'household-savings' | 'community-impact'
 const activeStat = ref<StatId | null>(null)
 const statsRef = ref<HTMLElement | null>(null)
 
@@ -204,6 +248,55 @@ const ghgEmitterOption = ref({
       { value: 6.1, itemStyle: { color: '#6c757d' } },
       { value: 12.4, itemStyle: { color: '#6c757d' } },
     ],
+  }],
+})
+
+// Chart 4: Placeholder for upcoming household savings data
+const householdSavingsOption = ref({
+  title: {
+    text: 'Coming Soon',
+    left: 'center',
+    textStyle: { color: '#9ca3af', fontSize: 14 },
+  },
+  series: [{
+    name: 'Savings Placeholder',
+    type: 'pie',
+    radius: ['55%', '75%'],
+    label: { show: false },
+    data: [
+      { value: 60, name: 'Projected Savings', itemStyle: { color: '#34d399' } },
+      { value: 40, name: 'TBD', itemStyle: { color: '#d1d5db' } },
+    ],
+  }],
+})
+
+// Chart 5: Placeholder for community impact insight
+const communityImpactOption = ref({
+  tooltip: { show: false },
+  grid: { left: 24, right: 24, bottom: 24, top: 32 },
+  xAxis: {
+    type: 'category',
+    data: ['Participation'],
+    axisLine: { show: false },
+    axisTick: { show: false },
+  },
+  yAxis: {
+    type: 'value',
+    max: 100,
+    splitLine: { show: false },
+    axisLine: { show: false },
+    axisTick: { show: false },
+  },
+  series: [{
+    type: 'bar',
+    barWidth: '35%',
+    data: [{ value: 50, itemStyle: { color: '#60a5fa' } }],
+    label: {
+      show: true,
+      position: 'top',
+      formatter: 'TBD',
+      color: '#9ca3af',
+    },
   }],
 })
 </script>
