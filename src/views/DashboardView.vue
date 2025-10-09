@@ -92,6 +92,7 @@
                   <span class="inventory-info-fab__tooltip">
                     CO2 reference: SuEatableLife Food Footprint;
                     <br />Price reference: Nutrition Research Australia
+                    <br />* Estimated values only, actuals may vary
                   </span>
                 </div>
               </div>
@@ -163,6 +164,7 @@
                   <span class="inventory-info-fab__tooltip">
                     CO2 reference: SuEatableLife Food Footprint;
                     <br /> Price reference: Nutrition Research Australia
+                    <br />* Estimated values only, actuals may vary
                   </span>
                 </div>
               </div>
