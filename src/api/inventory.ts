@@ -243,7 +243,13 @@ function mapBackendItemToInventoryItem(item: unknown): InventoryItem {
 }
 
 function isInventoryItem(value: unknown): value is InventoryItem {
-  return !!value && typeof value === 'object' && 'id' in (value as any) && 'name' in (value as any) && 'expiryDate' in (value as any)
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Partial<InventoryItem>
+  return (
+    typeof candidate.id === 'string' &&
+    typeof candidate.name === 'string' &&
+    typeof candidate.expiryDate === 'string'
+  )
 }
 
 function ensureInventoryItem(item: unknown): InventoryItem {
@@ -629,16 +635,17 @@ const inventoryAPI = {
       logger.debug('Success: DELETE /items/{item_id}/by-login-code', response.data)
       const data = (response.data ?? {}) as Record<string, unknown>
 
-      const moneySaved = typeof data['money_saved'] === 'number' ? (data['money_saved'] as number) : Number(data['money_saved'] as any)
-      const co2Saved = typeof data['co2_saved_kg'] === 'number' ? (data['co2_saved_kg'] as number) : Number(data['co2_saved_kg'] as any)
+      const moneySaved = toFiniteNumber(data['money_saved'])
+      const co2Saved = toFiniteNumber(data['co2_saved_kg'])
       const consumedAt = typeof data['consumed_at'] === 'string' ? (data['consumed_at'] as string) : new Date().toISOString()
 
-      const impact: ImpactData | null = Number.isFinite(moneySaved) || Number.isFinite(co2Saved)
+      const hasImpact = moneySaved != null || co2Saved != null
+      const impact: ImpactData | null = hasImpact
         ? {
             itemId,
             itemName: '',
-            moneySaved: Number.isFinite(moneySaved) ? (moneySaved as number) : 0,
-            co2Avoided: Number.isFinite(co2Saved) ? (co2Saved as number) : 0,
+            moneySaved: moneySaved ?? 0,
+            co2Avoided: co2Saved ?? 0,
             actionType: 'used',
             timestamp: consumedAt
           }
@@ -725,25 +732,41 @@ const inventoryAPI = {
         apiClient.get('/stats/by-login-code', { params: { login_code: String(loginCode).trim() } })
       )
 
-      const data = (response.data ?? {}) as any
-      const toBucket = (src: any): ImpactStatsBucket => ({
-        moneySaved: Number(src?.money_saved ?? 0) || 0,
-        co2SavedKg: Number(src?.co2_saved_kg ?? 0) || 0
-      })
-      const profiles: ProfileImpactStats[] = Array.isArray(data?.profiles)
-        ? data.profiles.map((p: any) => ({
-            position: Number(p?.position ?? 0) || 0,
-            profileId: String(p?.profile_id ?? ''),
-            profileName: String(p?.profile_name ?? ''),
-            moneySaved: Number(p?.money_saved ?? 0) || 0,
-            co2SavedKg: Number(p?.co2_saved_kg ?? 0) || 0
-          }))
+      const responsePayload = response.data as unknown
+      const data =
+        (typeof responsePayload === 'object' && responsePayload !== null
+          ? (responsePayload as Record<string, unknown>)
+          : {})
+
+      const toBucket = (src: unknown): ImpactStatsBucket => {
+        const bucket = (typeof src === 'object' && src !== null ? (src as Record<string, unknown>) : {})
+        return {
+          moneySaved: toFiniteNumber(bucket['money_saved']) ?? 0,
+          co2SavedKg: toFiniteNumber(bucket['co2_saved_kg']) ?? 0
+        }
+      }
+
+      const profilesArray = Array.isArray((data as { profiles?: unknown }).profiles)
+        ? ((data as { profiles?: unknown }).profiles as unknown[])
         : []
 
+      const profiles: ProfileImpactStats[] = profilesArray.map(profileRaw => {
+        const profile = (typeof profileRaw === 'object' && profileRaw !== null
+          ? (profileRaw as Record<string, unknown>)
+          : {})
+        return {
+          position: pickNumber(profile, ['position']) ?? 0,
+          profileId: pickString(profile, ['profile_id']) ?? '',
+          profileName: pickString(profile, ['profile_name']) ?? '',
+          moneySaved: pickNumber(profile, ['money_saved']) ?? 0,
+          co2SavedKg: pickNumber(profile, ['co2_saved_kg']) ?? 0
+        }
+      })
+
       return {
-        inventoryId: String(data?.inventory_id ?? ''),
-        overall: toBucket(data?.overall),
-        shared: toBucket(data?.shared),
+        inventoryId: pickString(data, ['inventory_id']) ?? '',
+        overall: toBucket(data['overall']),
+        shared: toBucket(data['shared']),
         profiles
       }
     } catch (error) {

@@ -170,14 +170,6 @@ const minDate = computed(() => {
   return today.toISOString().split('T')[0]
 })
 
-function toYMD(d: Date): string { return d.toISOString().split('T')[0] }
-
-const expiryPresets = computed(() => {
-  const now = new Date()
-  const mk = (days: number, label: string) => ({ label, value: toYMD(new Date(now.getFullYear(), now.getMonth(), now.getDate() + days)) })
-  return [mk(3, '+3d'), mk(7, '+7d'), mk(14, '+14d')]
-})
-
 // Form validation
 const isFormValid = computed(() => {
   const q = Number(formData.value.quantity)

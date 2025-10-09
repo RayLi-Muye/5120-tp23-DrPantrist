@@ -96,7 +96,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     return Number.isFinite(parsed) ? parsed : undefined
   }
 
-  function normalizeQuantityForEstimates(q: number | undefined, _unitHint?: string): number {
+  function normalizeQuantityForEstimates(q: number | undefined): number {
     // Quantities are treated as kg/L for mass/volume categories, or item counts otherwise
     return Number.isFinite(q) ? (q as number) : 1
   }
@@ -111,7 +111,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     const pricePerUnit = override?.pricePerUnit ?? grocery?.avgPrice
     const co2PerUnit = override?.co2PerUnit ?? grocery?.co2Factor
     const unit = override?.unit ?? grocery?.unit ?? item.unit
-    const quantity = normalizeQuantityForEstimates(item.quantity, unit)
+    const quantity = normalizeQuantityForEstimates(item.quantity)
     const category = override?.category ?? grocery?.category ?? item.category
     const categoryId = override?.categoryId ?? grocery?.categoryId ?? item.categoryId
     const icon = override?.icon ?? grocery?.icon ?? getFoodIcon({

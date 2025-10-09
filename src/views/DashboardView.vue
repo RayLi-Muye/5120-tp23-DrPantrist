@@ -360,20 +360,6 @@ const sharedFilterOptions = computed(() => {
   ]
 })
 
-// Session-only impact accumulators by section (increase when items are used)
-const sessionSharedImpact = ref({ money: 0, co2: 0, items: 0 })
-const sessionPrivateImpact = ref<Record<number, { money: number; co2: number; items: number }>>({})
-
-function bumpPrivateImpact(position: number, money: number, co2: number) {
-  if (!sessionPrivateImpact.value[position]) {
-    sessionPrivateImpact.value[position] = { money: 0, co2: 0, items: 0 }
-  }
-  const bucket = sessionPrivateImpact.value[position]
-  bucket.money += money
-  bucket.co2 += co2
-  bucket.items += 1
-}
-
 const privateImpact = computed(() => {
   const pos = activeProfile.value?.position
   if (!pos) return { money: formatCurrency(0), co2: formatCO2(0) }
@@ -581,10 +567,6 @@ watch(
     if (newUser) {
       await nextTick()
       await loadInventory()
-    } else {
-      // Optionally clear per-session impact when logging out
-      sessionSharedImpact.value = { money: 0, co2: 0, items: 0 }
-      sessionPrivateImpact.value = {}
     }
   },
   { immediate: true }
