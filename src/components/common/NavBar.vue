@@ -3,8 +3,8 @@
     <div class="nav-inner">
       <div class="nav-left">
         <router-link to="/" class="brand" aria-label="Go to home">
-          <img :src="logoUrl" alt="UseItUp logo" class="brand-logo" />
-          <span class="brand-text">UseItUp</span>
+          <img :src="logoUrl" alt="Dr.Pantrist logo" class="brand-logo" />
+          <span class="brand-text">Dr.Pantrist</span>
         </router-link>
       </div>
       <div class="nav-center">

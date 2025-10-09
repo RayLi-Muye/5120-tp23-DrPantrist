@@ -11,7 +11,7 @@
       class="item-circle"
       type="button"
       :disabled="isDisabled"
-      :aria-label="`Mark ${item.name} as used`"
+      :aria-label="actionAriaLabel"
       @click="handleUse"
     >
       <span
@@ -69,7 +69,7 @@
             type="button"
             :disabled="isDisabled"
             @click="handleUse"
-            aria-label="Mark as used"
+            :aria-label="isExpired ? 'Expired items cannot be marked as used' : 'Mark as used'"
           >
             ✓
           </button>
@@ -126,6 +126,7 @@ const showTooltip = ref(false)
 const hoverPosition = ref({ x: 0.5, y: 0 })
 
 const { status, statusText } = useExpiryStatus(computed(() => props.item.expiryDate))
+const isExpired = computed(() => status.value === 'expired')
 
 const isLikelyImageSource = (value: string): boolean => {
   const normalized = value.trim().toLowerCase()
@@ -199,7 +200,14 @@ const formattedExpiry = computed(() => {
   }
 })
 
-const isDisabled = computed(() => props.isLoading || props.readOnly)
+const isDisabled = computed(() => props.isLoading || props.readOnly || isExpired.value)
+
+const actionAriaLabel = computed(() => {
+  if (isExpired.value) {
+    return `${props.item.name} has expired and cannot be marked as used`
+  }
+  return `Mark ${props.item.name} as used`
+})
 
 const tooltipStyle = computed(() => {
   const { x, y } = hoverPosition.value

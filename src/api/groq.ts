@@ -49,7 +49,7 @@ export async function fetchGroqAssistantSuggestions(
 }
 
 function buildMessages(names: string[], householdName?: string): GroqChatMessage[] {
-  const safeHouseholdName = householdName?.trim() || 'UseItUp household'
+  const safeHouseholdName = householdName?.trim() || 'Dr.Pantrist household'
   const inventoryList = names.length > 0
     ? names.map((name, index) => `${index + 1}. ${name}`).join('\n')
     : 'No items currently in stock.'
@@ -69,7 +69,7 @@ function buildMessages(names: string[], householdName?: string): GroqChatMessage
     {
       role: 'system',
       content:
-        'You are UseItUp\'s sustainability assistant. You help households plan their next grocery purchases while minimising food waste, '
+        'You are Dr.Pantrist\'s sustainability assistant. You help households plan their next grocery purchases while minimising food waste, '
         + 'supporting balanced nutrition, and lowering carbon footprint. Keep answers practical, friendly, and brief.'
     },
     {

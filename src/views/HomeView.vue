@@ -6,7 +6,7 @@
           <h1 class="hero-title">
             <span class="highlight">Stop Food Waste</span>
             <br />
-            Use It Up
+            Dr.Pantrist
           </h1>
           <p class="hero-subtitle">
             Track your groceries, saves money and helps our planet.
@@ -87,21 +87,21 @@
 
             <div
               class="flip-card stat"
-              :class="{ active: activeStat === 'household-savings' }"
-              @click="onStatClick('household-savings')"
+              :class="{ active: activeStat === 'water-footprint' }"
+              @click="onStatClick('water-footprint')"
             >
               <div class="flip-card-inner">
                 <div class="flip-front stat-btn">
-                  <span class="stat-number">--</span>
-                  <span class="stat-label">Household savings insight</span>
+                  <span class="stat-number">250km³</span>
+                  <span class="stat-label">water wasted annually</span>
                 </div>
                 <div class="flip-back">
-                  <button class="close-btn" @click.stop="closeStat">&times;</button>
-                  <DataInsightCard
-                    title="Household Savings Insight"
-                    description="Placeholder for upcoming data that highlights how much your household can save by reducing waste."
-                    source="Data source TBD"
-                    :chart-option="householdSavingsOption"
+                  <button class="close-btn" @click.stop="closeStat">✕</button>
+                   <DataInsightCard
+                    title="Wasting Food = Wasting Water"
+                    description="Food waste consumes 250 cubic kilometers of water annually—equivalent to 38× the water footprint of all US households."
+                    source="FAO Food Wastage Footprint Report (2013)"
+                    :chart-option="waterFootprintOption"
                   />
                 </div>
               </div>
@@ -109,21 +109,21 @@
 
             <div
               class="flip-card stat"
-              :class="{ active: activeStat === 'community-impact' }"
-              @click="onStatClick('community-impact')"
+              :class="{ active: activeStat === 'waste-sources' }"
+              @click="onStatClick('waste-sources')"
             >
               <div class="flip-card-inner">
                 <div class="flip-front stat-btn">
-                  <span class="stat-number">--</span>
-                  <span class="stat-label">Community impact insight</span>
+                  <span class="stat-number">931M</span>
+                  <span class="stat-label">tonnes from consumers</span>
                 </div>
                 <div class="flip-back">
-                  <button class="close-btn" @click.stop="closeStat">&times;</button>
-                  <DataInsightCard
-                    title="Community Impact Insight"
-                    description="Placeholder showing how shared efforts will translate into community-wide benefits."
-                    source="Data source TBD"
-                    :chart-option="communityImpactOption"
+                  <button class="close-btn" @click.stop="closeStat">✕</button>
+                   <DataInsightCard
+                    title="Where Does Food Waste Occur?"
+                    description="In 2019, consumers wasted 931 million tonnes of food: households 61%, food service 26%, retail 13%. Halving this by 2030 is key to SDG 12.3."
+                    source="UNEP Food Waste Index Report (2024)"
+                    :chart-option="wasteSourcesOption"
                   />
                 </div>
               </div>
@@ -148,7 +148,7 @@ import DataInsightCard from '@/components/home/DataInsightCard.vue' // Adjust pa
 const router = useRouter()
 
 // --- State for Flip Cards ---
-type StatId = 'global-waste' | 'aussie-impact' | 'ghg-emissions' | 'household-savings' | 'community-impact'
+type StatId = 'global-waste' | 'aussie-impact' | 'ghg-emissions' | 'water-footprint' | 'waste-sources'
 const activeStat = ref<StatId | null>(null)
 const statsRef = ref<HTMLElement | null>(null)
 
@@ -251,53 +251,76 @@ const ghgEmitterOption = ref({
   }],
 })
 
-// Chart 4: Placeholder for upcoming household savings data
-const householdSavingsOption = ref({
-  title: {
-    text: 'Coming Soon',
-    left: 'center',
-    textStyle: { color: '#9ca3af', fontSize: 14 },
+// Chart 4: Water footprint comparison (food waste vs US households)
+const waterFootprintOption = ref({
+  tooltip: {
+    trigger: 'axis',
+    axisPointer: { type: 'shadow' },
+    formatter: (params: Array<{ name: string; value: number }>) => {
+      const first = params[0]
+      return `${first.name}<br/>${first.value} km³ of water`
+    }
+  },
+  grid: { left: '12%', right: '8%', bottom: '10%', top: '12%', containLabel: true },
+  xAxis: {
+    type: 'value',
+    name: 'Km³ of water',
+    nameLocation: 'middle',
+    nameGap: 28,
+    axisLine: { lineStyle: { color: '#9ca3af' } },
+    splitLine: { lineStyle: { type: 'dashed', color: '#e5e7eb' } }
+  },
+  yAxis: {
+    type: 'category',
+    data: ['Food Waste', 'All US Households'],
+    axisLine: { show: false },
+    axisTick: { show: false },
+    axisLabel: { color: '#4b5563' }
   },
   series: [{
-    name: 'Savings Placeholder',
-    type: 'pie',
-    radius: ['55%', '75%'],
-    label: { show: false },
+    name: 'Water Footprint',
+    type: 'bar',
+    barWidth: '45%',
     data: [
-      { value: 60, name: 'Projected Savings', itemStyle: { color: '#34d399' } },
-      { value: 40, name: 'TBD', itemStyle: { color: '#d1d5db' } },
+      { value: 250, itemStyle: { color: '#1d4ed8' } },
+      { value: 6.6, itemStyle: { color: '#60a5fa' } }
     ],
+    label: {
+      show: true,
+      position: 'right',
+      formatter: '{c} km³',
+      color: '#1f2937'
+    }
   }],
 })
 
-// Chart 5: Placeholder for community impact insight
-const communityImpactOption = ref({
-  tooltip: { show: false },
-  grid: { left: 24, right: 24, bottom: 24, top: 32 },
-  xAxis: {
-    type: 'category',
-    data: ['Participation'],
-    axisLine: { show: false },
-    axisTick: { show: false },
-  },
-  yAxis: {
-    type: 'value',
-    max: 100,
-    splitLine: { show: false },
-    axisLine: { show: false },
-    axisTick: { show: false },
+// Chart 5: Consumer-level food waste breakdown
+const wasteSourcesOption = ref({
+  tooltip: { trigger: 'item', formatter: '{b}: {c} Mt ({d}%)' },
+  legend: {
+    orient: 'vertical',
+    right: 0,
+    top: 'center',
+    textStyle: { color: '#4b5563', fontSize: 12 }
   },
   series: [{
-    type: 'bar',
-    barWidth: '35%',
-    data: [{ value: 50, itemStyle: { color: '#60a5fa' } }],
+    name: 'Waste Sources',
+    type: 'pie',
+    radius: ['45%', '70%'],
+    center: ['38%', '50%'],
+    avoidLabelOverlap: true,
     label: {
-      show: true,
-      position: 'top',
-      formatter: 'TBD',
-      color: '#9ca3af',
+      formatter: '{b}\n{d}%',
+      color: '#1f2937',
+      fontSize: 12
     },
-  }],
+    labelLine: { smooth: true, length: 10, length2: 12 },
+    data: [
+      { value: 568, name: 'Households', itemStyle: { color: '#f97316' } },
+      { value: 242, name: 'Food Service', itemStyle: { color: '#22c55e' } },
+      { value: 121, name: 'Retail', itemStyle: { color: '#6366f1' } }
+    ]
+  }]
 })
 </script>
 

@@ -9,7 +9,7 @@ const router = createRouter({
       name: "home",
       component: () => import("../views/HomeView.vue"),
       meta: {
-        title: "Use It Up - Stop Food Waste, Start Saving",
+        title: "Dr.Pantrist - Stop Food Waste, Start Saving",
         // Home is public; allow access when authenticated as well
       },
     },
@@ -18,7 +18,7 @@ const router = createRouter({
       name: "auth",
       component: () => import("../views/AuthView.vue"),
       meta: {
-        title: "Login - Use It Up",
+        title: "Login - Dr.Pantrist",
         requiresGuest: true,
       },
     },
@@ -28,7 +28,7 @@ const router = createRouter({
       // Lazy-loaded dashboard view
       component: () => import("../views/DashboardView.vue"),
       meta: {
-        title: "Dashboard - Use It Up",
+        title: "Dashboard - Dr.Pantrist",
         requiresAuth: true,
       },
     },
@@ -38,7 +38,7 @@ const router = createRouter({
       // Lazy-loaded add item view
       component: () => import("../views/AddItemView.vue"),
       meta: {
-        title: "Add Item - Use It Up",
+        title: "Add Item - Dr.Pantrist",
         requiresAuth: true,
       },
     },
@@ -52,7 +52,7 @@ const router = createRouter({
       name: "about",
       component: () => import("../views/AboutView.vue"),
       meta: {
-        title: "About - Use It Up",
+        title: "About - Dr.Pantrist",
         // About is public
       },
     },

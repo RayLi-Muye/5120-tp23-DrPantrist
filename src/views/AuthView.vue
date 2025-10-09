@@ -2,7 +2,7 @@
   <div class="auth-view">
     <div class="auth-container">
       <!-- <div class="auth-header">
-        <h1 class="auth-title">UseItUp</h1>
+        <h1 class="auth-title">Dr.Pantrist</h1>
         <p class="auth-subtitle">Track your groceries, reduce waste</p>
       </div> -->
 

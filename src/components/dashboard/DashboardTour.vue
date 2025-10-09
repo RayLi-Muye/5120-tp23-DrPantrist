@@ -87,14 +87,14 @@ const steps: TourStep[] = [
     id: 'use-item',
     selector: '[data-tour-id="use-item"]',
     title: 'Mark Items Used',
-    description: 'Select an item card to mark it as used so savings and carbon impact stay accurate.',
+    description: 'Click on an item card to mark it as used so savings and carbon impact stay accurate.',
     fallback: 'No items are available to mark yet. Try adding something first.'
   },
   {
     id: 'ai-assistant',
     selector: '[data-tour-id="ai-assistant"]',
     title: 'AI Assistant',
-    description: 'The bottom-right AI button reviews inventory and recent usage to share nutrition and low-carbon ideas.',
+    description: 'The bottom-right AI button reviews inventory and recent usage to recommend groceries purchasing options.',
     fallback: 'AI button not found. Confirm the page has finished loading.'
   },
   {

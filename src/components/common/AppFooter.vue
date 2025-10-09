@@ -15,19 +15,47 @@
 
       <section class="footer-group" aria-labelledby="footer-sources-heading">
         <h2 id="footer-sources-heading" class="footer-heading">Data Sources</h2>
-        <p class="footer-placeholder">Our reference of Data insight.</p>
+        <p class="footer-placeholder">Key references powering our insights.</p>
         <ul class="footer-list">
           <li>
-            <a href="https://www.fao.org/4/mb060e/mb060e00.htm" class="footer-link">Global Food Loss and Waste: Facts and Figures</a>
+            <a
+              href="https://www.fao.org/4/mb060e/mb060e00.htm"
+              class="footer-link"
+              target="_blank"
+              rel="noopener noreferrer"
+            >Global Food Loss and Waste: Facts and Figures</a>
           </li>
           <li>
-            <a href="https://www.unep.org/resources/publication/food-waste-index-report-2024" class="footer-link">Food Waste Index Report 2024</a>
+            <a
+              href="https://www.unep.org/resources/publication/food-waste-index-report-2024"
+              class="footer-link"
+              target="_blank"
+              rel="noopener noreferrer"
+            >Food Waste Index Report 2024</a>
           </li>
           <li>
-            <a href="https://www.dcceew.gov.au/environment/protection/waste/food-waste" class="footer-link">National Food Waste Strategy</a>
+            <a
+              href="https://www.dcceew.gov.au/environment/protection/waste/food-waste"
+              class="footer-link"
+              target="_blank"
+              rel="noopener noreferrer"
+            >National Food Waste Strategy</a>
           </li>
           <li>
-            <a href="https://www.foodbank.org.au/hunger-in-australia/?state=vic" class="footer-link">Hunger in Australia</a>
+            <a
+              href="https://www.foodbank.org.au/hunger-in-australia/?state=vic"
+              class="footer-link"
+              target="_blank"
+              rel="noopener noreferrer"
+            >Hunger in Australia</a>
+          </li>
+          <li>
+            <a
+              href="https://www.researchgate.net/publication/262611961_Food_Wastage_Footprint_Impacts_on_Natural_Resources_Summary_Report"
+              class="footer-link"
+              target="_blank"
+              rel="noopener noreferrer"
+            >Food Wastage Footprint: Impacts on Natural Resources (FAO, 2013)</a>
           </li>
         </ul>
       </section>

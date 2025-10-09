@@ -9,7 +9,7 @@
       aria-controls="dashboard-ai-panel"
     >
       <span class="assistant-toggle__icon" aria-hidden="true">AI</span>
-      <span class="assistant-toggle__label">AI Assistant</span>
+      <span class="assistant-toggle__label">What to buy next?</span>
     </button>
 
     <transition name="assistant-panel">
@@ -22,8 +22,7 @@
       >
         <header class="assistant-panel__header">
           <div>
-            <h3>Nutrition and Low-Carbon Ideas</h3>
-            <p class="assistant-panel__subtitle">Tailored to your current inventory and recent consumption.</p>
+            <h3>Powered by Llama</h3>
           </div>
           <div class="assistant-panel__actions">
             <button class="assistant-panel__action" type="button" @click="refresh" :disabled="isLoading">
@@ -62,7 +61,7 @@ const suggestions = ref('')
 
 const householdName = computed(() => {
   const user = authStore.user
-  if (!user) return 'UseItUp Household'
+  if (!user) return 'Dr.Pantrist Household'
 
   if (typeof user.inventoryName === 'string' && user.inventoryName.trim().length > 0) {
     return user.inventoryName
@@ -72,7 +71,7 @@ const householdName = computed(() => {
     return user.displayName
   }
 
-  return 'UseItUp Household'
+  return 'Dr.Pantrist Household'
 })
 
 const responseLines = computed(() => {

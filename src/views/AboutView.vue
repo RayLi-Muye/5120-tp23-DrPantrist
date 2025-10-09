@@ -2,14 +2,14 @@
   <div class="about-view">
     <header class="about-header">
       <button @click="goBack" class="back-button" aria-label="Go back">←</button>
-      <h1>About UseItUp</h1>
+      <h1>About Dr.Pantrist</h1>
     </header>
 
     <main class="about-main">
       <section class="about-section">
         <h2>🌱 What It Does</h2>
         <p>
-          Use It Up helps households track groceries, avoid waste, and save money. Add items with
+          Dr.Pantrist helps households track groceries, avoid waste, and save money. Add items with
           expiry dates, use them on time, and see your impact.
         </p>
       </section>

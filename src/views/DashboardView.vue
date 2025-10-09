@@ -86,22 +86,23 @@
                   class="inventory-info-fab"
                   role="button"
                   tabindex="0"
-                  aria-label="物品数据来源信息"
+                  aria-label="item data reference info"
                 >
                   i
                   <span class="inventory-info-fab__tooltip">
-                    可用物品的价格和碳排放的数据来源是: CO2来自SuEatableLife Food Footprint Database, 价格来自Nutrition Research Australia - Australian Food Price Dataset
+                    CO2 reference: SuEatableLife Food Footprint;
+                    <br />Price reference: Nutrition Research Australia
                   </span>
                 </div>
               </div>
               <div class="impact-summary" data-tour-id="impact-summary">
                 <div class="impact-summary__item">
-                  <span class="impact-label">Well Spent</span>
-                  <span class="impact-value">{{ privateImpact.money }}</span>
+                  <span class="impact-label">{{ privateImpactDisplay.moneyLabel }}</span>
+                  <span class="impact-value">{{ privateImpactDisplay.moneyValue }}</span>
                 </div>
                 <div class="impact-summary__item">
-                  <span class="impact-label">CO2 Avoided</span>
-                  <span class="impact-value">{{ privateImpact.co2 }}</span>
+                  <span class="impact-label">{{ privateImpactDisplay.co2Label }}</span>
+                  <span class="impact-value">{{ privateImpactDisplay.co2Value }}</span>
                 </div>
               </div>
             </div>
@@ -156,22 +157,23 @@
                   class="inventory-info-fab"
                   role="button"
                   tabindex="0"
-                  aria-label="物品数据来源信息"
+                  aria-label="item data reference info"
                 >
                   i
                   <span class="inventory-info-fab__tooltip">
-                    可用物品的价格和碳排放的数据来源是: CO2来自SuEatableLife Food Footprint Database, 价格来自Nutrition Research Australia - Australian Food Price Dataset
+                    CO2 reference: SuEatableLife Food Footprint;
+                    <br /> Price reference: Nutrition Research Australia
                   </span>
                 </div>
               </div>
               <div class="impact-summary" data-tour-id="impact-summary">
                 <div class="impact-summary__item">
-                  <span class="impact-label">Well Spent</span>
-                  <span class="impact-value">{{ sharedImpact.money }}</span>
+                  <span class="impact-label">{{ sharedImpactDisplay.moneyLabel }}</span>
+                  <span class="impact-value">{{ sharedImpactDisplay.moneyValue }}</span>
                 </div>
                 <div class="impact-summary__item">
-                  <span class="impact-label">CO2 Avoided</span>
-                  <span class="impact-value">{{ sharedImpact.co2 }}</span>
+                  <span class="impact-label">{{ sharedImpactDisplay.co2Label }}</span>
+                  <span class="impact-value">{{ sharedImpactDisplay.co2Value }}</span>
                 </div>
               </div>
             </div>
@@ -279,6 +281,9 @@ type FilterType = 'all' | 'fresh' | 'warning' | 'expired'
 const privateFilter = ref<FilterType>('all')
 const sharedFilter = ref<FilterType>('all')
 
+type FilterCounts = { fresh: number; warning: number; expired: number; total: number }
+type ImpactTotals = { money: number; co2: number }
+
 function freshnessOf(expiryDate: string): FilterType {
   try {
     const days = calculateDaysUntilExpiry(expiryDate)
@@ -290,26 +295,53 @@ function freshnessOf(expiryDate: string): FilterType {
   }
 }
 
+const filterItemsByFreshness = (items: InventoryItemType[], filter: FilterType) => {
+  if (filter === 'all') {
+    return items.filter(item => freshnessOf(item.expiryDate) !== 'expired')
+  }
+  return items.filter(item => freshnessOf(item.expiryDate) === filter)
+}
+
+const buildFilterCounts = (items: InventoryItemType[]): FilterCounts => {
+  const counts: FilterCounts = { fresh: 0, warning: 0, expired: 0, total: 0 }
+  for (const item of items) {
+    const status = freshnessOf(item.expiryDate)
+    if (status === 'expired') {
+      counts.expired += 1
+    } else if (status === 'warning') {
+      counts.warning += 1
+      counts.total += 1
+    } else {
+      counts.fresh += 1
+      counts.total += 1
+    }
+  }
+  return counts
+}
+
+const sumExpiredImpact = (items: InventoryItemType[]): ImpactTotals =>
+  items.reduce<ImpactTotals>(
+    (totals, item) => {
+      if (freshnessOf(item.expiryDate) !== 'expired') {
+        return totals
+      }
+      totals.money += item.estimatedCost ?? 0
+      totals.co2 += item.estimatedCo2Kg ?? 0
+      return totals
+    },
+    { money: 0, co2: 0 }
+  )
+
 const privateFilteredItems = computed(() => {
-  const list = privateItems.value
-  if (privateFilter.value === 'all') return list
-  return list.filter(it => freshnessOf(it.expiryDate) === privateFilter.value)
+  return filterItemsByFreshness(privateItems.value, privateFilter.value)
 })
 
 const sharedFilteredItems = computed(() => {
-  const list = sharedItems.value
-  if (sharedFilter.value === 'all') return list
-  return list.filter(it => freshnessOf(it.expiryDate) === sharedFilter.value)
+  return filterItemsByFreshness(sharedItems.value, sharedFilter.value)
 })
 
 const privateFilterOptions = computed(() => {
-  const base = privateItems.value
-  const counts = {
-    fresh: base.filter(i => freshnessOf(i.expiryDate) === 'fresh').length,
-    warning: base.filter(i => freshnessOf(i.expiryDate) === 'warning').length,
-    expired: base.filter(i => freshnessOf(i.expiryDate) === 'expired').length,
-    total: base.length
-  }
+  const counts = buildFilterCounts(privateItems.value)
   return [
     { key: 'all' as FilterType, label: 'All', count: counts.total },
     { key: 'fresh' as FilterType, label: 'Fresh', count: counts.fresh },
@@ -319,13 +351,7 @@ const privateFilterOptions = computed(() => {
 })
 
 const sharedFilterOptions = computed(() => {
-  const base = sharedItems.value
-  const counts = {
-    fresh: base.filter(i => freshnessOf(i.expiryDate) === 'fresh').length,
-    warning: base.filter(i => freshnessOf(i.expiryDate) === 'warning').length,
-    expired: base.filter(i => freshnessOf(i.expiryDate) === 'expired').length,
-    total: base.length
-  }
+  const counts = buildFilterCounts(sharedItems.value)
   return [
     { key: 'all' as FilterType, label: 'All', count: counts.total },
     { key: 'fresh' as FilterType, label: 'Fresh', count: counts.fresh },
@@ -355,6 +381,58 @@ const privateImpact = computed(() => {
 })
 
 const sharedImpact = computed(() => impactStore.sharedImpactFormatted)
+
+const privateExpiredImpact = computed(() => {
+  const totals = sumExpiredImpact(privateItems.value)
+  return {
+    money: formatCurrency(totals.money),
+    co2: formatCO2(totals.co2)
+  }
+})
+
+const sharedExpiredImpact = computed(() => {
+  const totals = sumExpiredImpact(sharedItems.value)
+  return {
+    money: formatCurrency(totals.money),
+    co2: formatCO2(totals.co2)
+  }
+})
+
+const privateImpactDisplay = computed(() => {
+  if (privateFilter.value === 'expired') {
+    return {
+      moneyLabel: 'Money Wasted',
+      moneyValue: privateExpiredImpact.value.money,
+      co2Label: 'CO2 Created',
+      co2Value: privateExpiredImpact.value.co2
+    }
+  }
+
+  return {
+    moneyLabel: 'Well Spent',
+    moneyValue: privateImpact.value.money,
+    co2Label: 'CO2 Avoided',
+    co2Value: privateImpact.value.co2
+  }
+})
+
+const sharedImpactDisplay = computed(() => {
+  if (sharedFilter.value === 'expired') {
+    return {
+      moneyLabel: 'Money Wasted',
+      moneyValue: sharedExpiredImpact.value.money,
+      co2Label: 'CO2 Created',
+      co2Value: sharedExpiredImpact.value.co2
+    }
+  }
+
+  return {
+    moneyLabel: 'Well Spent',
+    moneyValue: sharedImpact.value.money,
+    co2Label: 'CO2 Avoided',
+    co2Value: sharedImpact.value.co2
+  }
+})
 
 const retryLoad = async () => {
   inventoryStore.clearError()
@@ -390,10 +468,13 @@ const loadInventory = async () => {
 const handleUseItem = async (itemId: string) => {
   if (!authStore.user) return
 
+  const originalItem = inventoryStore.getItemById(itemId)
+  if (!originalItem) return
+  if (freshnessOf(originalItem.expiryDate) === 'expired') return
+
   loadingItemId.value = itemId
 
   try {
-    const originalItem = inventoryStore.getItemById(itemId)
     const { impact, consumedResponse } = await markItemAsUsedUnified(itemId)
 
     const resolvedImpact = impact ?? (originalItem
@@ -845,20 +926,21 @@ onMounted(async () => {
 .inventory-info-fab__tooltip {
   position: absolute;
   top: calc(100% + var(--spacing-sm));
-  right: 0;
-  max-width: 280px;
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: rgba(17, 24, 39, 0.92);
+  left: 50%;
+  transform: translate(-50%, -6px);
+  padding: var(--spacing-sm) calc(var(--spacing-lg) * 1.1);
+  background: rgba(17, 24, 39, 0.94);
   color: rgba(255, 255, 255, 0.92);
-  border-radius: var(--border-radius-md);
+  border-radius: var(--border-radius-lg);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  font-size: var(--font-size-xs);
-  line-height: 1.4;
+  font-size: 0.78rem;
+  line-height: 1.6;
   opacity: 0;
   pointer-events: none;
-  transform: translateY(-4px);
+  max-width: min(420px, 80vw);
+  min-width: 240px;
   transition: opacity var(--duration-fast) ease, transform var(--duration-fast) ease;
-  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.35);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.38);
   text-align: left;
   white-space: normal;
 }
@@ -866,7 +948,7 @@ onMounted(async () => {
 .inventory-info-fab:hover .inventory-info-fab__tooltip,
 .inventory-info-fab:focus-visible .inventory-info-fab__tooltip {
   opacity: 1;
-  transform: translateY(0);
+  transform: translate(-50%, 0);
 }
 @media (max-width: 768px) {
   .dashboard-view {
