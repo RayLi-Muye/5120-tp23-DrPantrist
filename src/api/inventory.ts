@@ -127,6 +127,48 @@ export interface ImpactStats {
   profiles: ProfileImpactStats[]
 }
 
+export interface ImpactLedgerDailyTotals {
+  day: string
+  quantity: number
+  moneySaved: number
+  co2SavedKg: number
+}
+
+export interface ImpactLedgerTotals {
+  quantity: number
+  moneySaved: number
+  co2SavedKg: number
+}
+
+export interface ImpactLedgerRecord {
+  consumedAt: string
+  groceryName: string
+  categoryName: string
+  quantity: number
+  moneySaved: number
+  co2SavedKg: number
+  visibility: 'shared' | 'private'
+  consumedBy?: string
+}
+
+export interface ImpactLedgerProfileBucket {
+  bucket: 'profile' | 'shared'
+  profileId: string | null
+  profileName: string
+  dailyTotals: ImpactLedgerDailyTotals[]
+  totals: ImpactLedgerTotals
+  records: ImpactLedgerRecord[]
+}
+
+export interface ImpactLedgerResponse {
+  inventoryId: string
+  range: {
+    start: string
+    end: string
+  }
+  profiles: ImpactLedgerProfileBucket[]
+}
+
 // API Error wrapper for better error handling
 class InventoryAPIError extends Error {
   constructor(
@@ -178,7 +220,94 @@ function pickString(source: Record<string, unknown>, keys: string[]): string | u
   return undefined
 }
 
-// Removed unused mapImpactPayload helper (store computes impact when needed)
+function mapLedgerDailyTotals(entry: unknown): ImpactLedgerDailyTotals | null {
+  if (typeof entry !== 'object' || entry === null) return null
+  const record = entry as Record<string, unknown>
+
+  const day = pickString(record, ['day'])
+  if (!day) return null
+
+  const quantity = toFiniteNumber(record['quantity']) ?? 0
+  const moneySaved = toFiniteNumber(record['money_saved']) ?? 0
+  const co2SavedKg = toFiniteNumber(record['co2_saved_kg']) ?? 0
+
+  return {
+    day,
+    quantity,
+    moneySaved,
+    co2SavedKg
+  }
+}
+
+function mapLedgerRecord(entry: unknown): ImpactLedgerRecord | null {
+  if (typeof entry !== 'object' || entry === null) return null
+  const record = entry as Record<string, unknown>
+
+  const consumedAt = pickString(record, ['consumed_at'])
+  const groceryName = pickString(record, ['grocery_name']) ?? ''
+  const categoryName = pickString(record, ['category_name']) ?? ''
+  const quantity = toFiniteNumber(record['quantity']) ?? 0
+  const moneySaved = toFiniteNumber(record['money_saved']) ?? 0
+  const co2SavedKg = toFiniteNumber(record['co2_saved_kg']) ?? 0
+  const visibilityRaw = pickString(record, ['visibility'])
+  const visibility = visibilityRaw === 'private' ? 'private' : 'shared'
+  const consumedBy = pickString(record, ['consumed_by'])
+
+  if (!consumedAt) return null
+
+  return {
+    consumedAt,
+    groceryName,
+    categoryName,
+    quantity,
+    moneySaved,
+    co2SavedKg,
+    visibility,
+    consumedBy: consumedBy ?? undefined
+  }
+}
+
+function mapLedgerBucket(entry: unknown): ImpactLedgerProfileBucket | null {
+  if (typeof entry !== 'object' || entry === null) return null
+  const record = entry as Record<string, unknown>
+
+  const bucketRaw = pickString(record, ['bucket'])
+  const bucket = bucketRaw === 'profile' ? 'profile' : 'shared'
+  const profileId = pickString(record, ['profile_id']) ?? null
+  const profileName = pickString(record, ['profile_name']) ?? (bucket === 'shared' ? 'Shared' : 'Profile')
+
+  const dailyTotalsArray = Array.isArray(record['daily_totals'])
+    ? (record['daily_totals'] as unknown[])
+    : []
+  const dailyTotals = dailyTotalsArray
+    .map(mapLedgerDailyTotals)
+    .filter((entry): entry is ImpactLedgerDailyTotals => entry !== null)
+
+  const recordsArray = Array.isArray(record['records']) ? (record['records'] as unknown[]) : []
+  const records = recordsArray
+    .map(mapLedgerRecord)
+    .filter((entry): entry is ImpactLedgerRecord => entry !== null)
+
+  const totalsRaw =
+    typeof record['totals'] === 'object' && record['totals'] !== null
+      ? (record['totals'] as Record<string, unknown>)
+      : {}
+
+ // Removed unused mapImpactPayload helper (store computes impact when needed)
+
+  return {
+    bucket,
+    profileId,
+    profileName,
+    dailyTotals,
+    totals: {
+      quantity: toFiniteNumber(totalsRaw['quantity']) ?? 0,
+      moneySaved: toFiniteNumber(totalsRaw['money_saved']) ?? 0,
+      co2SavedKg: toFiniteNumber(totalsRaw['co2_saved_kg']) ?? 0
+    },
+    records
+  }
+}
 
 // Map backend item shape to frontend InventoryItem
 function mapBackendItemToInventoryItem(item: unknown): InventoryItem {
@@ -774,6 +903,58 @@ const inventoryAPI = {
       throw new InventoryAPIError(
         apiError.message || 'Failed to fetch impact stats by login code.',
         'getImpactStatsByLoginCode',
+        apiError
+      )
+    }
+  },
+
+  /**
+   * Get consumption ledger totals for the past N days by login code
+   */
+  async getImpactLedgerByLoginCode(loginCode: string, days = 7): Promise<ImpactLedgerResponse> {
+    if (!loginCode) {
+      throw new InventoryAPIError('Login code is required', 'getImpactLedgerByLoginCode')
+    }
+
+    try {
+      const response = await retryRequest(() =>
+        apiClient.get('/ledger/7d/by-login-code', {
+          params: {
+            login_code: String(loginCode).trim(),
+            days
+          }
+        })
+      )
+
+      const payload = response.data as unknown
+      const data =
+        typeof payload === 'object' && payload !== null ? (payload as Record<string, unknown>) : {}
+
+      const rangeRaw =
+        typeof data['range'] === 'object' && data['range'] !== null
+          ? (data['range'] as Record<string, unknown>)
+          : {}
+      const rangeStart = pickString(rangeRaw, ['start']) ?? ''
+      const rangeEnd = pickString(rangeRaw, ['end']) ?? rangeStart
+
+      const profilesArray = Array.isArray(data['profiles']) ? (data['profiles'] as unknown[]) : []
+      const profiles = profilesArray
+        .map(mapLedgerBucket)
+        .filter((bucket): bucket is ImpactLedgerProfileBucket => bucket !== null)
+
+      return {
+        inventoryId: pickString(data, ['inventory_id']) ?? '',
+        range: {
+          start: rangeStart,
+          end: rangeEnd
+        },
+        profiles
+      }
+    } catch (error) {
+      const apiError = error as APIError
+      throw new InventoryAPIError(
+        apiError.message || 'Failed to fetch impact ledger. Please try again.',
+        'getImpactLedgerByLoginCode',
         apiError
       )
     }

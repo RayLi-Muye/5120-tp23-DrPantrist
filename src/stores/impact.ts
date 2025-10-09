@@ -3,10 +3,16 @@
 
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import inventoryAPI, { type ImpactData, type TotalImpactData, type ImpactStats, InventoryAPIError } from '@/api/inventory'
+import inventoryAPI, {
+  type ImpactData,
+  type TotalImpactData,
+  type ImpactStats,
+  InventoryAPIError,
+  type ImpactLedgerDailyTotals,
+  type ImpactLedgerProfileBucket
+} from '@/api/inventory'
 import { formatCurrency, formatCO2, getCO2Comparison } from '@/utils/formatters'
-import { subDays, format, differenceInCalendarDays, parseISO, isValid, startOfDay } from 'date-fns'
-// Removed error handler imports for MVP
+import { parseISO, isValid, eachDayOfInterval, format, startOfDay } from 'date-fns'
 
 export interface ImpactCardState {
   visible: boolean
@@ -36,178 +42,103 @@ export interface WeeklyImpactTrend {
   co2: number[]
 }
 
-export type ImpactHistoryScope =
+export type ImpactScope =
   | { type: 'shared' }
-  | { type: 'private'; profilePosition: number }
+  | { type: 'profile'; profileId: string }
+  | { type: 'profile-position'; profilePosition: number }
 
-interface StoredImpactHistoryEntry extends ImpactData {
-  timestamp: string
-  scope: 'shared' | 'private'
-  profilePosition?: number
-}
-
-const IMPACT_HISTORY_STORAGE_KEY = 'use_it_up_impact_history'
-const IMPACT_HISTORY_MAX_DAYS = 30
-const TREND_DAYS = 7
-
-function matchesScope(entry: StoredImpactHistoryEntry, scope: ImpactHistoryScope): boolean {
-  if (scope.type === 'shared') {
-    return entry.scope === 'shared'
-  }
-  if (entry.scope !== 'private') return false
-  return entry.profilePosition === scope.profilePosition
-}
-
-function parseImpactTimestamp(timestamp: string): Date | null {
-  if (!timestamp) return null
-  const parsed = parseISO(timestamp)
-  if (isValid(parsed)) {
-    return parsed
-  }
-  const fallback = new Date(timestamp)
-  return Number.isNaN(fallback.getTime()) ? null : fallback
-}
-
-function loadImpactHistory(): StoredImpactHistoryEntry[] {
-  if (typeof window === 'undefined') {
-    return []
-  }
-
-  try {
-    const raw = window.localStorage.getItem(IMPACT_HISTORY_STORAGE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-
-    return parsed
-      .map(entry => {
-        const record = entry as Partial<StoredImpactHistoryEntry>
-        const timestamp = typeof record.timestamp === 'string' ? record.timestamp : ''
-        if (!timestamp) return null
-
-        const moneySaved = Number(record.moneySaved ?? 0)
-        const co2Avoided = Number(record.co2Avoided ?? 0)
-        const actionType = record.actionType === 'used' ? 'used' : 'discarded'
-        const scope = record.scope === 'private' ? 'private' : 'shared'
-        const profilePosition =
-          scope === 'private' && Number.isFinite(record.profilePosition)
-            ? Number(record.profilePosition)
-            : undefined
-
-        return {
-          itemId: typeof record.itemId === 'string' ? record.itemId : '',
-          itemName: typeof record.itemName === 'string' ? record.itemName : '',
-          moneySaved: Number.isFinite(moneySaved) ? moneySaved : 0,
-          co2Avoided: Number.isFinite(co2Avoided) ? co2Avoided : 0,
-          actionType,
-          timestamp,
-          scope,
-          profilePosition
-        } satisfies StoredImpactHistoryEntry
-      })
-      .filter((entry): entry is StoredImpactHistoryEntry => entry !== null)
-  } catch (error) {
-    console.warn('Failed to load impact history from storage:', error)
-    return []
-  }
-}
-
-function persistImpactHistory(entries: StoredImpactHistoryEntry[]): void {
-  if (typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(IMPACT_HISTORY_STORAGE_KEY, JSON.stringify(entries))
-  } catch (error) {
-    console.warn('Failed to persist impact history:', error)
-  }
-}
-
-function pruneImpactHistory(entries: StoredImpactHistoryEntry[]): StoredImpactHistoryEntry[] {
-  const threshold = subDays(new Date(), IMPACT_HISTORY_MAX_DAYS - 1)
-  return entries.filter(entry => {
-    const parsed = parseImpactTimestamp(entry.timestamp)
-    return parsed ? parsed >= threshold : false
-  })
-}
-
-function computeWeeklyTrend(entries: StoredImpactHistoryEntry[]): WeeklyImpactTrend {
-  const now = startOfDay(new Date())
-  const baseLabels: string[] = []
-  const baseMoney: number[] = []
-  const baseCo2: number[] = []
-  const usageFlags: boolean[] = []
-
-  for (let offset = TREND_DAYS - 1; offset >= 0; offset--) {
-    const targetDate = startOfDay(subDays(now, offset))
-    const label = format(targetDate, 'EEE')
-    let moneyTotal = 0
-    let co2Total = 0
-
-    for (const entry of entries) {
-      if (entry.actionType !== 'used') continue
-      const parsed = parseImpactTimestamp(entry.timestamp)
-      if (!parsed) continue
-
-      if (differenceInCalendarDays(parsed, targetDate) === 0) {
-        moneyTotal += entry.moneySaved
-        co2Total += entry.co2Avoided
-      }
-    }
-
-    const moneyRounded = Number(moneyTotal.toFixed(2))
-    const co2Rounded = Number(co2Total.toFixed(3))
-
-    baseLabels.push(label)
-    baseMoney.push(moneyRounded)
-    baseCo2.push(co2Rounded)
-    usageFlags.push(moneyRounded > 0 || co2Rounded > 0)
-  }
-
-  if (!usageFlags.some(Boolean)) {
-    return {
-      labels: baseLabels,
-      money: baseMoney,
-      co2: baseCo2
-    }
-  }
-
-  const firstUsageIndex = usageFlags.findIndex(flag => flag)
-  let lastUsageIndex =
-    usageFlags.length - 1 - usageFlags.slice().reverse().findIndex(flag => flag)
-  if (lastUsageIndex < firstUsageIndex) {
-    lastUsageIndex = firstUsageIndex
-  }
-
-  const sliceStart = Math.max(0, firstUsageIndex - 1)
-  const sliceEnd = Math.min(baseLabels.length, lastUsageIndex + 2)
-
-  const labels = baseLabels.slice(sliceStart, sliceEnd)
-  const money = baseMoney.slice(sliceStart, sliceEnd)
-  const co2 = baseCo2.slice(sliceStart, sliceEnd)
-
-  if (labels.length === 1 && baseLabels.length > 1) {
-    if (sliceEnd < baseLabels.length) {
-      labels.push(baseLabels[sliceEnd])
-      money.push(baseMoney[sliceEnd])
-      co2.push(baseCo2[sliceEnd])
-    } else if (sliceStart > 0) {
-      labels.unshift(baseLabels[sliceStart - 1])
-      money.unshift(baseMoney[sliceStart - 1])
-      co2.unshift(baseCo2[sliceStart - 1])
-    }
-  }
-
-  return {
-    labels,
-    money,
-    co2
-  }
-}
-
-// Auto-hide duration: 3 seconds
 const AUTO_HIDE_DURATION = 3000
+const LEDGER_DEFAULT_DAYS = 7
+const EMPTY_TREND: WeeklyImpactTrend = { labels: [], money: [], co2: [] }
+
+function toStartOfDay(dateString: string): Date | null {
+  if (!dateString) return null
+  const parsed = parseISO(dateString)
+  if (!isValid(parsed)) return null
+  return startOfDay(parsed)
+}
+
+function buildTrend(rangeStart: string, rangeEnd: string, totals: ImpactLedgerDailyTotals[]): WeeklyImpactTrend {
+  const start = toStartOfDay(rangeStart)
+  const end = toStartOfDay(rangeEnd)
+
+  if (!start || !end || end < start) {
+    return { ...EMPTY_TREND }
+  }
+
+  let days: Date[]
+  try {
+    days = eachDayOfInterval({ start, end })
+  } catch {
+    days = [start]
+  }
+
+  const totalsMap = new Map<string, ImpactLedgerDailyTotals>()
+  for (const entry of totals) {
+    totalsMap.set(entry.day, entry)
+  }
+
+  const labels: string[] = []
+  const money: number[] = []
+  const co2: number[] = []
+
+  for (const day of days) {
+    const key = format(day, 'yyyy-MM-dd')
+    const entry = totalsMap.get(key)
+    labels.push(format(day, 'EEE'))
+    money.push(entry ? Number(entry.moneySaved.toFixed(2)) : 0)
+    co2.push(entry ? Number(entry.co2SavedKg.toFixed(3)) : 0)
+  }
+
+  return { labels, money, co2 }
+}
+
+function trendClone(trend: WeeklyImpactTrend): WeeklyImpactTrend {
+  return {
+    labels: [...trend.labels],
+    money: [...trend.money],
+    co2: [...trend.co2]
+  }
+}
+
+function resolveScopeKey(
+  scope: ImpactScope,
+  positionToId: Record<number, string>
+): string | null {
+  if (scope.type === 'shared') return 'shared'
+  if (scope.type === 'profile') {
+    return scope.profileId ? `profile:${scope.profileId}` : null
+  }
+  const profileId = positionToId[scope.profilePosition]
+  return profileId ? `profile:${profileId}` : null
+}
+
+function mapLedgerProfiles(
+  buckets: ImpactLedgerProfileBucket[],
+  rangeStart: string,
+  rangeEnd: string
+): Record<string, WeeklyImpactTrend> {
+  const trends: Record<string, WeeklyImpactTrend> = {}
+  let hasSharedBucket = false
+
+  for (const bucket of buckets) {
+    const trend = buildTrend(rangeStart, rangeEnd, bucket.dailyTotals ?? [])
+    if (bucket.bucket === 'shared') {
+      hasSharedBucket = true
+      trends['shared'] = trend
+    } else if (bucket.profileId) {
+      trends[`profile:${bucket.profileId}`] = trend
+    }
+  }
+
+  if (!hasSharedBucket) {
+    trends['shared'] = buildTrend(rangeStart, rangeEnd, [])
+  }
+
+  return trends
+}
 
 export const useImpactStore = defineStore('impact', () => {
-  // State
   const impactCard = ref<ImpactCardState>({
     visible: false,
     data: null,
@@ -219,19 +150,23 @@ export const useImpactStore = defineStore('impact', () => {
     totalCo2Avoided: 0,
     itemsUsed: 0
   })
-  const impactHistory = ref<StoredImpactHistoryEntry[]>(pruneImpactHistory(loadImpactHistory()))
-  const lastImpactScope = ref<ImpactHistoryScope>({ type: 'shared' })
 
+  const stats = ref<ImpactStats | null>(null)
   const isLoadingTotal = ref(false)
   const isLoadingStats = ref(false)
+  const isLoadingLedger = ref(false)
   const error = ref<string | null>(null)
+  const ledgerError = ref<string | null>(null)
 
-  // Computed properties for formatted display values
+  const ledgerTrends = ref<Record<string, WeeklyImpactTrend>>({})
+  const profilePositionToId = ref<Record<number, string>>({})
+  const lastImpactScope = ref<ImpactScope>({ type: 'shared' })
+  const currentLoginCode = ref<string | null>(null)
+  const ledgerDays = ref(LEDGER_DEFAULT_DAYS)
+
   const formattedCurrentImpact = computed((): FormattedImpactData | null => {
     if (!impactCard.value.data) return null
-
     const data = impactCard.value.data
-
     return {
       moneySaved: formatCurrency(data.moneySaved),
       co2Avoided: formatCO2(data.co2Avoided),
@@ -243,7 +178,6 @@ export const useImpactStore = defineStore('impact', () => {
 
   const formattedTotalImpact = computed((): FormattedTotalImpact => {
     const data = totalImpact.value
-
     return {
       totalMoneySaved: formatCurrency(data.totalMoneySaved),
       totalCo2Avoided: formatCO2(data.totalCo2Avoided),
@@ -252,9 +186,6 @@ export const useImpactStore = defineStore('impact', () => {
       itemsUsedText: data.itemsUsed === 1 ? '1 item used' : `${data.itemsUsed} items used`
     }
   })
-
-  // Persistent impact stats fetched from backend (by login code)
-  const stats = ref<ImpactStats | null>(null)
 
   const sharedImpactFormatted = computed(() => {
     const bucket = stats.value?.shared || { moneySaved: 0, co2SavedKg: 0 }
@@ -274,7 +205,6 @@ export const useImpactStore = defineStore('impact', () => {
     }
   }
 
-  // Helper to clear auto-hide timer
   function clearAutoHideTimer(): void {
     if (impactCard.value.autoHideTimer) {
       clearTimeout(impactCard.value.autoHideTimer)
@@ -282,31 +212,27 @@ export const useImpactStore = defineStore('impact', () => {
     }
   }
 
-  // Actions
-  function showImpact(
-    impactData: ImpactData,
-    scope: ImpactHistoryScope = { type: 'shared' }
-  ): void {
-    // Clear any existing timer
+  function showImpact(impactData: ImpactData, scope: ImpactScope = { type: 'shared' }): void {
     clearAutoHideTimer()
-
-    // Set impact data and show card
     impactCard.value.data = impactData
     impactCard.value.visible = true
-    recordImpactHistory(impactData, scope)
     lastImpactScope.value = scope
 
-    // Set auto-hide timer
     impactCard.value.autoHideTimer = window.setTimeout(() => {
       hideImpact()
     }, AUTO_HIDE_DURATION)
+
+    if (currentLoginCode.value) {
+      fetchImpactLedger(currentLoginCode.value, ledgerDays.value, { silent: true }).catch(error => {
+        console.warn('Silent impact ledger refresh failed', error)
+      })
+    }
   }
 
   function hideImpact(): void {
     clearAutoHideTimer()
     impactCard.value.visible = false
 
-    // Clear data after a short delay to allow for exit animations
     setTimeout(() => {
       if (!impactCard.value.visible) {
         impactCard.value.data = null
@@ -330,25 +256,26 @@ export const useImpactStore = defineStore('impact', () => {
     try {
       const data = await inventoryAPI.getTotalImpact(userId)
       totalImpact.value = data
-
-      // Clear any previous errors on successful fetch
       error.value = null
     } catch (err) {
-      const errorMessage = 'fetch your impact data'
-
-      if (err instanceof InventoryAPIError) {
-        error.value = err.message
-      } else if (err instanceof Error && err.message.includes('network')) {
-        error.value = 'Network error - using cached impact data if available'
-      } else {
-        error.value = 'Failed to fetch impact data. Please try again.'
-      }
-      console.error(errorMessage, err)
-
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      error.value = errorMessage || 'Failed to fetch impact data. Please try again.'
       console.error('Failed to fetch total impact:', err)
     } finally {
       isLoadingTotal.value = false
     }
+  }
+
+  function syncProfilePositionMapping(data: ImpactStats | null): void {
+    const mapping: Record<number, string> = {}
+    if (data) {
+      for (const profile of data.profiles) {
+        if (profile.profileId) {
+          mapping[profile.position] = profile.profileId
+        }
+      }
+    }
+    profilePositionToId.value = mapping
   }
 
   async function fetchImpactStatsByLoginCode(loginCode: string): Promise<void> {
@@ -360,6 +287,7 @@ export const useImpactStore = defineStore('impact', () => {
     try {
       const data = await inventoryAPI.getImpactStatsByLoginCode(loginCode)
       stats.value = data
+      syncProfilePositionMapping(data)
       error.value = null
     } catch (err) {
       if (err instanceof InventoryAPIError) {
@@ -375,8 +303,46 @@ export const useImpactStore = defineStore('impact', () => {
     }
   }
 
+  async function fetchImpactLedger(
+    loginCode: string,
+    days = LEDGER_DEFAULT_DAYS,
+    options: { silent?: boolean } = {}
+  ): Promise<void> {
+    if (!loginCode) {
+      if (!options.silent) {
+        ledgerError.value = 'Login code is required'
+      }
+      return
+    }
+
+    const silent = options.silent ?? false
+    if (!silent) {
+      isLoadingLedger.value = true
+      ledgerError.value = null
+    }
+
+    try {
+      const response = await inventoryAPI.getImpactLedgerByLoginCode(loginCode, days)
+      currentLoginCode.value = loginCode
+      ledgerDays.value = days
+
+      const trends = mapLedgerProfiles(response.profiles, response.range.start, response.range.end)
+      ledgerTrends.value = trends
+    } catch (err) {
+      if (!silent) {
+        const message = err instanceof InventoryAPIError ? err.message : 'Failed to load impact ledger.'
+        ledgerError.value = message
+      } else {
+        console.warn('Silent impact ledger fetch error:', err)
+      }
+    } finally {
+      if (!silent) {
+        isLoadingLedger.value = false
+      }
+    }
+  }
+
   function updateTotalImpact(impactData: ImpactData): void {
-    // Update total impact when an item is used
     if (impactData.actionType === 'used') {
       totalImpact.value.totalMoneySaved += impactData.moneySaved
       totalImpact.value.totalCo2Avoided += impactData.co2Avoided
@@ -388,6 +354,10 @@ export const useImpactStore = defineStore('impact', () => {
     error.value = null
   }
 
+  function clearImpactHistory(): void {
+    ledgerTrends.value = {}
+  }
+
   function resetTotalImpact(): void {
     totalImpact.value = {
       totalMoneySaved: 0,
@@ -397,10 +367,8 @@ export const useImpactStore = defineStore('impact', () => {
     clearImpactHistory()
   }
 
-  // Helper to check if impact card is currently visible
   const isImpactVisible = computed(() => impactCard.value.visible)
 
-  // Helper to get motivational message based on impact
   const motivationalMessage = computed((): string => {
     if (!impactCard.value.data) return ''
 
@@ -408,72 +376,53 @@ export const useImpactStore = defineStore('impact', () => {
     const totalSaved = totalImpact.value.totalMoneySaved + data.moneySaved
 
     if (totalSaved < 10) {
-      return "Great start! Every item counts."
+      return 'Great start! Every item counts.'
     } else if (totalSaved < 50) {
       return "You're building momentum!"
     } else if (totalSaved < 100) {
-      return "Fantastic progress! Keep it up!"
+      return 'Fantastic progress! Keep it up!'
     } else {
       return "Amazing impact! You're a waste warrior!"
     }
   })
 
-  // Cleanup function for component unmounting
-  function cleanup(): void {
-    clearAutoHideTimer()
-  }
-
-  function recordImpactHistory(impactData: ImpactData, scope: ImpactHistoryScope): void {
-    if (impactData.actionType !== 'used') {
-      return
+  function getWeeklyTrendForScope(scope: ImpactScope): WeeklyImpactTrend {
+    const key = resolveScopeKey(scope, profilePositionToId.value)
+    if (!key) {
+      return trendClone(EMPTY_TREND)
     }
-
-    const timestamp = impactData.timestamp || new Date().toISOString()
-    const entry: StoredImpactHistoryEntry = {
-      ...impactData,
-      timestamp,
-      scope: scope.type,
-      profilePosition: scope.type === 'private' ? scope.profilePosition : undefined
-    }
-
-    impactHistory.value = pruneImpactHistory([...impactHistory.value, entry])
-    persistImpactHistory(impactHistory.value)
-  }
-
-  function getWeeklyTrendForScope(scope: ImpactHistoryScope): WeeklyImpactTrend {
-    const entries = impactHistory.value.filter(entry => matchesScope(entry, scope))
-    return computeWeeklyTrend(entries)
+    const trend = ledgerTrends.value[key]
+    return trend ? trendClone(trend) : trendClone(EMPTY_TREND)
   }
 
   const activeWeeklyImpactTrend = computed<WeeklyImpactTrend>(() =>
     getWeeklyTrendForScope(lastImpactScope.value)
   )
 
-  function clearImpactHistory(): void {
-    impactHistory.value = []
-    persistImpactHistory(impactHistory.value)
+  function cleanup(): void {
+    clearAutoHideTimer()
   }
 
   return {
-    // State
     impactCard: computed(() => impactCard.value),
     totalImpact: computed(() => totalImpact.value),
     isLoadingTotal,
     isLoadingStats,
+    isLoadingLedger,
     error,
-
-    // Computed
+    ledgerError,
     formattedCurrentImpact,
     formattedTotalImpact,
     isImpactVisible,
     motivationalMessage,
-
-    // Actions
+    sharedImpactFormatted,
+    profileImpactFormatted,
     showImpact,
     hideImpact,
     dismissImpact,
     fetchTotalImpact,
     fetchImpactStatsByLoginCode,
+    fetchImpactLedger,
     updateTotalImpact,
     clearError,
     resetTotalImpact,
@@ -481,10 +430,7 @@ export const useImpactStore = defineStore('impact', () => {
     activeWeeklyImpactTrend,
     getWeeklyTrendForScope,
     lastImpactScope,
-    clearImpactHistory,
-    // Stats
-    stats: computed(() => stats.value),
-    sharedImpactFormatted,
-    profileImpactFormatted
+    profilePositionToId,
+    clearImpactHistory
   }
 })

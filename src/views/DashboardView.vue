@@ -243,7 +243,7 @@ import { useRouter } from 'vue-router'
 import { useInventoryStore } from '@/stores/inventory'
 import { useAuthStore } from '@/stores/auth'
 import ItemCard from '@/components/inventory/ItemCard.vue'
-import { useImpactStore, type ImpactHistoryScope } from '@/stores/impact'
+import { useImpactStore, type ImpactScope } from '@/stores/impact'
 import { useInventoryAccess } from '@/composables/useInventoryAccess'
 import type { InventoryItem as InventoryItemType } from '@/api/inventory'
 import LoadingState from '@/components/common/LoadingState.vue'
@@ -296,11 +296,14 @@ function getItemPosition(item: InventoryItemType): number | undefined {
   return undefined
 }
 
-function resolveImpactScope(item: InventoryItemType | null): ImpactHistoryScope {
+function resolveImpactScope(item: InventoryItemType | null): ImpactScope {
   if (item && isItemPrivate(item)) {
+    if (item.profileId) {
+      return { type: 'profile', profileId: item.profileId }
+    }
     const position = getItemPosition(item)
     if (typeof position === 'number') {
-      return { type: 'private', profilePosition: position }
+      return { type: 'profile-position', profilePosition: position }
     }
   }
   return { type: 'shared' }
@@ -470,11 +473,15 @@ const impactTrendSummary = computed(() => {
 
 const impactTrendData = computed(() => {
   if (impactTrendContext.value === 'private') {
+    const profileId = activeProfile.value?.profileId
+    if (profileId) {
+      return impactStore.getWeeklyTrendForScope({ type: 'profile', profileId })
+    }
     const position = activeProfile.value?.position
     if (typeof position === 'number') {
-      return impactStore.getWeeklyTrendForScope({ type: 'private', profilePosition: position })
+      return impactStore.getWeeklyTrendForScope({ type: 'profile-position', profilePosition: position })
     }
-    return impactStore.getWeeklyTrendForScope({ type: 'private', profilePosition: 0 })
+    return impactStore.getWeeklyTrendForScope({ type: 'shared' })
   }
   return impactStore.getWeeklyTrendForScope({ type: 'shared' })
 })
@@ -528,6 +535,7 @@ const loadInventory = async () => {
       await inventoryStore.fetchInventoryByLoginCode(authStore.user.loginCode, true)
       // Fetch persisted impact stats for dashboard counters
       await impactStore.fetchImpactStatsByLoginCode(authStore.user.loginCode)
+      await impactStore.fetchImpactLedger(authStore.user.loginCode)
     } else {
       await inventoryStore.fetchInventory(authStore.user.id)
     }
@@ -566,7 +574,8 @@ const handleUseItem = async (itemId: string) => {
 
       // Refresh persisted stats from backend to reflect latest totals
       if (loginCode.value) {
-        impactStore.fetchImpactStatsByLoginCode(loginCode.value)
+        await impactStore.fetchImpactStatsByLoginCode(loginCode.value)
+        await impactStore.fetchImpactLedger(loginCode.value, 7, { silent: true })
       }
     } else if (consumedResponse) {
       console.warn('Item consumed but no impact data available', consumedResponse)
