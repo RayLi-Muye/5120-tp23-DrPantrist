@@ -208,6 +208,16 @@ async def create_user(body: CreateUserIn):
                     raise HTTPException(400, f"create user failed: {e}")
         raise HTTPException(500, "failed to generate unique login code")
 
+@app.get("/users/by-login-code")
+async def get_user_by_login_code(login_code: str = Query(..., min_length=4, max_length=4)):
+    async with SessionLocal() as db:
+        row = (await db.execute(
+            text("SELECT user_id, display_name, login_code FROM users WHERE login_code=:c LIMIT 1"),
+            {"c": login_code},
+        )).first()
+        if not row:
+            raise HTTPException(404, "invalid login code")
+        return {"user_id": row.user_id, "display_name": row.display_name, "login_code": row.login_code}
 # ---------------------- Inventories ----------------------
 
 @app.post("/inventories/create")
@@ -539,6 +549,41 @@ async def list_groceries(
             for r in rows
         ]
 
+@app.get("/groceries/{grocery_id}")
+async def get_grocery(grocery_id: int):
+    async with SessionLocal() as db:
+        row = (await db.execute(text("""
+            SELECT
+              grocery_id, product_id, name, category_id,
+              dop_pantry_max,      dop_pantry_metric,
+              dop_refrigerate_max, dop_refrigerate_metric,
+              dop_freeze_max,      dop_freeze_metric,
+              price, product_size, unit, created_at
+            FROM groceries
+            WHERE grocery_id = :gid
+            LIMIT 1
+        """), {"gid": grocery_id})).first()
+
+        if not row:
+            raise HTTPException(404, "grocery not found")
+
+        return dict(
+            grocery_id=row.grocery_id,
+            product_id=row.product_id,
+            name=row.name,
+            category_id=row.category_id,
+            dop_pantry_max=row.dop_pantry_max,
+            dop_pantry_metric=row.dop_pantry_metric,
+            dop_refrigerate_max=row.dop_refrigerate_max,
+            dop_refrigerate_metric=row.dop_refrigerate_metric,
+            dop_freeze_max=row.dop_freeze_max,
+            dop_freeze_metric=row.dop_freeze_metric,
+            price=row.price,
+            product_size=row.product_size,
+            unit=row.unit,
+            created_at=row.created_at,
+        )
+
 # ---------------------- Items ----------------------
 
 @app.get("/items/by-login-code")
@@ -717,24 +762,313 @@ async def update_item_by_login_code(item_id: str, body: UpdateItemByLoginCodeIn)
             raise HTTPException(400, f"update item failed: {e}")
 
 @app.delete("/items/{item_id}/by-login-code")
-async def delete_item_by_login_code(item_id: str, login_code: str = Query(..., min_length=4, max_length=4)):
-    """Delete an item from the caller's inventory."""
+async def delete_item_by_login_code(
+    item_id: str,
+    login_code: str = Query(..., min_length=4, max_length=4),
+):
     async with SessionLocal() as db:
         u_id, inv_id = await _resolve_user_and_inventory_by_login_code(db, login_code)
+
+        # 1) 锁定 item，价格/规格/CO2 全部来自 categories
+        row = (
+            await db.execute(
+                text("""
+                    SELECT
+                        i.item_id,
+                        i.inventory_id,
+                        i.grocery_id,
+                        i.quantity,
+                        i.visibility,
+                        i.profile_id,
+                        g.category_id,
+                        c.category_name,
+                        c.co2_factor_kg,
+                        c.price        AS cat_price,
+                        c.product_size AS cat_size
+                    FROM inventory_items i
+                    JOIN groceries  g ON g.grocery_id  = i.grocery_id
+                    JOIN categories c ON c.category_id = g.category_id
+                    WHERE i.item_id = :id
+                      AND i.inventory_id = :iid
+                    FOR UPDATE
+                """),
+                {"id": item_id, "iid": inv_id},
+            )
+        ).first()
+
+        if not row:
+            raise HTTPException(404, "item not found in your inventory")
+
+        # 2) 计算 unit_price（用 categories 的数值列）
+        unit_price = None
+        if row.cat_price is not None and row.cat_size is not None:
+            try:
+                if float(row.cat_size) != 0:
+                    unit_price = (float(row.cat_price) / float(row.cat_size)) * 1000
+            except Exception:
+                unit_price = None
+
+        co2_factor = float(row.co2_factor_kg) if row.co2_factor_kg is not None else None
+
         await db.execute(text("SELECT public.set_actor(:uid)"), {"uid": u_id})
+
         try:
-            row = (await db.execute(
-                text(
-                    "DELETE FROM inventory_items "
-                    "WHERE item_id = :item_id AND inventory_id = :iid "
-                    "RETURNING item_id"
-                ),
-                {"item_id": item_id, "iid": inv_id},
-            )).first()
-            if not row:
-                raise HTTPException(404, "item not found in your inventory")
+            # 3) 写入账本；money_saved 为生成列：quantity * unit_price
+            ins = await db.execute(
+                text("""
+                    INSERT INTO consumption_ledger (
+                        inventory_id,
+                        item_id,
+                        grocery_id,
+                        quantity,
+                        unit_price,
+                        co2_factor_kg,
+                        category_id,
+                        category_name,
+                        visibility,
+                        profile_id,
+                        consumed_by
+                    )
+                    VALUES (
+                        :iid, :item_id, :gid, :qty,
+                        :unit_price, :co2_factor,
+                        :cat_id, :cat_name,
+                        :vis, :pid, :uid
+                    )
+                    RETURNING money_saved, co2_saved_kg, consumed_at
+                """),
+                {
+                    "iid": inv_id,
+                    "item_id": row.item_id,
+                    "gid": row.grocery_id,
+                    "qty": float(row.quantity),
+                    "unit_price": unit_price,      # ← categories 计算
+                    "co2_factor": co2_factor,      # ← categories
+                    "cat_id": row.category_id,
+                    "cat_name": row.category_name,
+                    "vis": row.visibility,
+                    "pid": row.profile_id,
+                    "uid": u_id,
+                },
+            )
+            led = ins.first()
+
+            # 4) 删库存
+            await db.execute(
+                text("DELETE FROM inventory_items WHERE item_id=:id AND inventory_id=:iid"),
+                {"id": item_id, "iid": inv_id},
+            )
+
             await db.commit()
-            return {"ok": True}
+            return {
+                "ok": True,
+                "money_saved": float(led.money_saved or 0),
+                "co2_saved_kg": float(led.co2_saved_kg or 0),
+                "consumed_at": led.consumed_at,
+            }
+
         except Exception as e:
             await db.rollback()
-            raise HTTPException(400, f"delete item failed: {e}")
+            raise HTTPException(400, f"consume(delete) failed: {e}")
+
+
+
+        
+# ---------------------- Stats ----------------------
+@app.get("/stats/by-login-code")
+async def stats_by_login_code(
+    login_code: str = Query(..., min_length=4, max_length=4),
+):
+    async with SessionLocal() as db:
+        _, inv_id = await _resolve_user_and_inventory_by_login_code(db, login_code)
+
+        # all 
+        overall = (
+            await db.execute(
+                text("""
+                    SELECT
+                        COALESCE(SUM(money_saved), 0)  AS money,
+                        COALESCE(SUM(co2_saved_kg), 0) AS co2
+                    FROM consumption_ledger l
+                    WHERE l.inventory_id = :iid
+                """),
+                {"iid": inv_id},
+            )
+        ).first()
+
+        # shared
+        shared = (
+            await db.execute(
+                text("""
+                    SELECT
+                        COALESCE(SUM(money_saved), 0)  AS money,
+                        COALESCE(SUM(co2_saved_kg), 0) AS co2
+                    FROM consumption_ledger l
+                    WHERE l.inventory_id = :iid
+                      AND l.visibility = 'shared'
+                      AND l.profile_id IS NULL
+                """),
+                {"iid": inv_id},
+            )
+        ).first()
+
+        # profiles
+        profs = (
+            await db.execute(
+                text("""
+                    SELECT
+                        p.position,
+                        p.profile_id,
+                        p.profile_name,
+                        COALESCE(SUM(l.money_saved), 0)  AS money,
+                        COALESCE(SUM(l.co2_saved_kg), 0) AS co2
+                    FROM inventory_profiles p
+                    LEFT JOIN consumption_ledger l
+                           ON l.profile_id   = p.profile_id
+                          AND l.inventory_id = p.inventory_id
+                          AND l.visibility   = 'private'
+                    WHERE p.inventory_id = :iid
+                    GROUP BY p.position, p.profile_id, p.profile_name
+                    ORDER BY p.position
+                """),
+                {"iid": inv_id},
+            )
+        ).fetchall()
+
+        return {
+            "inventory_id": inv_id,
+            "overall": {
+                "money_saved": float(overall.money),
+                "co2_saved_kg": float(overall.co2),
+            },
+            "shared": {
+                "money_saved": float(shared.money),
+                "co2_saved_kg": float(shared.co2),
+            },
+            "profiles": [
+                {
+                    "position": r.position,
+                    "profile_id": r.profile_id,
+                    "profile_name": r.profile_name,
+                    "money_saved": float(r.money),
+                    "co2_saved_kg": float(r.co2),
+                }
+                for r in profs
+            ],
+        }
+
+# ---------------------- 7-day Ledger by Profile & Shared ----------------------
+
+@app.get("/ledger/7d/by-login-code")
+async def ledger_last_7d_by_login_code(
+    login_code: str = Query(..., min_length=4, max_length=4),
+    days: int = Query(7, ge=1, le=31),
+    limit: int = Query(20, ge=1, le=100),
+):
+    """
+    返回 household（inventory）近 N 天的 consumption_ledger 记录，
+    按 shared + 每个 profile 分组。
+    每组包含:
+      - records 明细
+      - daily_totals 每天小计
+      - totals 总计
+    """
+    async with SessionLocal() as db:
+        _, inv_id = await _resolve_user_and_inventory_by_login_code(db, login_code)
+
+        sql = """
+            SELECT
+              l.consumed_at,
+              l.visibility,
+              l.profile_id,
+              COALESCE(p.profile_name, 'Shared') AS profile_name,
+              l.grocery_id,
+              g.name AS grocery_name,
+              l.category_name,
+              l.quantity,
+              l.money_saved,
+              l.co2_saved_kg,
+              u.display_name AS consumed_by
+            FROM consumption_ledger l
+            LEFT JOIN groceries g          ON g.grocery_id  = l.grocery_id
+            LEFT JOIN inventory_profiles p  ON p.profile_id  = l.profile_id
+            LEFT JOIN users u               ON u.user_id     = l.consumed_by
+            WHERE l.inventory_id = :iid
+              AND l.consumed_at >= now() - (:days * interval '1 day')
+            ORDER BY l.consumed_at DESC
+            LIMIT :limit
+        """
+
+        rows = (await db.execute(text(sql), {"iid": inv_id, "days": days, "limit": limit})).fetchall()
+
+        # 按 Shared vs 各 Profile 分桶
+        buckets = {}
+        for r in rows:
+            # key: shared / profile_id
+            key = ("shared", None) if r.visibility == "shared" else ("profile", str(r.profile_id))
+            if key not in buckets:
+                buckets[key] = {
+                    "bucket": "shared" if r.visibility == "shared" else "profile",
+                    "profile_id": None if r.visibility == "shared" else str(r.profile_id),
+                    "profile_name": "Shared" if r.visibility == "shared" else r.profile_name or "Private",
+                    "records": [],
+                    "daily_totals": {},
+                    "totals": {"quantity": 0.0, "money_saved": 0.0, "co2_saved_kg": 0.0},
+                }
+
+            rec = {
+                "consumed_at": r.consumed_at,
+                "grocery_name": r.grocery_name,
+                "category_name": r.category_name,
+                "quantity": float(r.quantity or 0),
+                "money_saved": float(r.money_saved or 0),
+                "co2_saved_kg": float(r.co2_saved_kg or 0),
+                "visibility": r.visibility,
+                "consumed_by": r.consumed_by,
+            }
+            b = buckets[key]
+            b["records"].append(rec)
+
+            # 汇总总计
+            b["totals"]["quantity"] += rec["quantity"]
+            b["totals"]["money_saved"] += rec["money_saved"]
+            b["totals"]["co2_saved_kg"] += rec["co2_saved_kg"]
+
+            # 按天聚合
+            day = r.consumed_at.date().isoformat() if r.consumed_at else None
+            if day:
+                d = b["daily_totals"].setdefault(day, {"day": day, "quantity": 0.0, "money_saved": 0.0, "co2_saved_kg": 0.0})
+                d["quantity"] += rec["quantity"]
+                d["money_saved"] += rec["money_saved"]
+                d["co2_saved_kg"] += rec["co2_saved_kg"]
+
+        # 转换 daily_totals 为列表
+        from datetime import datetime, timezone, timedelta
+        end_dt = datetime.now(timezone.utc)
+        start_dt = end_dt - timedelta(days=days)
+
+        result = {
+            "inventory_id": inv_id,
+            "range": {"start": start_dt.date().isoformat(), "end": end_dt.date().isoformat()},
+            "profiles": [],
+        }
+
+        for _, b in buckets.items():
+            daily_sorted = sorted(b["daily_totals"].values(), key=lambda x: x["day"])
+            b["daily_totals"] = [
+                {
+                    "day": d["day"],
+                    "quantity": round(d["quantity"], 3),
+                    "money_saved": round(d["money_saved"], 3),
+                    "co2_saved_kg": round(d["co2_saved_kg"], 3),
+                }
+                for d in daily_sorted
+            ]
+            b["totals"] = {
+                "quantity": round(b["totals"]["quantity"], 3),
+                "money_saved": round(b["totals"]["money_saved"], 3),
+                "co2_saved_kg": round(b["totals"]["co2_saved_kg"], 3),
+            }
+            result["profiles"].append(b)
+
+        return result
