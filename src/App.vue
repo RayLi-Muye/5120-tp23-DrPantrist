@@ -16,6 +16,7 @@
         :visible="impactStore.isImpactVisible"
         :impact="impactStore.formattedCurrentImpact"
         :motivational-message="impactStore.motivationalMessage"
+        :weekly-trend="impactStore.activeWeeklyImpactTrend"
         @dismissed="impactStore.dismissImpact"
       />
     </div>

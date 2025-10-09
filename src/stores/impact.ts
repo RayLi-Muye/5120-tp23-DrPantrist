@@ -5,6 +5,7 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import inventoryAPI, { type ImpactData, type TotalImpactData, type ImpactStats, InventoryAPIError } from '@/api/inventory'
 import { formatCurrency, formatCO2, getCO2Comparison } from '@/utils/formatters'
+import { subDays, format, differenceInCalendarDays, parseISO, isValid, startOfDay } from 'date-fns'
 // Removed error handler imports for MVP
 
 export interface ImpactCardState {
@@ -29,6 +30,179 @@ export interface FormattedTotalImpact {
   itemsUsedText: string
 }
 
+export interface WeeklyImpactTrend {
+  labels: string[]
+  money: number[]
+  co2: number[]
+}
+
+export type ImpactHistoryScope =
+  | { type: 'shared' }
+  | { type: 'private'; profilePosition: number }
+
+interface StoredImpactHistoryEntry extends ImpactData {
+  timestamp: string
+  scope: 'shared' | 'private'
+  profilePosition?: number
+}
+
+const IMPACT_HISTORY_STORAGE_KEY = 'use_it_up_impact_history'
+const IMPACT_HISTORY_MAX_DAYS = 30
+const TREND_DAYS = 7
+
+function matchesScope(entry: StoredImpactHistoryEntry, scope: ImpactHistoryScope): boolean {
+  if (scope.type === 'shared') {
+    return entry.scope === 'shared'
+  }
+  if (entry.scope !== 'private') return false
+  return entry.profilePosition === scope.profilePosition
+}
+
+function parseImpactTimestamp(timestamp: string): Date | null {
+  if (!timestamp) return null
+  const parsed = parseISO(timestamp)
+  if (isValid(parsed)) {
+    return parsed
+  }
+  const fallback = new Date(timestamp)
+  return Number.isNaN(fallback.getTime()) ? null : fallback
+}
+
+function loadImpactHistory(): StoredImpactHistoryEntry[] {
+  if (typeof window === 'undefined') {
+    return []
+  }
+
+  try {
+    const raw = window.localStorage.getItem(IMPACT_HISTORY_STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+
+    return parsed
+      .map(entry => {
+        const record = entry as Partial<StoredImpactHistoryEntry>
+        const timestamp = typeof record.timestamp === 'string' ? record.timestamp : ''
+        if (!timestamp) return null
+
+        const moneySaved = Number(record.moneySaved ?? 0)
+        const co2Avoided = Number(record.co2Avoided ?? 0)
+        const actionType = record.actionType === 'used' ? 'used' : 'discarded'
+        const scope = record.scope === 'private' ? 'private' : 'shared'
+        const profilePosition =
+          scope === 'private' && Number.isFinite(record.profilePosition)
+            ? Number(record.profilePosition)
+            : undefined
+
+        return {
+          itemId: typeof record.itemId === 'string' ? record.itemId : '',
+          itemName: typeof record.itemName === 'string' ? record.itemName : '',
+          moneySaved: Number.isFinite(moneySaved) ? moneySaved : 0,
+          co2Avoided: Number.isFinite(co2Avoided) ? co2Avoided : 0,
+          actionType,
+          timestamp,
+          scope,
+          profilePosition
+        } satisfies StoredImpactHistoryEntry
+      })
+      .filter((entry): entry is StoredImpactHistoryEntry => entry !== null)
+  } catch (error) {
+    console.warn('Failed to load impact history from storage:', error)
+    return []
+  }
+}
+
+function persistImpactHistory(entries: StoredImpactHistoryEntry[]): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(IMPACT_HISTORY_STORAGE_KEY, JSON.stringify(entries))
+  } catch (error) {
+    console.warn('Failed to persist impact history:', error)
+  }
+}
+
+function pruneImpactHistory(entries: StoredImpactHistoryEntry[]): StoredImpactHistoryEntry[] {
+  const threshold = subDays(new Date(), IMPACT_HISTORY_MAX_DAYS - 1)
+  return entries.filter(entry => {
+    const parsed = parseImpactTimestamp(entry.timestamp)
+    return parsed ? parsed >= threshold : false
+  })
+}
+
+function computeWeeklyTrend(entries: StoredImpactHistoryEntry[]): WeeklyImpactTrend {
+  const now = startOfDay(new Date())
+  const baseLabels: string[] = []
+  const baseMoney: number[] = []
+  const baseCo2: number[] = []
+  const usageFlags: boolean[] = []
+
+  for (let offset = TREND_DAYS - 1; offset >= 0; offset--) {
+    const targetDate = startOfDay(subDays(now, offset))
+    const label = format(targetDate, 'EEE')
+    let moneyTotal = 0
+    let co2Total = 0
+
+    for (const entry of entries) {
+      if (entry.actionType !== 'used') continue
+      const parsed = parseImpactTimestamp(entry.timestamp)
+      if (!parsed) continue
+
+      if (differenceInCalendarDays(parsed, targetDate) === 0) {
+        moneyTotal += entry.moneySaved
+        co2Total += entry.co2Avoided
+      }
+    }
+
+    const moneyRounded = Number(moneyTotal.toFixed(2))
+    const co2Rounded = Number(co2Total.toFixed(3))
+
+    baseLabels.push(label)
+    baseMoney.push(moneyRounded)
+    baseCo2.push(co2Rounded)
+    usageFlags.push(moneyRounded > 0 || co2Rounded > 0)
+  }
+
+  if (!usageFlags.some(Boolean)) {
+    return {
+      labels: baseLabels,
+      money: baseMoney,
+      co2: baseCo2
+    }
+  }
+
+  const firstUsageIndex = usageFlags.findIndex(flag => flag)
+  let lastUsageIndex =
+    usageFlags.length - 1 - usageFlags.slice().reverse().findIndex(flag => flag)
+  if (lastUsageIndex < firstUsageIndex) {
+    lastUsageIndex = firstUsageIndex
+  }
+
+  const sliceStart = Math.max(0, firstUsageIndex - 1)
+  const sliceEnd = Math.min(baseLabels.length, lastUsageIndex + 2)
+
+  const labels = baseLabels.slice(sliceStart, sliceEnd)
+  const money = baseMoney.slice(sliceStart, sliceEnd)
+  const co2 = baseCo2.slice(sliceStart, sliceEnd)
+
+  if (labels.length === 1 && baseLabels.length > 1) {
+    if (sliceEnd < baseLabels.length) {
+      labels.push(baseLabels[sliceEnd])
+      money.push(baseMoney[sliceEnd])
+      co2.push(baseCo2[sliceEnd])
+    } else if (sliceStart > 0) {
+      labels.unshift(baseLabels[sliceStart - 1])
+      money.unshift(baseMoney[sliceStart - 1])
+      co2.unshift(baseCo2[sliceStart - 1])
+    }
+  }
+
+  return {
+    labels,
+    money,
+    co2
+  }
+}
+
 // Auto-hide duration: 3 seconds
 const AUTO_HIDE_DURATION = 3000
 
@@ -45,6 +219,8 @@ export const useImpactStore = defineStore('impact', () => {
     totalCo2Avoided: 0,
     itemsUsed: 0
   })
+  const impactHistory = ref<StoredImpactHistoryEntry[]>(pruneImpactHistory(loadImpactHistory()))
+  const lastImpactScope = ref<ImpactHistoryScope>({ type: 'shared' })
 
   const isLoadingTotal = ref(false)
   const isLoadingStats = ref(false)
@@ -107,13 +283,18 @@ export const useImpactStore = defineStore('impact', () => {
   }
 
   // Actions
-  function showImpact(impactData: ImpactData): void {
+  function showImpact(
+    impactData: ImpactData,
+    scope: ImpactHistoryScope = { type: 'shared' }
+  ): void {
     // Clear any existing timer
     clearAutoHideTimer()
 
     // Set impact data and show card
     impactCard.value.data = impactData
     impactCard.value.visible = true
+    recordImpactHistory(impactData, scope)
+    lastImpactScope.value = scope
 
     // Set auto-hide timer
     impactCard.value.autoHideTimer = window.setTimeout(() => {
@@ -213,6 +394,7 @@ export const useImpactStore = defineStore('impact', () => {
       totalCo2Avoided: 0,
       itemsUsed: 0
     }
+    clearImpactHistory()
   }
 
   // Helper to check if impact card is currently visible
@@ -241,6 +423,37 @@ export const useImpactStore = defineStore('impact', () => {
     clearAutoHideTimer()
   }
 
+  function recordImpactHistory(impactData: ImpactData, scope: ImpactHistoryScope): void {
+    if (impactData.actionType !== 'used') {
+      return
+    }
+
+    const timestamp = impactData.timestamp || new Date().toISOString()
+    const entry: StoredImpactHistoryEntry = {
+      ...impactData,
+      timestamp,
+      scope: scope.type,
+      profilePosition: scope.type === 'private' ? scope.profilePosition : undefined
+    }
+
+    impactHistory.value = pruneImpactHistory([...impactHistory.value, entry])
+    persistImpactHistory(impactHistory.value)
+  }
+
+  function getWeeklyTrendForScope(scope: ImpactHistoryScope): WeeklyImpactTrend {
+    const entries = impactHistory.value.filter(entry => matchesScope(entry, scope))
+    return computeWeeklyTrend(entries)
+  }
+
+  const activeWeeklyImpactTrend = computed<WeeklyImpactTrend>(() =>
+    getWeeklyTrendForScope(lastImpactScope.value)
+  )
+
+  function clearImpactHistory(): void {
+    impactHistory.value = []
+    persistImpactHistory(impactHistory.value)
+  }
+
   return {
     // State
     impactCard: computed(() => impactCard.value),
@@ -265,6 +478,10 @@ export const useImpactStore = defineStore('impact', () => {
     clearError,
     resetTotalImpact,
     cleanup,
+    activeWeeklyImpactTrend,
+    getWeeklyTrendForScope,
+    lastImpactScope,
+    clearImpactHistory,
     // Stats
     stats: computed(() => stats.value),
     sharedImpactFormatted,

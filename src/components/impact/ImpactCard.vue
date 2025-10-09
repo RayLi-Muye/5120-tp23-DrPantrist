@@ -57,8 +57,32 @@
             </p>
           </div>
 
+          <!-- Actions -->
+          <div class="impact-actions">
+            <button
+              class="impact-trend__toggle"
+              :class="{ 'impact-trend__toggle--active': showTrend }"
+              type="button"
+              :aria-pressed="showTrend"
+              @click="handleToggleTrend"
+            >
+              {{ trendToggleLabel }}
+            </button>
+          </div>
+
+          <Transition name="impact-trend">
+            <div v-if="showTrend" class="impact-trend">
+              <div v-if="hasTrendData" class="impact-trend__chart-container">
+                <VChart class="impact-trend__chart" :option="trendChartOption" autoresize />
+              </div>
+              <p v-else class="impact-trend__empty">
+                No food consumption recorded in the last 7 days yet. Keep saving!
+              </p>
+            </div>
+          </Transition>
+
           <!-- Auto-dismiss indicator -->
-          <div class="impact-auto-dismiss">
+          <div v-if="!showTrend" class="impact-auto-dismiss">
             <div class="impact-auto-dismiss__progress" :style="progressStyle" />
             <p class="impact-auto-dismiss__text">Auto-closing in {{ remainingSeconds }}s</p>
           </div>
@@ -70,19 +94,32 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch } from "vue";
-import type { FormattedImpactData } from "@/stores/impact";
+import { use } from "echarts/core";
+import { CanvasRenderer } from "echarts/renderers";
+import { LineChart } from "echarts/charts";
+import { GridComponent, TooltipComponent, LegendComponent } from "echarts/components";
+import VChart from "vue-echarts";
+import type { FormattedImpactData, WeeklyImpactTrend } from "@/stores/impact";
+
+use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent]);
 
 // Props
 interface Props {
   visible: boolean;
   impact: FormattedImpactData | null;
   motivationalMessage: string;
+  weeklyTrend: WeeklyImpactTrend;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   visible: false,
   impact: null,
   motivationalMessage: "Great job!",
+  weeklyTrend: () => ({
+    labels: [],
+    money: [],
+    co2: [],
+  }),
 });
 
 // Emits
@@ -97,6 +134,7 @@ const remainingSeconds = ref(3);
 const progressWidth = ref(100);
 const autoHideTimer = ref<number | null>(null);
 const progressTimer = ref<number | null>(null);
+const showTrend = ref(false);
 
 // Computed properties
 const formattedImpact = computed(() => {
@@ -115,6 +153,94 @@ const progressStyle = computed(() => ({
   width: `${progressWidth.value}%`,
 }));
 
+const hasTrendData = computed(() => {
+  return (
+    props.weeklyTrend.money.some((value) => value > 0) ||
+    props.weeklyTrend.co2.some((value) => value > 0)
+  );
+});
+
+const trendChartOption = computed(() => {
+  const isSmallDataset = props.weeklyTrend.labels.length <= 2;
+  return {
+    color: ["#34d399", "#60a5fa"],
+    tooltip: {
+      trigger: "axis",
+      valueFormatter: (value: number) => {
+        if (Number.isFinite(value)) {
+          return value.toFixed(value >= 1 ? 2 : 3);
+        }
+        return `${value}`;
+      },
+    },
+    legend: {
+      data: ["Money Well Spent", "CO₂ Avoided"],
+    },
+    grid: {
+      left: 40,
+      right: 40,
+      top: 40,
+      bottom: 40,
+    },
+    xAxis: {
+      type: "category",
+      boundaryGap: false,
+      data: props.weeklyTrend.labels,
+      axisLabel: {
+        color: "#4b5563",
+      },
+    },
+    yAxis: [
+      {
+        type: "value",
+        name: "Money ($)",
+        min: 0,
+        axisLabel: {
+          color: "#4b5563",
+          formatter: (value: number) => `$${value.toFixed(value >= 1 ? 0 : 2)}`,
+        },
+      },
+      {
+        type: "value",
+        name: "CO₂ (kg)",
+        min: 0,
+        axisLabel: {
+          color: "#4b5563",
+          formatter: (value: number) => `${value.toFixed(value >= 1 ? 1 : 3)}`,
+        },
+      },
+    ],
+    series: [
+      {
+        name: "Money Well Spent",
+        type: "line",
+        smooth: !isSmallDataset,
+        showSymbol: isSmallDataset,
+        symbolSize: isSmallDataset ? 10 : 6,
+        data: props.weeklyTrend.money,
+        yAxisIndex: 0,
+        areaStyle: {
+          opacity: 0.1,
+        },
+      },
+      {
+        name: "CO₂ Avoided",
+        type: "line",
+        smooth: !isSmallDataset,
+        showSymbol: isSmallDataset,
+        symbolSize: isSmallDataset ? 10 : 6,
+        data: props.weeklyTrend.co2,
+        yAxisIndex: 1,
+        areaStyle: {
+          opacity: 0.05,
+        },
+      },
+    ],
+  };
+});
+
+const trendToggleLabel = computed(() => (showTrend.value ? "Hide 7-day trend" : "View 7-day trend"));
+
 // Methods
 function handleBackdropClick() {
   emit("dismissed");
@@ -123,8 +249,12 @@ function handleBackdropClick() {
 function startAutoHideTimer() {
   clearTimers();
 
-  remainingSeconds.value = 3;
   progressWidth.value = 100;
+  remainingSeconds.value = 3;
+
+  if (showTrend.value) {
+    return;
+  }
 
   // Update countdown every 100ms for smooth progress bar
   progressTimer.value = window.setInterval(() => {
@@ -157,14 +287,31 @@ function clearTimers() {
   }
 }
 
+function handleToggleTrend() {
+  showTrend.value = !showTrend.value;
+}
+
 // Watchers
 watch(
   () => props.visible,
   (newVisible) => {
     if (newVisible) {
+      showTrend.value = false;
       startAutoHideTimer();
     } else {
       clearTimers();
+      showTrend.value = false;
+    }
+  }
+);
+
+watch(
+  () => showTrend.value,
+  (isActive) => {
+    if (isActive) {
+      clearTimers();
+    } else if (props.visible) {
+      startAutoHideTimer();
     }
   }
 );
@@ -334,6 +481,62 @@ onUnmounted(() => {
   }
 }
 
+.impact-actions {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--spacing-lg);
+}
+
+.impact-trend__toggle {
+  border: none;
+  background-color: var(--color-primary);
+  color: #fff;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--border-radius-lg);
+  cursor: pointer;
+  transition: filter var(--duration-fast) ease, transform var(--duration-fast) ease;
+
+  &:hover,
+  &:focus-visible {
+    filter: brightness(0.95);
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  &--active {
+    background-color: var(--color-fresh);
+  }
+}
+
+.impact-trend {
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--border-radius-lg);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.impact-trend__chart-container {
+  width: 100%;
+  min-height: 220px;
+}
+
+.impact-trend__chart {
+  width: 100%;
+  height: 220px;
+}
+
+.impact-trend__empty {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
 // Auto-dismiss Indicator
 .impact-auto-dismiss {
   &__progress {
@@ -397,6 +600,17 @@ onUnmounted(() => {
 .impact-modal-leave-to .impact-modal__content {
   transform: scale(0.95) translateY(-10px);
   opacity: 0;
+}
+
+.impact-trend-enter-active,
+.impact-trend-leave-active {
+  transition: opacity var(--duration-normal) ease, transform var(--duration-normal) ease;
+}
+
+.impact-trend-enter-from,
+.impact-trend-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
 }
 
 .impact-modal__content {

@@ -96,7 +96,16 @@
                   </span>
                 </div>
               </div>
-              <div class="impact-summary" data-tour-id="impact-summary">
+              <div
+                class="impact-summary impact-summary--interactive"
+                data-tour-id="impact-summary"
+                role="button"
+                tabindex="0"
+                :aria-label="impactSummaryAriaLabel('private')"
+                @click="openImpactTrend('private')"
+                @keydown.enter.prevent="openImpactTrend('private')"
+                @keydown.space.prevent="openImpactTrend('private')"
+              >
                 <div class="impact-summary__item">
                   <span class="impact-label">{{ privateImpactDisplay.moneyLabel }}</span>
                   <span class="impact-value">{{ privateImpactDisplay.moneyValue }}</span>
@@ -168,7 +177,16 @@
                   </span>
                 </div>
               </div>
-              <div class="impact-summary" data-tour-id="impact-summary">
+              <div
+                class="impact-summary impact-summary--interactive"
+                data-tour-id="impact-summary"
+                role="button"
+                tabindex="0"
+                :aria-label="impactSummaryAriaLabel('shared')"
+                @click="openImpactTrend('shared')"
+                @keydown.enter.prevent="openImpactTrend('shared')"
+                @keydown.space.prevent="openImpactTrend('shared')"
+              >
                 <div class="impact-summary__item">
                   <span class="impact-label">{{ sharedImpactDisplay.moneyLabel }}</span>
                   <span class="impact-value">{{ sharedImpactDisplay.moneyValue }}</span>
@@ -208,6 +226,14 @@
     </main>
 
     <DashboardAssistant />
+    <ImpactTrendModal
+      :visible="isImpactTrendOpen"
+      :trend="impactTrendData"
+      :context="impactTrendContext"
+      :summary="impactTrendSummary"
+      :profile-name="impactTrendProfileName"
+      @close="closeImpactTrend"
+    />
   </div>
 </template>
 
@@ -217,12 +243,13 @@ import { useRouter } from 'vue-router'
 import { useInventoryStore } from '@/stores/inventory'
 import { useAuthStore } from '@/stores/auth'
 import ItemCard from '@/components/inventory/ItemCard.vue'
-import { useImpactStore } from '@/stores/impact'
+import { useImpactStore, type ImpactHistoryScope } from '@/stores/impact'
 import { useInventoryAccess } from '@/composables/useInventoryAccess'
 import type { InventoryItem as InventoryItemType } from '@/api/inventory'
 import LoadingState from '@/components/common/LoadingState.vue'
 import DashboardAssistant from '@/components/assistant/DashboardAssistant.vue'
 import DashboardTour from '@/components/dashboard/DashboardTour.vue'
+import ImpactTrendModal from '@/components/impact/ImpactTrendModal.vue'
 import { isDevelopment } from '@/config/environment'
 import { useDashboardStore, type HouseholdProfile } from '@/stores/dashboard'
 import { storeToRefs } from 'pinia'
@@ -243,6 +270,8 @@ const loginCode = computed(() => authStore.user?.loginCode ?? '')
 const inventoryId = computed(() => authStore.user?.inventoryId ?? '')
 
 const loadingItemId = ref<string | null>(null)
+const isImpactTrendOpen = ref(false)
+const impactTrendContext = ref<'private' | 'shared'>('shared')
 
 // Determine private/shared from profile position first; fall back to visibility flag
 const isItemPrivate = (item: InventoryItemType) => {
@@ -267,6 +296,16 @@ function getItemPosition(item: InventoryItemType): number | undefined {
   return undefined
 }
 
+function resolveImpactScope(item: InventoryItemType | null): ImpactHistoryScope {
+  if (item && isItemPrivate(item)) {
+    const position = getItemPosition(item)
+    if (typeof position === 'number') {
+      return { type: 'private', profilePosition: position }
+    }
+  }
+  return { type: 'shared' }
+}
+
 const privateItems = computed(() => {
   const active = activeProfile.value
   if (!active) return []
@@ -280,6 +319,7 @@ const privateItems = computed(() => {
 const sharedItems = computed(() => inventoryStore.itemsByFilter.filter(item => !isItemPrivate(item)))
 
 type FilterType = 'all' | 'fresh' | 'warning' | 'expired'
+type ImpactSummaryContext = 'private' | 'shared'
 const privateFilter = ref<FilterType>('all')
 const sharedFilter = ref<FilterType>('all')
 
@@ -422,6 +462,49 @@ const sharedImpactDisplay = computed(() => {
   }
 })
 
+const impactTrendSummary = computed(() => {
+  return impactTrendContext.value === 'private'
+    ? privateImpactDisplay.value
+    : sharedImpactDisplay.value
+})
+
+const impactTrendData = computed(() => {
+  if (impactTrendContext.value === 'private') {
+    const position = activeProfile.value?.position
+    if (typeof position === 'number') {
+      return impactStore.getWeeklyTrendForScope({ type: 'private', profilePosition: position })
+    }
+    return impactStore.getWeeklyTrendForScope({ type: 'private', profilePosition: 0 })
+  }
+  return impactStore.getWeeklyTrendForScope({ type: 'shared' })
+})
+
+const impactTrendProfileName = computed(() => {
+  return impactTrendContext.value === 'private' ? activeProfile.value?.profileName ?? '' : ''
+})
+
+function openImpactTrend(context: ImpactSummaryContext) {
+  if (context === 'private' && !activeProfile.value) {
+    window.alert('Select a household member to view their private impact trend.')
+    return
+  }
+  impactTrendContext.value = context
+  isImpactTrendOpen.value = true
+}
+
+function closeImpactTrend() {
+  isImpactTrendOpen.value = false
+}
+
+const impactSummaryAriaLabel = (context: ImpactSummaryContext) => {
+  const summary = context === 'private' ? privateImpactDisplay.value : sharedImpactDisplay.value
+  if (context === 'private') {
+    const profileName = activeProfile.value?.profileName ?? 'selected member'
+    return `View ${profileName}'s private impact trend for the past 7 days (${summary.moneyLabel}: ${summary.moneyValue}, ${summary.co2Label}: ${summary.co2Value})`
+  }
+  return `View shared impact trend for the past 7 days (${summary.moneyLabel}: ${summary.moneyValue}, ${summary.co2Label}: ${summary.co2Value})`
+}
+
 const retryLoad = async () => {
   inventoryStore.clearError()
   await loadInventory()
@@ -477,7 +560,8 @@ const handleUseItem = async (itemId: string) => {
       : null)
 
     if (resolvedImpact) {
-      impactStore.showImpact(resolvedImpact)
+      const impactScope = resolveImpactScope(originalItem)
+      impactStore.showImpact(resolvedImpact, impactScope)
       impactStore.updateTotalImpact(resolvedImpact)
 
       // Refresh persisted stats from backend to reflect latest totals
@@ -744,6 +828,22 @@ onMounted(async () => {
   border-radius: var(--border-radius-lg);
   padding: var(--spacing-sm) var(--spacing-md);
   border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.impact-summary--interactive {
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.impact-summary--interactive:hover {
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+.impact-summary--interactive:focus-visible {
+  outline: 2px solid rgba(96, 165, 250, 0.8);
+  outline-offset: 4px;
 }
 
 .local-filter {
