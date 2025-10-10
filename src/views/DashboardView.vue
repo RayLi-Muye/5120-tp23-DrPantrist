@@ -775,6 +775,18 @@ onMounted(async () => {
   backdrop-filter: blur(12px);
 }
 
+.inventory-section {
+  position: relative;
+}
+
+.user-inventory {
+  z-index: 2;
+}
+
+.shared-inventory {
+  z-index: 1;
+}
+
 .section-header {
   display: flex;
   justify-content: space-between;
@@ -1036,6 +1048,7 @@ onMounted(async () => {
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.38);
   text-align: left;
   white-space: normal;
+  z-index: 10;
 }
 
 .inventory-info-fab:hover .inventory-info-fab__tooltip,

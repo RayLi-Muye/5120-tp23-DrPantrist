@@ -1,21 +1,11 @@
 <template>
   <footer class="app-footer" aria-label="Site footer">
-    <div class="footer-inner">
-      <section class="footer-group" aria-labelledby="footer-team-heading">
-        <h2 id="footer-team-heading" class="footer-heading">Team</h2>
-        <p class="footer-placeholder">Introducing TP23.</p>
-        <ul class="footer-list">
-          <li>Ruifei Li — Information Technology</li>
-          <li>Hao Zhong — Information Technology</li>
-          <li>Gary Yu — Data Science</li>
-          <li>Stuti — Data Science</li>
-          <li>Garvita — Business Information Systems</li>
-        </ul>
-      </section>
-
-      <section class="footer-group" aria-labelledby="footer-sources-heading">
-        <h2 id="footer-sources-heading" class="footer-heading">Data Sources</h2>
-        <p class="footer-placeholder">Key references powering our insights.</p>
+    <div class="footer-inner" aria-labelledby="footer-sources-heading">
+      <section class="footer-group" aria-describedby="footer-sources-description">
+        <h2 id="footer-sources-heading" class="footer-heading">References</h2>
+        <p id="footer-sources-description" class="footer-placeholder">
+          Evidence base for impact metrics and educational content.
+        </p>
         <ul class="footer-list">
           <li>
             <a
