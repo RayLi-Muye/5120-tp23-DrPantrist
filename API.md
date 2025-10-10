@@ -1,140 +1,140 @@
 
-### 1. 创建用户（可选）
+### 1. Create User (Optional)
 
-用于单独生成用户的唯一 ID 和登录码（login_code）。通常前端直接使用 **创建库存** 一步到位（会同时创建用户与房间），只有在需要预创建用户时才使用本接口。
+Generates a unique ID and login code for individual users. Typically, frontend applications use the **Create Inventory** step for a one-time setup (which simultaneously creates both the user and the room). This interface is only used when pre-creating users is required.
 
-接口：POST https://api.tp23.me/users/create
+Interface: POST https://api.tp23.me/users/create
 
-Body 示例：
+Body example：
 ```json
 {
-  "display_name": "张三"
+  "display_name": "andy"
 }
 ```
 
-返回：user\_id, login\_code （后续操作都要用到 login\_code 来确认身份）
+return：user\_id, login\_code
 
-GET 通过 login\_code 获取用户信息
+GET retrieve user information via login_code
 
 https://api.tp23.me/users/by-login-code?login\_code=ABCD12
 ---
 
-### 2. 创建库存（房间，一步到位）
+### 2. create inventory
 
-由用户输入“你的名字 + 房间名”发起创建。后端会：
-- 生成用户（带唯一 login_code）；
-- 创建房间（inventory_type 默认 shared）；
-- 把该用户设为 owner 并加入成员表；
-- 自动创建默认 Profile：position=1，名称为用户的 display_name。
+Users initiate creation by entering “Your Name + Room Name”. The backend will:
+- Generate a user (with a unique login_code);
+- Create a room (default inventory_type: shared);
+- Set the user as owner and add them to the member list;
+- Automatically create a default Profile: position=1, named after the user's display_name.
 
-接口：POST https://api.tp23.me/inventories/create
+interface：POST https://api.tp23.me/inventories/create
 
-Body 示例：
+Body examplel
 ```json
 {
-  "display_name": "张三",
-  "inventory_name": "我的冰箱"
+  "display_name": "andy",
+  "inventory_name": "my kitchen"
 }
 ```
 
-返回：
+return：
 ```json
 {
   "user": {
     "user_id": "UUID",
-    "display_name": "张三",
+    "display_name": "andy",
     "login_code": "AB12"
   },
   "inventory": {
     "inventory_id": "UUID",
-    "inventory_name": "我的冰箱",
+    "inventory_name": "my kitchen",
     "owner_user_id": "UUID",
     "inventory_type": "shared"
   }
 }
 ```
 
-GET 通过 login_code 查询房间信息（含 profiles）  
+GET query room information (including profiles) by login_code
 https://api.tp23.me/inventories/by-login-code?login_code=AB12
 
 
 ---
 
-### 3. 邀请其他用户加入库存（不限人数）
+### 3. Invite other users to join the inventory (no limit on number of users)
 
-通过 login_code 加入（推荐）
+Join via login_code (recommended)
 
-接口：POST https://api.tp23.me/inventories/join/by-login-code
+interface：POST https://api.tp23.me/inventories/join/by-login-code
 
-Body 示例：
+Body example:
 ```json
 {
   "login_code": "CD34",
-  "inventory_id": "房间UUID"
+  "inventory_id": "roomUUID"
 }
 ```
 
-返回：
+return：
 ```json
 { "ok": true }
 ```
 
-GET 通过 login_code 获取房间成员  
+GET retrieve room members using login_code 
 https://api.tp23.me/inventories/members/by-login-code?login_code=AB12
 
 
 ---
 
-### 4. Profiles（三个档案/库名）
+### 4. Profiles
 
-每个房间最多 3 个 Profile（position=1..3）。position=1 为创建者默认档案；owner 可给 position=2、3 添加或改名。
+Each room can have up to 3 profiles (position=1..3). position=1 is the creator's default profile; the owner can add or rename profiles at positions 2 and 3.
 
-GET 列出当前房间的 profiles（按 position 排序）  
+GET lists the current room's profiles (sorted by position). GET Retrieve room members using login_code 
 https://api.tp23.me/inventories/profiles/by-login-code?login_code=AB12
 
-返回示例：
+return：
 ```json
 {
   "inventory_id": "UUID",
   "profiles": [
-    { "profile_id": "UUID", "profile_name": "张三", "position": 1, "created_at": "..." },
+    { "profile_id": "UUID", "profile_name": "andy", "position": 1, "created_at": "..." },
     { "profile_id": "UUID", "profile_name": "Ray",  "position": 2, "created_at": "..." }
   ]
 }
 ```
 
-接口：POST https://api.tp23.me/inventories/profiles/add-or-rename?inventory_id=房间UUID
+interface：POST https://api.tp23.me/inventories/profiles/add-or-rename?inventory_id=roomUUID
 
-Body 示例（owner-only）：
+Body examplelewner-only）：
 ```json
 {
   "login_code": "AB12",
   "profile_name": "Gary",
-  "position": 3   // 不传则自动占用最小空位（2或3）
+  "position": 3 
 }
 ```
 
 
 ---
 
-### 5. 添加物品到库存（Shared / Private）
+### 5. Adding Items to Inventory (Shared / Private)
 
-库存成员可以添加 **共享** 或 **私有** 物品。Shared 为公共；Private 归属某个 profile。
+Inventory members can add **shared** or **private** items. Shared items are accessible to all; private items belong to a specific profile.
 
-接口：POST https://api.tp23.me/items/by-login-code
+interface：POST https://api.tp23.me/items/by-login-code
 
-Body 示例（Shared）：
+Body example（Shared）：
 ```json
 {
   "login_code": "ABCD12",
   "grocery_id": 101,
-  "quantity": 2.5,
+  "quantity": 2,
   "purchased_at": "2025-03-01",
   "actual_expiry": "2025-03-10"
 }
 ```
 
-Body 示例（Private，归 profile position=2）：
+Body example（Private,profile position=2）：
 ```json
 {
   "login_code": "AB12",
@@ -145,66 +145,67 @@ Body 示例（Private，归 profile position=2）：
 }
 ```
 
-GET 通过 login_code 查看房间内物品（可筛选）  
-https://api.tp23.me/items/by-login-code?login_code=AB12  
-可选筛选：
-- visibility=shared | private  
-- 若为 private，可再带：profile_position=1|2|3 或 profile_id=UUID
+GET view items in the room via login_code (filterable)
 
+https://api.tp23.me/items/by-login-code?login_code=AB12  
+
+Optional filters:
+
+visibility=shared | private
+
+If private, you can additionally pass: profile_position=1|2|3 or profile_id=UUID
 
 ---
 
 
-### 6. 修改或消耗物品
+### 6. Modify or Consume Items
 
-修改物品信息（数量 / 日期等）  
-接口: `PATCH https://api.tp23.me/items/{item_id}/by-login-code`
+Modify item information (quantity / date, etc.) Modify item information (quantity / date, etc.) 
+interface: `PATCH https://api.tp23.me/items/{item_id}/by-login-code`
 
-Body 示例:  
+Body example:  
 ```json
 {
   "login_code": "AB12",
-  "quantity": 3.5,
+  "quantity": 3,
   "actual_expiry": "2025-03-12"
 }
-返回示例:
+```
+return:
+```json
 
-json
-复制代码
 {
   "ok": true
 }
-说明: 仅修改库存记录，不会计入节省金额或 CO₂。
+```
+Consumable Items (Click the checkmark = Used up)
+interface: DELETE https://api.tp23.me/items/{item_id}/by-login-code?login_code=AB12
 
-消耗物品（点击对钩 = 使用完）
-接口: DELETE https://api.tp23.me/items/{item_id}/by-login-code?login_code=AB12
-
-返回示例:
-
-json
-复制代码
+return:
+```json
 {
   "ok": true,
   "money_saved": 7.98,
   "co2_saved_kg": 1.24,
   "consumed_at": "2025-09-21T11:30:00Z"
 }
-说明: 会写入消费流水（consumption_ledger），并从库存中删除该物品。
+```
+Description: Writes to the consumption ledger and removes the item from inventory.
 
 
 ---
 
-### 7. 浏览食材和分类
+### 7. Browse ingredients and categories
 
-GET 获取所有分类（详细字段版）  
+GET Retrieve all categories 
 https://api.tp23.me/categories
 
-返回示例：
+return：
 ```json
 [
   {
     "category_id": 1,
-    "category_name": "蔬菜",
+    "category_name": "vagen",
     "avg_pantry_days": 3,
     "pantry_product_count": 120,
     "avg_refrigerate_days": 7,
@@ -219,19 +220,16 @@ https://api.tp23.me/categories
     "unit": "g"
   }
 ]
-
+```
 ------
 
-### 8. 节省统计（累计）
+### 8. Savings Statistics (Cumulative)
 
-通过 `login_code` 获取房间的累计节省金额与 CO₂，按整库 / shared / 各私库返回。
+Retrieve the cumulative savings amount and CO₂ reduction for a room using the `login_code`, returned by database / shared / individual private databases.
 
-接口: `GET https://api.tp23.me/stats/by-login-code?login_code=AB12`
+interface: `GET https://api.tp23.me/stats/by-login-code?login_code=AB12`
 
-Query 参数:
-- `login_code` (必填): 用户四位登录码，如 `AB12`
-
-返回示例:
+return:
 ```json
 {
   "inventory_id": "7b2a0d5e-6f6b-4b9b-9d3f-6c8a9f2a1234",
@@ -247,7 +245,7 @@ Query 参数:
     {
       "position": 1,
       "profile_id": "8e1b4b7d-2c8c-4f54-9a8e-11c2a1b2c333",
-      "profile_name": "张三",
+      "profile_name": "andy",
       "money_saved": 5.2,
       "co2_saved_kg": 0.6
     },
@@ -262,27 +260,127 @@ Query 参数:
 }
 ```
 
-GET 获取所有食材  
+GET all groceries 
 https://api.tp23.me/groceries
 
-GET 条件搜索食材  
+GET Search groceries by criteria  
 https://api.tp23.me/groceries?q=apple&category_id=2
 
-GET 获取某个食材详情  
+GET Get details for a specific grocerieses
 https://api.tp23.me/groceries/101
 
+------
 
+### 9. Recent 7-Day Spending Ledger (Grouped by Shared / Private Profile)
+
+To view household spending transactions for the past N days, grouped by Shared and each Private Profile, return:
+
+records details
+
+daily_totals daily subtotals (aggregated by day)
+
+totals bucket totals
+
+GET
+
+https://api.tp23.me/ledger/7d/by-login-code?login_code=AB12
+
+
+Optional Query:
+
+days (default 7, supports 1–31)
+
+limit (default 20, maximum 100)
+
+example：
+
+https://api.tp23.me/ledger/7d/by-login-code?login_code=AB12&days=7
+
+
+return：
+```json
+{
+  "inventory_id": "UUID",
+  "range": { "start": "2025-10-02", "end": "2025-10-09" },
+  "profiles": [
+    {
+      "bucket": "shared",
+      "profile_id": null,
+      "profile_name": "Shared",
+      "records": [
+        {
+          "consumed_at": "2025-10-09T03:00:12.521Z",
+          "grocery_name": "Milk 1L",
+          "category_name": "Dairy",
+          "quantity": 1.0,
+          "money_saved": 2.5,
+          "co2_saved_kg": 0.35,
+          "visibility": "shared",
+          "consumed_by": "Alice"
+        }
+      ],
+      "daily_totals": [
+        {"day": "2025-10-09", "quantity": 1.0, "money_saved": 2.5, "co2_saved_kg": 0.35}
+      ],
+      "totals": {"quantity": 1.0, "money_saved": 2.5, "co2_saved_kg": 0.35}
+    },
+    {
+      "bucket": "profile",
+      "profile_id": "UUID-of-profile-2",
+      "profile_name": "Dad",
+      "records": [
+        {
+          "consumed_at": "2025-10-08T06:40:01.131Z",
+          "grocery_name": "Apple",
+          "category_name": "Fruit",
+          "quantity": 4.0,
+          "money_saved": 3.2,
+          "co2_saved_kg": 0.5,
+          "visibility": "private",
+          "consumed_by": "Bob"
+        }
+      ],
+      "daily_totals": [
+        {"day": "2025-10-08", "quantity": 4.0, "money_saved": 3.2, "co2_saved_kg": 0.5}
+      ],
+      "totals": {"quantity": 4.0, "money_saved": 3.2, "co2_saved_kg": 0.5}
+    }
+  ]
+}
+```
 ---
 
-### 流程（推荐）
+### flow
 
-1) 创建库存（一步到位）：POST .../inventories/create（传 display_name + inventory_name）  
-   - 记录返回的 `user.login_code` 与 `inventory.inventory_id`。  
-2) 其他用户加入：POST .../inventories/join/by-login-code（带 login_code + inventory_id）。  
-3) owner 可添加/改名 Profile：POST .../inventories/profiles/add-or-rename。  
-4) 添加物品：
-   - Shared：POST .../items/by-login-code（不带 visibility）。
-   - Private：POST .../items/by-login-code（带 visibility=private + profile_position）。  
-5) 查看物品：GET .../items/by-login-code（可按 visibility 和 profile 过滤）。  
-6) 修改/删除：PATCH / DELETE 对应接口后，再 GET 验证结果。
+1. Create inventory (one-step): POST .../inventories/create (pass display_name + inventory_name)
+
+  Record returned user.login_code and inventory.inventory_id.
+
+2. Other users join: POST .../inventories/join/by-login-code (with login_code + inventory_id).
+
+3. Owner can add/rename Profile: POST .../inventories/profiles/add-or-rename.
+
+4. Add items:
+
+  Shared: POST .../items/by-login-code (without visibility).
+
+  Private: POST .../items/by-login-code (with visibility=private + profile_position).
+
+5. View items: GET .../items/by-login-code (filterable by visibility and profile).
+
+6. Modify / Delete: PATCH / DELETE corresponding endpoints, then GET to verify result.
+
+7. View categories and groceries:
+
+  GET .../categories
+
+  GET .../groceries / GET .../groceries?q=apple / GET .../groceries/{id}
+
+8. View cumulative stats (money & CO₂ savings):
+
+  GET .../stats/by-login-code?login_code=AB12
+
+9. View recent spending ledger (7-day default):
+
+  GET .../ledger/7d/by-login-code?login_code=AB12&days=7
 
