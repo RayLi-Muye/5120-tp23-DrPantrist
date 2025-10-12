@@ -76,18 +76,12 @@ async function handleLogout() {
 <style scoped>
 .app-navbar {
   width: 100%;
-  background: rgba(255, 255, 255, 0.85);
+  background: #ffffff;
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   backdrop-filter: blur(8px);
-  opacity: 0.50;
   position: sticky;
   top: 0;
   z-index: 100;
-}
-
-.app-navbar:hover {
-  opacity: 0.85;
-  transition: opacity 0.3s ease-in-out;
 }
 
 .nav-inner {
@@ -97,7 +91,7 @@ async function handleLogout() {
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 18px 24px;
 }
 
 .nav-left { justify-self: start; }
@@ -108,18 +102,19 @@ async function handleLogout() {
   text-decoration: none;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   color: var(--color-text-primary, #333);
 }
 
 .brand-logo {
-  height: 28px;
+  height: 40px;
   width: auto;
   display: block;
 }
 
 .brand-text {
   font-weight: 700;
+  font-size: 1.25rem;
 }
 
 .nav-link {
