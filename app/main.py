@@ -233,7 +233,7 @@ async def create_inventory(body: CreateInventoryIn):
     Returns: { "user": {...}, "inventory": {...} }
     """
     async with SessionLocal() as db:
-        # 1) create user
+        # create user
         user_row = None
         for _ in range(20):
             login_code = gen_login_code()
@@ -255,7 +255,7 @@ async def create_inventory(body: CreateInventoryIn):
         if not user_row:
             raise HTTPException(500, "failed to generate unique login code")
 
-        # 2) create inventory (inventory_type uses DB default 'shared')
+        # create inventory (inventory_type uses DB default 'shared')
         try:
             inv_row = (await db.execute(
                 text("""
@@ -769,7 +769,7 @@ async def delete_item_by_login_code(
     async with SessionLocal() as db:
         u_id, inv_id = await _resolve_user_and_inventory_by_login_code(db, login_code)
 
-        # 1) 锁定 item，价格/规格/CO2 全部来自 categories
+        # lock and fetch the item with joins
         row = (
             await db.execute(
                 text("""
@@ -799,7 +799,7 @@ async def delete_item_by_login_code(
         if not row:
             raise HTTPException(404, "item not found in your inventory")
 
-        # 2) 计算 unit_price（用 categories 的数值列）
+        # calculate unit_price (per 1000 units)
         unit_price = None
         if row.cat_price is not None and row.cat_size is not None:
             try:
@@ -813,7 +813,7 @@ async def delete_item_by_login_code(
         await db.execute(text("SELECT public.set_actor(:uid)"), {"uid": u_id})
 
         try:
-            # 3) 写入账本；money_saved 为生成列：quantity * unit_price
+            # consume (insert into consumption_ledger)
             ins = await db.execute(
                 text("""
                     INSERT INTO consumption_ledger (
@@ -842,8 +842,8 @@ async def delete_item_by_login_code(
                     "item_id": row.item_id,
                     "gid": row.grocery_id,
                     "qty": float(row.quantity),
-                    "unit_price": unit_price,      # ← categories 计算
-                    "co2_factor": co2_factor,      # ← categories
+                    "unit_price": unit_price,      
+                    "co2_factor": co2_factor,     
                     "cat_id": row.category_id,
                     "cat_name": row.category_name,
                     "vis": row.visibility,
@@ -853,7 +853,7 @@ async def delete_item_by_login_code(
             )
             led = ins.first()
 
-            # 4) 删库存
+            # delete the item
             await db.execute(
                 text("DELETE FROM inventory_items WHERE item_id=:id AND inventory_id=:iid"),
                 {"id": item_id, "iid": inv_id},
@@ -965,14 +965,7 @@ async def ledger_last_7d_by_login_code(
     days: int = Query(7, ge=1, le=31),
     limit: int = Query(20, ge=1, le=100),
 ):
-    """
-    返回 household（inventory）近 N 天的 consumption_ledger 记录，
-    按 shared + 每个 profile 分组。
-    每组包含:
-      - records 明细
-      - daily_totals 每天小计
-      - totals 总计
-    """
+
     async with SessionLocal() as db:
         _, inv_id = await _resolve_user_and_inventory_by_login_code(db, login_code)
 
@@ -1001,7 +994,6 @@ async def ledger_last_7d_by_login_code(
 
         rows = (await db.execute(text(sql), {"iid": inv_id, "days": days, "limit": limit})).fetchall()
 
-        # 按 Shared vs 各 Profile 分桶
         buckets = {}
         for r in rows:
             # key: shared / profile_id
@@ -1029,12 +1021,12 @@ async def ledger_last_7d_by_login_code(
             b = buckets[key]
             b["records"].append(rec)
 
-            # 汇总总计
+            # totals
             b["totals"]["quantity"] += rec["quantity"]
             b["totals"]["money_saved"] += rec["money_saved"]
             b["totals"]["co2_saved_kg"] += rec["co2_saved_kg"]
 
-            # 按天聚合
+            # daily_totals
             day = r.consumed_at.date().isoformat() if r.consumed_at else None
             if day:
                 d = b["daily_totals"].setdefault(day, {"day": day, "quantity": 0.0, "money_saved": 0.0, "co2_saved_kg": 0.0})
@@ -1042,7 +1034,7 @@ async def ledger_last_7d_by_login_code(
                 d["money_saved"] += rec["money_saved"]
                 d["co2_saved_kg"] += rec["co2_saved_kg"]
 
-        # 转换 daily_totals 为列表
+        # finalize
         from datetime import datetime, timezone, timedelta
         end_dt = datetime.now(timezone.utc)
         start_dt = end_dt - timedelta(days=days)
