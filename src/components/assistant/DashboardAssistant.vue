@@ -34,7 +34,11 @@
           </div>
         </header>
 
-        <div class="assistant-panel__body" aria-live="polite">
+        <p class="assistant-panel__disclaimer" role="note">
+          AI shopping tips are suggestions only and not professional advice. Please use your own judgment before acting on any recommendation.
+        </p>
+
+        <div class="assistant-panel__body" aria-live="polite" tabindex="0">
           <p v-if="isLoading" class="assistant-status">Fetching suggestions from Groq...</p>
           <p v-else-if="error" class="assistant-status assistant-status--error">{{ error }}</p>
           <div v-else-if="responseLines.length > 0" class="assistant-response">
@@ -240,6 +244,18 @@ async function refresh() {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+}
+
+.assistant-panel__body:focus-visible {
+  outline: 2px solid rgba(148, 163, 184, 0.6);
+  outline-offset: 2px;
+}
+
+.assistant-panel__disclaimer {
+  margin: 0 0 0.75rem;
+  font-size: 0.75rem;
+  color: rgba(226, 232, 240, 0.75);
+  line-height: 1.3;
 }
 
 .assistant-response p {

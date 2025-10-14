@@ -56,13 +56,15 @@ function buildMessages(names: string[], householdName?: string): GroqChatMessage
 
   const userPrompt = [
     `Household: ${safeHouseholdName}`,
-    'Here is the current grocery inventory list:',
+    'Current grocery inventory list:',
     inventoryList,
     '',
-    'Please recommend up to three new grocery items to purchase soon.',
-    'Balance nutritional variety and a lower carbon footprint.',
-    'Consider the listed items so you avoid duplicates and reduce waste.',
-    'Keep the reply concise (under 80 words) with clear bullet points and finish with a single sustainability tip.'
+    'Task: Act as a household grocery planner.',
+    '1. Suggest two to four grocery items to purchase in the next week. Avoid duplicates with the current items and highlight anything low in stock.',
+    '2. For each suggestion, include a reason that references nutrition balance, meal planning opportunities, or reducing waste.',
+    '3. Add a short section titled "Carbon footprint insight" that shares a practical sustainability fact tied to the recommendations.',
+    '4. Close with an encouraging action-oriented sentence that summarises the next steps.',
+    'Format: Use clear headings and bullet points where useful. Aim for a thorough response (roughly 120-180 words) that stays friendly and easy to skim.'
   ].join('\n')
 
   return [
@@ -70,7 +72,7 @@ function buildMessages(names: string[], householdName?: string): GroqChatMessage
       role: 'system',
       content:
         'You are Dr.Pantrist\'s sustainability assistant. You help households plan their next grocery purchases while minimising food waste, '
-        + 'supporting balanced nutrition, and lowering carbon footprint. Keep answers practical, friendly, and brief.'
+        + 'supporting balanced nutrition, and lowering carbon footprint. Provide warm, practical, and well-developed guidance that references the specific inventory when helpful.'
     },
     {
       role: 'user',
