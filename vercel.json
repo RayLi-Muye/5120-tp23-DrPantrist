@@ -1,8 +1,28 @@
 {
-    "rewrites": [
-      {
-        "source": "/(.*)",
-        "destination": "/index.html"
-      }
-    ]
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "experimentalServices": {
+    "web": {
+      "entrypoint": ".",
+      "routePrefix": "/",
+      "framework": "vite"
+    },
+    "api": {
+      "entrypoint": "backend/main.py",
+      "routePrefix": "/api",
+      "framework": "fastapi",
+      "maxDuration": 60
+    }
+  },
+  "rewrites": [
+    { "source": "/", "destination": "/index.html" },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "functions": {
+    "backend/**/*.py": {
+      "excludeFiles": "{archive/**,eportfolioIntroVid/**,lambda-groq-proxy/**,node_modules/**,public/**,src/**,dist/**,*.mp4,**/*.mp4}"
+    }
   }
+}

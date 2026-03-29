@@ -28,3 +28,9 @@ coverage
 *.sw?
 
 *.tsbuildinfo
+
+# Python API (Vercel / local)
+backend/__pycache__/
+backend/**/__pycache__/
+.venv/
+venv/

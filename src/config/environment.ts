@@ -37,7 +37,7 @@ const environments: Record<Environment, EnvironmentConfig> = {
     healthCheckEndpoint: '/health'
   },
   production: {
-    apiBaseUrl: 'https://api.tp23.me',
+    apiBaseUrl: '/api',
     appTitle: 'Use-It-Up',
     debug: false,
     timeout: 15000,
